@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "node server.mjs",
-    "test": "node test/crypto.test.mjs && node test/container.test.mjs",
+    "test": "node test/crypto.test.mjs && node test/container.test.mjs && node test/journal.test.mjs",
     "dist": "electron-builder --win portable"
   },
   "build": {

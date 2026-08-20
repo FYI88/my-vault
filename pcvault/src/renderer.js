@@ -10,6 +10,8 @@ import {
 import { serializeVault, parseVault } from './container.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
+import { createGarden } from './garden.mjs';
+import { emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak, sortedDayKeys, yearOf } from './journal.mjs';
 
 const $ = (id) => document.getElementById(id);
 const LS_IDLE = 'pcvault.idleMin';
@@ -43,6 +45,10 @@ const state = {
   idleTimer: null,
   galleryMode: false, // phantom infinite gallery view
   phantomGallery: null,
+  journalTab: false,    // Journal tab active (vs Vault)
+  journalCache: new Map(), // year → decrypted journal blob — plaintext, wiped on lock
+  journalYear: null,    // the year the journal screen is showing
+  garden: null,         // canvas garden renderer
 };
 let currentItemId = null;
 let toastTimer = null;
@@ -277,6 +283,13 @@ function lock() {
   state.nameCache.clear();
   state.namesReady = null;
   clearSearch();
+  state.journalCache.clear(); // wipe the decrypted journal — no plaintext survives a lock
+  state.journalYear = null;
+  journalEditKey = null;
+  if (state.garden) { state.garden.destroy(); state.garden = null; }
+  state.journalTab = false;
+  if ($('journalEntry')) $('journalEntry').value = '';
+  showVaultTab();
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
   if (state.phantomGallery) { state.phantomGallery.destroy(); state.phantomGallery = null; }
   state.galleryMode = false;
@@ -379,7 +392,7 @@ async function encryptFile(kind, mime, name, bytes) {
   const nameEnc = await encText(itemKey, name);
   const enc = await encBytes(itemKey, bytes);
   return {
-    id: (kind === 'photo' ? 'p' : kind === 'video' ? 'v' : 'd') + vaultRandId(),
+    id: (kind === 'photo' ? 'p' : kind === 'video' ? 'v' : kind === 'journal' ? 'j' : 'd') + vaultRandId(),
     kind, mime, size: bytes.length,
     createdAt: Date.now(),
     nameIv: nameEnc.iv, name: nameEnc.data,
@@ -533,10 +546,16 @@ function ensureNames() {
   return state.namesReady;
 }
 
+// Journal records are not files — the grid, search, and gallery all skip them.
+function vaultItems() {
+  return state.items.filter((r) => r.kind !== 'journal');
+}
+
 async function filteredItems() {
-  if (!state.searchQuery) return state.items;
+  const items = vaultItems();
+  if (!state.searchQuery) return items;
   await ensureNames();
-  return state.items.filter((r) => (state.nameCache.get(r.id) || '').toLowerCase().includes(state.searchQuery));
+  return items.filter((r) => (state.nameCache.get(r.id) || '').toLowerCase().includes(state.searchQuery));
 }
 
 function clearSearch() {
@@ -551,7 +570,7 @@ function clearSearch() {
 async function populatePhantomGallery() {
   if (!state.phantomGallery || !state.unlocked) return;
   await ensureNames();
-  const items = state.items.map((rec) => ({
+  const items = vaultItems().map((rec) => ({
     id: rec.id,
     thumbUrl: state.thumbCache.get(rec.id) || '',
     name: state.nameCache.get(rec.id) || '',
@@ -565,7 +584,7 @@ function toggleGallery() {
   $('galleryToggleBtn').classList.toggle('on', state.galleryMode);
   setHidden('grid', state.galleryMode);
   setHidden('phantomGallery', !state.galleryMode);
-  setHidden('gridEmpty', state.galleryMode || state.items.length > 0);
+  setHidden('gridEmpty', state.galleryMode || vaultItems().length > 0);
   setHidden('noMatches', true);
   if (state.galleryMode) {
     if (!state.phantomGallery) {
@@ -588,6 +607,167 @@ function toggleGallery() {
     }
     populatePhantomGallery();
   }
+}
+
+// ---- journal (living garden) ----
+// One encrypted record per year. The record's ciphertext is the year blob JSON;
+// decrypt-once into state.journalCache, wiped on lock. Nothing journal-related
+// ever touches disk in plaintext.
+const JOURNAL_MIME = 'application/x-vault-journal';
+let journalEditKey = null; // the day currently open in the editor (a date key)
+
+function journalRecordForYear(year) {
+  return state.items.find((r) => r.kind === 'journal' && r.year === year);
+}
+
+async function journalForYear(year) {
+  if (state.journalCache.has(year)) return state.journalCache.get(year);
+  const rec = journalRecordForYear(year);
+  if (!rec) {
+    const empty = emptyYear(year);
+    state.journalCache.set(year, empty);
+    return empty;
+  }
+  try {
+    const itemKey = await unwrapItemKey(state.dek, rec);
+    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    try {
+      const blob = parseYearJSON(new TextDecoder().decode(plain));
+      if (!state.unlocked) return emptyYear(year); // locked mid-decrypt — drop it
+      state.journalCache.set(year, blob);
+      return blob;
+    } finally {
+      vaultWipeRaw(plain);
+    }
+  } catch (e) {
+    // tampered/damaged year — surface as empty rather than crash the garden
+    const empty = emptyYear(year);
+    state.journalCache.set(year, empty);
+    return empty;
+  }
+}
+
+async function saveJournalEntry(year, key, text, mood) {
+  if (!state.unlocked || !state.dek) return;
+  const blob = await journalForYear(year);
+  if ((!text || !text.trim()) && !mood) {
+    delete blob.days[key]; // empty entry → remove the day (plant uprooted)
+  } else {
+    blob.days[key] = { text: (text || '').trim(), mood: mood || '', updatedAt: Date.now() };
+  }
+  // replace the year record wholesale — the old ciphertext and its wrapped key die
+  state.items = state.items.filter((r) => !(r.kind === 'journal' && r.year === year));
+  const bytes = new TextEncoder().encode(serializeYear(blob));
+  const rec = await encryptFile('journal', JOURNAL_MIME, String(year), bytes);
+  rec.year = year;
+  state.items.push(rec);
+  state.journalCache.set(year, blob);
+  await saveVault();
+}
+
+function prettyDay(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function setMoodSelection(mood) {
+  document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
+    b.classList.toggle('on', b.dataset.mood === mood);
+  });
+}
+
+function openJournalDay(key) {
+  journalEditKey = key;
+  const year = yearKey(key);
+  journalForYear(year).then((blob) => {
+    if (!state.unlocked || journalEditKey !== key) return;
+    const entry = blob.days[key] || {};
+    $('journalDayLabel').textContent = prettyDay(key);
+    $('journalEntry').value = entry.text || '';
+    setMoodSelection(entry.mood || '');
+  });
+}
+
+async function renderOnThisDay(blob, year) {
+  const txt = $('journalOnThisDayText');
+  const mmdd = todayKey().slice(5); // month-day of today
+  const years = new Set();
+  for (const rec of state.items) {
+    if (rec.kind === 'journal' && rec.year && rec.year !== year) years.add(rec.year);
+  }
+  const past = [...years].sort((a, b) => b - a);
+  for (const y of past) {
+    const b = await journalForYear(y);
+    const key = `${y}-${mmdd}`;
+    const e = b.days[key];
+    if (e && e.text) {
+      txt.textContent = `a year ago (${y}): ${e.text}`;
+      setHidden('journalOnThisDayText', false);
+      return;
+    }
+  }
+  setHidden('journalOnThisDayText', true);
+}
+
+async function renderJournal() {
+  if (!state.unlocked) return;
+  const year = state.journalYear || yearOf(new Date());
+  state.journalYear = year;
+  const blob = await journalForYear(year);
+  if (!state.unlocked || state.journalYear !== year) return;
+  $('journalYearLabel').textContent = String(year);
+  const streak = calcStreak(sortedDayKeys(blob));
+  $('journalStreak').textContent = streak
+    ? `${streak} day${streak === 1 ? '' : 's'} in a row`
+    : 'plant your first entry today';
+  if (state.garden) state.garden.setYear(blob);
+  // default editor day: today for the current year, else the latest entry in that
+  // year (or Jan 1) — it must stay inside the year being shown, or a save would
+  // write the entry into the wrong year record.
+  if (!journalEditKey || yearKey(journalEditKey) !== year) {
+    if (year === yearOf(new Date())) {
+      journalEditKey = todayKey();
+    } else {
+      const keys = sortedDayKeys(blob);
+      journalEditKey = keys.length ? keys[keys.length - 1] : `${year}-01-01`;
+    }
+  }
+  openJournalDay(journalEditKey);
+  renderOnThisDay(blob, year);
+  applyJournalSearch();
+}
+
+function applyJournalSearch() {
+  const q = $('journalSearchInput') ? $('journalSearchInput').value : '';
+  if (state.garden) state.garden.setQuery(q);
+}
+
+function showJournalTab() {
+  state.journalTab = true;
+  $('vaultTabBtn').classList.remove('on');
+  $('journalTabBtn').classList.add('on');
+  setHidden('vaultPane', true);
+  setHidden('journalPane', false);
+  // file controls are vault-only; journal has its own toolbar
+  setHidden('addFilesBtn', true);
+  setHidden('galleryToggleBtn', true);
+  if (!state.garden) {
+    state.garden = createGarden($('gardenCanvas'), {
+      todayKey: todayKey(),
+      onDayClick: (key) => openJournalDay(key),
+    });
+  }
+  renderJournal();
+}
+
+function showVaultTab() {
+  state.journalTab = false;
+  $('vaultTabBtn').classList.add('on');
+  $('journalTabBtn').classList.remove('on');
+  setHidden('vaultPane', false);
+  setHidden('journalPane', true);
+  setHidden('addFilesBtn', false);
+  setHidden('galleryToggleBtn', false);
 }
 
 // ---- grid + lazy thumbs ----
@@ -617,7 +797,7 @@ async function renderGrid() {
   setHidden('gridEmpty', querying || shown.length > 0);
   setHidden('noMatches', !querying || shown.length > 0);
   if (querying) {
-    $('searchCount').textContent = `${shown.length} of ${state.items.length} files`;
+    $('searchCount').textContent = `${shown.length} of ${vaultItems().length} files`;
     setHidden('searchCount', false);
   } else {
     setHidden('searchCount', true);
@@ -1099,6 +1279,34 @@ function wire() {
   });
   $('addFilesBtn').addEventListener('click', () => $('photoInput').click());
   $('galleryToggleBtn').addEventListener('click', toggleGallery);
+  $('vaultTabBtn').addEventListener('click', showVaultTab);
+  $('journalTabBtn').addEventListener('click', showJournalTab);
+  $('journalSaveBtn').addEventListener('click', async () => {
+    const key = journalEditKey || todayKey();
+    const year = yearKey(key);
+    const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
+    await saveJournalEntry(year, key, $('journalEntry').value, mood);
+    toast('saved to your garden');
+    await renderJournal();
+  });
+  document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
+    b.addEventListener('click', () => setMoodSelection(b.dataset.mood));
+  });
+  $('journalSearchInput').addEventListener('input', applyJournalSearch);
+  $('journalSearchClear').addEventListener('click', () => {
+    $('journalSearchInput').value = '';
+    applyJournalSearch();
+  });
+  $('journalYearPrev').addEventListener('click', () => {
+    state.journalYear = (state.journalYear || yearOf(new Date())) - 1;
+    journalEditKey = null;
+    renderJournal();
+  });
+  $('journalYearNext').addEventListener('click', () => {
+    state.journalYear = (state.journalYear || yearOf(new Date())) + 1;
+    journalEditKey = null;
+    renderJournal();
+  });
   $('photoInput').addEventListener('change', (e) => {
     handleFiles([...e.target.files]);
     e.target.value = '';
