@@ -1,0 +1,43 @@
+{
+  "name": "pcvault",
+  "productName": "My Vault",
+  "version": "0.1.0",
+  "description": "Offline encrypted photo vault for personal use — one encrypted file, nothing ever leaves the PC.",
+  "main": "main.js",
+  "author": "you",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "node server.mjs",
+    "test": "node test/crypto.test.mjs && node test/container.test.mjs",
+    "dist": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.pcvault.app",
+    "productName": "My Vault",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "!node_modules"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "my-vault-portable.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
+    "pdfjs-dist": "6.2.108"
+  }
+}

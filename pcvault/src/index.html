@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'">
+<title>my vault</title>
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<canvas id="authBg" aria-hidden="true"></canvas>
+<div class="win-drag" aria-hidden="true"></div>
+<div class="wrap" id="app">
+
+  <!-- welcome -->
+  <section id="screen-welcome" class="screen screen-center">
+    <div class="vault-screen">
+      <h1 class="vault-wordmark">my vault</h1>
+      <p class="vault-sub">offline · encrypted · one file<br>your photos, videos and documents live in one encrypted file. nothing ever leaves this pc.</p>
+      <div class="vault-form">
+        <button id="welcomeCreateBtn" class="add-btn vault-btn">create a vault</button>
+        <button id="welcomeOpenBtn" class="add-btn ghost vault-btn">open a vault file</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- create -->
+  <section id="screen-create" class="screen screen-center">
+    <div class="vault-screen">
+      <h1 class="vault-wordmark">my vault</h1>
+      <p class="vault-sub">choose a passphrase you'll remember</p>
+      <form id="createForm" class="vault-form" autocomplete="off">
+        <input type="password" id="createPass" class="vault-input" data-meter="createMeter" placeholder="passphrase" autocomplete="new-password" required>
+        <div class="vault-meter" id="createMeter"><i></i><i></i><i></i><i></i></div>
+        <input type="password" id="createPass2" class="vault-input" placeholder="repeat it" autocomplete="new-password" required>
+        <p class="vault-error" id="createErr"></p>
+        <button type="submit" class="add-btn vault-btn" id="createBtn">create the vault</button>
+        <button type="button" class="add-btn ghost vault-btn" id="createBackBtn">back</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- seed (shown once at creation / rotation) -->
+  <section id="screen-seed" class="screen screen-center">
+    <div class="vault-screen">
+      <h1 class="vault-wordmark" id="seedTitle">your recovery words</h1>
+      <p class="vault-sub" id="seedCopy">these words are your way back in if you ever forget the passphrase. write them somewhere safe. this is the only time they're shown.</p>
+      <p class="vault-warn hidden" id="seedWarn">your new recovery words. the old ones stop working once you save these, so write them down first.</p>
+      <div class="vault-seed-grid" id="seedGrid"></div>
+      <button class="add-btn vault-btn" id="seedDoneBtn">I've saved them</button>
+    </div>
+  </section>
+
+  <!-- locked -->
+  <section id="screen-locked" class="screen screen-center">
+    <div class="vault-screen">
+      <h1 class="vault-wordmark">my vault</h1>
+      <div class="vault-tamper hidden" id="tamperWarn">
+        the vault couldn't be verified, so it stays locked and nothing was opened. if you have a backup copy, put it back.
+      </div>
+      <form id="unlockForm" class="vault-form" autocomplete="off">
+        <input type="password" id="unlockPass" class="vault-input" placeholder="enter your passphrase" autocomplete="current-password" required>
+        <p class="vault-error" id="unlockErr"></p>
+        <button type="submit" class="add-btn vault-btn" id="unlockBtn">unlock</button>
+      </form>
+      <button class="link" id="seedRecoveryLink">forgot your passphrase?</button>
+      <form id="seedRecoveryForm" class="vault-form hidden" autocomplete="off">
+        <p class="vault-sub">your recovery words, in order</p>
+        <textarea id="seedRecoveryInput" rows="3" class="vault-input vault-seed-input" placeholder="word word word …"></textarea>
+        <p class="vault-error" id="seedRecoveryErr"></p>
+        <button type="submit" class="add-btn vault-btn">unlock with my words</button>
+        <button type="button" class="add-btn ghost vault-btn" id="seedRecoveryCancel">back</button>
+      </form>
+      <p class="vault-fileline" id="lockedPathLine"></p>
+    </div>
+  </section>
+
+  <!-- unlocked -->
+  <section id="screen-unlocked" class="screen">
+    <div class="vault-head">
+      <h1>my vault</h1>
+      <div class="vault-head-gap">
+        <button id="addFilesBtn" class="add-btn small">+ add files</button>
+        <button id="galleryToggleBtn" class="icon-btn" aria-label="toggle gallery view" title="gallery view">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </button>
+        <button id="settingsBtn" class="icon-btn" aria-label="settings" title="settings">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <button id="lockBtn" class="icon-btn" aria-label="lock" title="lock">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        </button>
+      </div>
+    </div>
+    <p class="vault-fileline clickable" id="vaultPathLine"></p>
+    <div class="vault-search" id="searchRow">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" class="vault-search-input" type="text" placeholder="search by name" autocomplete="off" spellcheck="false">
+      <button id="searchClear" class="vault-search-clear" aria-label="clear search" title="clear">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+      </button>
+    </div>
+    <p class="vault-fileline hidden" id="searchCount"></p>
+    <div class="vault-photo-grid" id="grid"></div>
+    <div id="phantomGallery" class="phantom-gallery hidden"></div>
+    <div class="vault-empty hidden" id="gridEmpty">
+      <p>nothing here yet</p>
+      <p class="vault-sub">add files above, or drop them anywhere on this window. photos, videos and documents all belong here.</p>
+    </div>
+    <div class="vault-empty hidden" id="noMatches">
+      <p>nothing matches that name</p>
+      <p class="vault-sub">try a different word. search looks at file names.</p>
+    </div>
+  </section>
+
+  <!-- single item overlay (photo / video / doc) -->
+  <div id="itemOverlay" class="item-overlay hidden">
+    <div class="item-overlay-backdrop"></div>
+    <div class="item-overlay-card">
+      <div class="vault-head">
+        <button id="itemBackBtn" class="icon-btn" aria-label="back" title="back">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <h1 id="itemTitle"></h1>
+        <div class="vault-head-gap">
+          <button id="itemExportBtn" class="icon-btn" aria-label="export a copy" title="export a copy">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button id="itemDeleteBtn" class="add-btn danger small">delete</button>
+        </div>
+      </div>
+      <div class="item-stage">
+        <img id="itemImg" class="hidden" alt="">
+        <video id="itemVideo" class="hidden" controls playsinline preload="metadata"></video>
+        <div id="itemPdf" class="item-pdf hidden">
+          <div class="pdf-bar">
+            <button id="pdfPrev" class="icon-btn" aria-label="previous page" title="previous page">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <span class="pdf-page" id="pdfPageLabel">page 1 of 1</span>
+            <button id="pdfNext" class="icon-btn" aria-label="next page" title="next page">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            <span class="pdf-bar-gap"></span>
+            <button id="pdfZoomOut" class="icon-btn" aria-label="zoom out" title="zoom out">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <span class="pdf-zoom" id="pdfZoomLabel">100%</span>
+            <button id="pdfZoomIn" class="icon-btn" aria-label="zoom in" title="zoom in">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="pdf-scroll" id="pdfScroll">
+            <canvas id="pdfCanvas" width="1" height="1"></canvas>
+          </div>
+        </div>
+        <div id="itemText" class="item-text hidden"><pre id="itemTextContent"></pre></div>
+        <div id="itemDocInfo" class="hidden">
+          <div class="doc-icon" id="docIcon"></div>
+          <p class="doc-name serif" id="docName"></p>
+          <p class="vault-item-meta" id="docMeta"></p>
+        </div>
+      </div>
+      <p class="vault-item-meta" id="itemDate"></p>
+      <p class="vault-error hidden" id="itemErr">this file couldn't be read. deleting it removes it from the vault.</p>
+    </div>
+  </div>
+
+  <!-- settings -->
+  <section id="screen-settings" class="screen">
+    <div class="vault-head">
+      <button id="settingsBackBtn" class="icon-btn" aria-label="back" title="back">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <h1>vault settings</h1>
+      <span class="vault-head-spacer"></span>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">change passphrase</h3>
+      <p class="vault-sub">enter your recovery words to confirm you can still get back in.</p>
+      <form id="changeForm" class="vault-form" autocomplete="off">
+        <input type="password" id="changeCur" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
+        <input type="password" id="changeNew" class="vault-input" data-meter="changeMeter" placeholder="new passphrase" autocomplete="new-password" required>
+        <div class="vault-meter" id="changeMeter"><i></i><i></i><i></i><i></i></div>
+        <input type="password" id="changeNew2" class="vault-input" placeholder="repeat the new one" autocomplete="new-password" required>
+        <textarea id="changeSeed" rows="2" class="vault-input vault-seed-input" placeholder="your recovery words" required></textarea>
+        <p class="vault-error" id="changeErr"></p>
+        <p class="vault-ok" id="changeOk"></p>
+        <button type="submit" class="add-btn vault-btn">change passphrase</button>
+      </form>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">new recovery words</h3>
+      <p class="vault-sub">make a fresh set of recovery words. the old ones stop working once you save the new ones.</p>
+      <form id="rotateForm" class="vault-form" autocomplete="off">
+        <input type="password" id="rotatePass" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
+        <p class="vault-error" id="rotateErr"></p>
+        <button type="submit" class="add-btn vault-btn">make new words</button>
+      </form>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">auto-lock</h3>
+      <p class="vault-sub">the vault locks itself after you walk away.</p>
+      <div class="vault-pills" id="idlePills">
+        <button class="vault-pill" data-min="0">off</button>
+        <button class="vault-pill" data-min="1">1 min</button>
+        <button class="vault-pill" data-min="5">5 min</button>
+        <button class="vault-pill" data-min="15">15 min</button>
+      </div>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">your vault file</h3>
+      <p class="vault-fileline" id="settingsPathLine"></p>
+      <div class="vault-btn-row">
+        <button id="revealBtn" class="add-btn ghost">show in folder</button>
+        <button id="backupBtn" class="add-btn">back up a copy…</button>
+      </div>
+      <p class="vault-ok" id="backupOk"></p>
+    </div>
+  </section>
+
+</div>
+
+<input type="file" id="photoInput" multiple hidden>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="renderer.js"></script>
+</body>
+</html>

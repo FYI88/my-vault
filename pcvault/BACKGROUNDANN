@@ -1,0 +1,377 @@
+===============================================================================
+ ANIMATED INTERACTIVE BACKGROUND CODE (Login Screen / AuthPage)
+===============================================================================
+
+This file contains the complete code for the interactive, animated particle background used behind the login screen (AuthPage).
+
+Below you will find:
+ 1. STANDALONE HTML + JS FILE (Open directly in any browser)
+ 2. PURE VANILLA CANVAS JS (Zero libraries needed - 100% native JS canvas)
+ 3. REACT COMPONENT CODE (The exact `ParticlesBackground.jsx` component)
+ 4. PARTICLES.JS JSON CONFIGURATION MATRIX
+
+-------------------------------------------------------------------------------
+1. STANDALONE HTML + JS DEMO (Save as background.html and double click to run)
+-------------------------------------------------------------------------------
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Background Animation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 50%, #e5e7eb 100%);
+    }
+    #particles-js {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    .content-overlay {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      pointer-events: none;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      padding: 2rem 3rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background Container -->
+  <div id="particles-js"></div>
+
+  <!-- Foreground Content Card -->
+  <div class="content-overlay">
+    <div class="card">
+      <h1 style="font-size: 2rem; margin-bottom: 0.5rem; color: #111;">Interactive Particles</h1>
+      <p style="color: #666;">Move your mouse around or click to interact with the background!</p>
+    </div>
+  </div>
+
+  <!-- Include particles.js library CDN -->
+  <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+  <script>
+    particlesJS('particles-js', {
+      "particles": {
+        "number": {
+          "value": 60,
+          "density": {
+            "enable": false,
+            "value_area": 472
+          }
+        },
+        "color": {
+          "value": "#000000"
+        },
+        "shape": {
+          "type": "circle"
+        },
+        "opacity": {
+          "value": 0.4,
+          "random": false
+        },
+        "size": {
+          "value": 3,
+          "random": true
+        },
+        "line_linked": {
+          "enable": true,
+          "distance": 290,
+          "color": "#000000",
+          "opacity": 0.3,
+          "width": 1
+        },
+        "move": {
+          "enable": true,
+          "speed": 5,
+          "direction": "none",
+          "random": false,
+          "straight": false,
+          "out_mode": "out",
+          "bounce": false
+        }
+      },
+      "interactivity": {
+        "detect_on": "canvas",
+        "events": {
+          "onhover": {
+            "enable": true,
+            "mode": "grab"
+          },
+          "onclick": {
+            "enable": true,
+            "mode": "push"
+          },
+          "resize": true
+        },
+        "modes": {
+          "grab": {
+            "distance": 230,
+            "line_linked": {
+              "opacity": 0.5
+            }
+          },
+          "push": {
+            "particles_nb": 4
+          }
+        }
+      },
+      "retina_detect": true
+    });
+  </script>
+</body>
+</html>
+
+
+-------------------------------------------------------------------------------
+2. PURE NATIVE JAVASCRIPT CANVAS (No CDN / No External Dependencies)
+-------------------------------------------------------------------------------
+
+// Put this in an HTML file with <canvas id="bg-canvas"></canvas>
+
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+
+let width = canvas.width = window.innerWidth;
+let height = canvas.height = window.innerHeight;
+
+window.addEventListener('resize', () => {
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight;
+});
+
+const mouse = { x: null, y: null, maxDistance: 230 };
+
+window.addEventListener('mousemove', (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+
+window.addEventListener('mouseleave', () => {
+  mouse.x = null;
+  mouse.y = null;
+});
+
+class Particle {
+  constructor() {
+    this.x = Math.random() * width;
+    this.y = Math.random() * height;
+    this.vx = (Math.random() - 0.5) * 2;
+    this.vy = (Math.random() - 0.5) * 2;
+    this.radius = Math.random() * 2 + 1;
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+
+    if (this.x < 0 || this.x > width) this.vx *= -1;
+    if (this.y < 0 || this.y > height) this.vy *= -1;
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fill();
+  }
+}
+
+const particles = Array.from({ length: 60 }, () => new Particle());
+
+function animate() {
+  ctx.clearRect(0, 0, width, height);
+
+  // Connect particles to each other
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 290) {
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = `rgba(0, 0, 0, ${0.3 * (1 - dist / 290)})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Connect particles to mouse cursor (interactive grab effect)
+  if (mouse.x !== null && mouse.y !== null) {
+    for (let p of particles) {
+      const dx = p.x - mouse.x;
+      const dy = p.y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < mouse.maxDistance) {
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(mouse.x, mouse.y);
+        ctx.strokeStyle = `rgba(0, 0, 0, ${0.5 * (1 - dist / mouse.maxDistance)})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+  }
+
+  particles.forEach(p => {
+    p.update();
+    p.draw();
+  });
+
+  requestAnimationFrame(animate);
+}
+
+animate();
+
+
+-------------------------------------------------------------------------------
+3. REACT COMPONENT (`ParticlesBackground.jsx`)
+-------------------------------------------------------------------------------
+
+import { useEffect, useRef } from 'react';
+
+const ParticlesBackground = ({ id = 'particles-js' }) => {
+  const particlesRef = useRef(null);
+  const particlesLoaded = useRef(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const loadParticles = async () => {
+      if (window.particlesJS) {
+        initParticles();
+        return;
+      }
+
+      if (document.querySelector(`script[src*="particles.min.js"]`)) {
+        const checkParticles = setInterval(() => {
+          if (window.particlesJS) {
+            clearInterval(checkParticles);
+            initParticles();
+          }
+        }, 100);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js';
+      script.async = true;
+      script.onload = () => {
+        initParticles();
+      };
+      document.head.appendChild(script);
+    };
+
+    const initParticles = () => {
+      if (particlesLoaded.current || !window.particlesJS) return;
+
+      setTimeout(() => {
+        if (!particlesRef.current || particlesLoaded.current) return;
+        particlesLoaded.current = true;
+
+        window.particlesJS(id, {
+          particles: {
+            number: { value: 60, density: { enable: false, value_area: 472 } },
+            color: { value: '#000000' },
+            shape: { type: 'circle', stroke: { width: 0, color: '#000000' } },
+            opacity: { value: 0.4, random: false },
+            size: { value: 3, random: true },
+            line_linked: {
+              enable: true,
+              distance: 290,
+              color: '#000000',
+              opacity: 0.3,
+              width: 1
+            },
+            move: {
+              enable: true,
+              speed: 5,
+              direction: 'none',
+              random: false,
+              straight: false,
+              out_mode: 'out',
+              bounce: false
+            }
+          },
+          interactivity: {
+            detect_on: 'canvas',
+            events: {
+              onhover: { enable: true, mode: 'grab' },
+              onclick: { enable: true, mode: 'push' },
+              resize: true
+            },
+            modes: {
+              grab: { distance: 230, line_linked: { opacity: 0.5 } },
+              push: { particles_nb: 4 }
+            }
+          },
+          retina_detect: true
+        });
+      }, 100);
+    };
+
+    loadParticles();
+
+    return () => {
+      if (window.pJSDom && window.pJSDom.length > 0) {
+        const pJS = window.pJSDom.find(p => p.pJS && p.pJS.fn && p.pJS.fn.vendors);
+        if (pJS && pJS.pJS && pJS.pJS.fn && pJS.pJS.fn.destroys) {
+          pJS.pJS.fn.destroys();
+        }
+      }
+    };
+  }, [id]);
+
+  return (
+    <div
+      id={id}
+      ref={(node) => {
+        particlesRef.current = node;
+        containerRef.current = node;
+      }}
+      className="absolute inset-0 w-full h-full"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        zIndex: 0,
+        pointerEvents: 'auto'
+      }}
+    />
+  );
+};
+
+export default ParticlesBackground;

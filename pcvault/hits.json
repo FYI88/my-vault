@@ -1,0 +1,3788 @@
+{
+  "tool": "security-audit/run-greps.py",
+  "engine": "re",
+  "scanned_at": "2026-08-18T07:19:22.130608+00:00",
+  "root": "C:\\Users\\HP\\Documents\\cyclee\\pcvault",
+  "groups": [
+    {
+      "id": "dom-sinks",
+      "name": "DOM sinks (XSS)",
+      "patterns": 14,
+      "hits": 8,
+      "files": 3
+    },
+    {
+      "id": "script-execution",
+      "name": "Script execution / eval",
+      "patterns": 10,
+      "hits": 0,
+      "files": 0
+    },
+    {
+      "id": "framework-sinks",
+      "name": "Framework-specific sinks",
+      "patterns": 9,
+      "hits": 0,
+      "files": 0
+    },
+    {
+      "id": "template-literals",
+      "name": "Template literals / string-built HTML",
+      "patterns": 5,
+      "hits": 4,
+      "files": 1
+    },
+    {
+      "id": "attribute-url-injection",
+      "name": "Attribute / URL injection",
+      "patterns": 13,
+      "hits": 4,
+      "files": 1
+    },
+    {
+      "id": "untrusted-input-sources",
+      "name": "Untrusted input sources",
+      "patterns": 15,
+      "hits": 3,
+      "files": 2
+    },
+    {
+      "id": "storage-cookies",
+      "name": "Storage & cookies",
+      "patterns": 7,
+      "hits": 6,
+      "files": 4
+    },
+    {
+      "id": "crypto-randomness",
+      "name": "Crypto & randomness",
+      "patterns": 21,
+      "hits": 218,
+      "files": 17
+    },
+    {
+      "id": "secrets-credentials",
+      "name": "Secrets & credentials",
+      "patterns": 18,
+      "hits": 12,
+      "files": 3
+    },
+    {
+      "id": "network-transport",
+      "name": "Network & transport",
+      "patterns": 13,
+      "hits": 4,
+      "files": 2
+    },
+    {
+      "id": "webrtc-p2p",
+      "name": "WebRTC / P2P",
+      "patterns": 13,
+      "hits": 0,
+      "files": 0
+    },
+    {
+      "id": "service-worker",
+      "name": "Service worker / workers",
+      "patterns": 10,
+      "hits": 0,
+      "files": 0
+    },
+    {
+      "id": "prototype-pollution",
+      "name": "Prototype pollution / merge sinks",
+      "patterns": 13,
+      "hits": 3,
+      "files": 2
+    },
+    {
+      "id": "dom-clobbering",
+      "name": "DOM clobbering",
+      "patterns": 8,
+      "hits": 72,
+      "files": 4
+    },
+    {
+      "id": "file-handling",
+      "name": "File handling / uploads",
+      "patterns": 11,
+      "hits": 35,
+      "files": 6
+    },
+    {
+      "id": "logging-leakage",
+      "name": "Logging / leakage",
+      "patterns": 7,
+      "hits": 26,
+      "files": 5
+    },
+    {
+      "id": "security-headers",
+      "name": "Security headers (server config / meta)",
+      "patterns": 11,
+      "hits": 12,
+      "files": 4
+    },
+    {
+      "id": "iframes-embedding",
+      "name": "Iframes / embedding",
+      "patterns": 7,
+      "hits": 0,
+      "files": 0
+    },
+    {
+      "id": "electron-tauri-webview",
+      "name": "Electron / Tauri / WebView",
+      "patterns": 21,
+      "hits": 64,
+      "files": 11
+    },
+    {
+      "id": "rn-android-capacitor",
+      "name": "React Native / Android WebView / Capacitor",
+      "patterns": 10,
+      "hits": 1,
+      "files": 1
+    },
+    {
+      "id": "build-env",
+      "name": "Build / env / pipeline",
+      "patterns": 11,
+      "hits": 10,
+      "files": 3
+    },
+    {
+      "id": "obfuscation-smuggled",
+      "name": "Obfuscation / smuggled code",
+      "patterns": 11,
+      "hits": 13,
+      "files": 6
+    },
+    {
+      "id": "server-side",
+      "name": "Server-side patterns (if a backend exists)",
+      "patterns": 21,
+      "hits": 21,
+      "files": 9
+    }
+  ],
+  "hits": [
+    {
+      "group": "attribute-url-injection",
+      "pattern": "\\.src\\s*=",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 324,
+      "snippet": "    img.src = url;"
+    },
+    {
+      "group": "attribute-url-injection",
+      "pattern": "\\.src\\s*=",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 619,
+      "snippet": "  video.src = url;"
+    },
+    {
+      "group": "attribute-url-injection",
+      "pattern": "\\.src\\s*=",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 670,
+      "snippet": "      $('itemImg').src = url;"
+    },
+    {
+      "group": "attribute-url-injection",
+      "pattern": "\\.src\\s*=",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 681,
+      "snippet": "      $('itemVideo').src = url;"
+    },
+    {
+      "group": "build-env",
+      "pattern": "process\\.env",
+      "file": "pcvault\\main.js",
+      "line": 54,
+      "snippet": "  if (process.env.PCVAULT_DEBUG) {"
+    },
+    {
+      "group": "build-env",
+      "pattern": "\\.env",
+      "file": "pcvault\\main.js",
+      "line": 54,
+      "snippet": "  if (process.env.PCVAULT_DEBUG) {"
+    },
+    {
+      "group": "build-env",
+      "pattern": "source-map",
+      "file": "pcvault\\package-lock.json",
+      "line": 937,
+      "snippet": "        \"source-map-support\": \"^0.5.19\","
+    },
+    {
+      "group": "build-env",
+      "pattern": "source-map",
+      "file": "pcvault\\package-lock.json",
+      "line": 3146,
+      "snippet": "    \"node_modules/source-map\": {"
+    },
+    {
+      "group": "build-env",
+      "pattern": "source-map",
+      "file": "pcvault\\package-lock.json",
+      "line": 3148,
+      "snippet": "      \"resolved\": \"https://registry.npmjs.org/source-map/-/source-map-0.6.1.tgz\","
+    },
+    {
+      "group": "build-env",
+      "pattern": "source-map",
+      "file": "pcvault\\package-lock.json",
+      "line": 3156,
+      "snippet": "    \"node_modules/source-map-support\": {"
+    },
+    {
+      "group": "build-env",
+      "pattern": "source-map",
+      "file": "pcvault\\package-lock.json",
+      "line": 3158,
+      "snippet": "      \"resolved\": \"https://registry.npmjs.org/source-map-support/-/source-map-support-0.5.21.tgz\","
+    },
+    {
+      "group": "build-env",
+      "pattern": "source-map",
+      "file": "pcvault\\package-lock.json",
+      "line": 3164,
+      "snippet": "        \"source-map\": \"^0.6.0\""
+    },
+    {
+      "group": "build-env",
+      "pattern": "process\\.env",
+      "file": "pcvault\\server.mjs",
+      "line": 12,
+      "snippet": "const envPort = Number.parseInt(process.env.PORT, 10);"
+    },
+    {
+      "group": "build-env",
+      "pattern": "\\.env",
+      "file": "pcvault\\server.mjs",
+      "line": 12,
+      "snippet": "const envPort = Number.parseInt(process.env.PORT, 10);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 1,
+      "snippet": "# My Vault — offline encrypted photo vault for PC"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "PBKDF2",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 6,
+      "snippet": "A fully offline Windows desktop vault (Electron) for personal photos. One encrypted file (`myvault.cvault`) holds the whole vault; the app never touches the network. The crypto core is **ported function-by-function from the verified phone v"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 6,
+      "snippet": "A fully offline Windows desktop vault (Electron) for personal photos. One encrypted file (`myvault.cvault`) holds the whole vault; the app never touches the network. The crypto core is **ported function-by-function from the verified phone v"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 17,
+      "snippet": "- `main.js` — main process: secure `app://` scheme (so `crypto.subtle` works — `file://` is not a secure context), window, IPC (pick folder/file, read, **atomic write** temp+rename, copy, reveal)."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "PBKDF2",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 27,
+      "snippet": "- Passphrase → PBKDF2-SHA-256 **600k** → KEK → wraps the 32-byte DEK; DEK also wrapped by the seed-derived KEK. All keys **non-extractable**."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 28,
+      "snippet": "- Every photo: fresh random 256-bit item key; photo + filename AES-256-GCM under it; item key wrapped by the DEK and stored with the record → deleting a record destroys its key (cryptographic delete)."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 28,
+      "snippet": "- Every photo: fresh random 256-bit item key; photo + filename AES-256-GCM under it; item key wrapped by the DEK and stored with the record → deleting a record destroys its key (cryptographic delete)."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 29,
+      "snippet": "- Photos are re-encoded through a canvas before encryption (EXIF/GPS never written, orientation baked) — **full resolution kept** (the phone capped at 1400px; this is a personal archive)."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 44,
+      "snippet": "The vault now takes **any file** (user: \"lets add videos too… and docs… if its easy lets do it\"). The container + crypto were already generic (bytes in → bytes out), so this was pure UI work: the `+ add files` button (accept removed), recor"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 46,
+      "snippet": "**Verified beyond the node suites (26 tests: 18 crypto + 8 container):** a full browser integration run drove the REAL UI in the preview webview with a mocked file layer — create → seed (12 chips) → enter → add a PDF + a real canvas-generat"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 49,
+      "snippet": "Native HTML5 DnD on the grid: cells are `draggable`, a drag shows a rose `drop-before`/`drop-after` inset marker (pointer's left/right half of the target cell decides), dropping on empty space moves the item to the end, and `dragend`/`dragl"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 52,
+      "snippet": "Inline search row on the unlocked screen (`.vault-search`, focus ring in mauve, lucide search + × icons): typing filters the grid live to files whose **decrypted name** contains the query (case-insensitive), with a `X of Y files` count line"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 52,
+      "snippet": "Inline search row on the unlocked screen (`.vault-search`, focus ring in mauve, lucide search + × icons): typing filters the grid live to files whose **decrypted name** contains the query (case-insensitive), with a `X of Y files` count line"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 57,
+      "snippet": "- **Import guard (SEC-006):** files over ~2 GB are skipped with a toast (`N skipped — over 2 GB (too big to encrypt safely)`) — importing buffers the whole file in memory, and a multi-GB file could spike RAM hard enough to crash the app mid"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "nonce",
+      "file": "pcvault\\audit\\SEC-002.md",
+      "line": 27,
+      "snippet": "- Changing the script-loading model, adding nonces, or touching crypto/file code."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "Buffer\\.from",
+      "file": "pcvault\\findings.json",
+      "line": 36,
+      "snippet": "      \"vulnerable\": \"ipcMain.handle('vault:writeFile', async (_e, filePath, bytes) => {\\n  await fsp.writeFile(filePath, Buffer.from(bytes));\\n  return true;\\n});\\n// same shape for readFile (145), writeFileAtomic (152), copyFile (161)\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\findings.json",
+      "line": 92,
+      "snippet": "      \"issue\": \"pcvault.lastPath stores the absolute path of the vault file. That reveals to anyone with profile/OS access that a vault exists, where it lives, and its filename. No vault content or key material is stored — the vault file it"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\findings.json",
+      "line": 95,
+      "snippet": "      \"why_works\": \"Removing the path removes the only non-encrypted trace of the vault's existence.\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\findings.json",
+      "line": 109,
+      "snippet": "      \"issue\": \"Photos are re-encoded through a canvas so GPS/EXIF never lands in the vault. Videos and docs are stored byte-for-byte, so GPS/author metadata they carry is preserved — encrypted at rest (safe), but an exported or shared copy"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\findings.json",
+      "line": 112,
+      "snippet": "      \"why_works\": \"Metadata stripping only matters at export/sharing time; at rest it is already encrypted.\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\findings.json",
+      "line": 128,
+      "snippet": "      \"fixed\": \"Optional: add a friendly size warning above ~2 GB per file, and document the limit. Streaming encryption would be the real fix but is a large change.\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\findings.json",
+      "line": 133,
+      "snippet": "      \"resolution\": \"Import size guard added in renderer.js handleFiles — MAX_IMPORT_BYTES = 2 * 1024**3; files over ~2 GB are skipped with a clear toast (\\\"N skipped — over 2 GB (too big to encrypt safely)\\\") instead of being buffered full"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\main.js",
+      "line": 9,
+      "snippet": "// Serve the renderer over a privileged 'app://' scheme so window.crypto.subtle"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\main.js",
+      "line": 192,
+      "snippet": "// Save-as dialog for exporting a decrypted copy of an item (photos/videos/docs)."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "Buffer\\.from",
+      "file": "pcvault\\main.js",
+      "line": 209,
+      "snippet": "  await fsp.writeFile(filePath, Buffer.from(bytes));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "Buffer\\.from",
+      "file": "pcvault\\main.js",
+      "line": 225,
+      "snippet": "  const buf = Buffer.from(bytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\package-lock.json",
+      "line": 334,
+      "snippet": "      \"integrity\": \"sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg==\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "base64",
+      "file": "pcvault\\package-lock.json",
+      "line": 863,
+      "snippet": "    \"node_modules/base64-js\": {"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "base64",
+      "file": "pcvault\\package-lock.json",
+      "line": 865,
+      "snippet": "      \"resolved\": \"https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\package-lock.json",
+      "line": 2637,
+      "snippet": "      \"integrity\": \"sha512-NuAESUOUMrlIXOfHKzD6bpPu3tYt3xvjNdRIQ+FeT0lNb4K8WR70CaDxhuNguS2XG+GjkyMwOzsN5ZktImfhLA==\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "base64",
+      "file": "pcvault\\package-lock.json",
+      "line": 2776,
+      "snippet": "        \"base64-js\": \"^1.5.1\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\package.json",
+      "line": 5,
+      "snippet": "  \"description\": \"Offline encrypted photo vault for personal use — one encrypted file, nothing ever leaves the PC.\","
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\container.mjs",
+      "line": 9,
+      "snippet": "// Each photo record's JSON carries { id, kind, createdAt, nameIv, name, iv,"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\container.mjs",
+      "line": 10,
+      "snippet": "// itemKey, photoIv, photoLen } — the AES-GCM ciphertext bytes follow the JSON"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\container.mjs",
+      "line": 10,
+      "snippet": "// itemKey, photoIv, photoLen } — the AES-GCM ciphertext bytes follow the JSON"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "base64",
+      "file": "pcvault\\src\\container.mjs",
+      "line": 11,
+      "snippet": "// raw (no base64 bloat). Titles stay base64 inside the JSON, exactly like the"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\container.mjs",
+      "line": 13,
+      "snippet": "// lengths, and the (encrypted) wrapped keys — no photo count metadata beyond"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\fonts\\-nFnOHM81r4j6k0gjAW3mujVU2B2G_5x0ujy.woff2",
+      "line": 86,
+      "snippet": "6#CIv/syXTY\"\u001a$\u0005G"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\fonts\\co3bmX5slCNuHLi8bLeY9MK7whWMhyjYp3tKgS4.woff2",
+      "line": 129,
+      "snippet": "r(\u0014'H*C8\u0002-\u001f\f\u0007ģ\b@Ccu2\u0012Ms潒+.?\u001a\u0000#\u0004CUz,<<\u000e\u000e\u001a\u001c\u001a\u0016xOlZbTtL\u0017M\u0003O7\u0010o\biV>\u001bF>VkZ\u0001+0$7\u001chM"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\fonts\\co3bmX5slCNuHLi8bLeY9MK7whWMhyjYpntKgS4.woff2",
+      "line": 73,
+      "snippet": "*N򢗧W Eڀ.\tiV\u0003`akd\u001b\tww\fn\u0005nfSJ}\u0018nai\f:@X\u001et1ڛt\u0019\u0016c5?C|\u0003"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\fonts\\co3bmX5slCNuHLi8bLeY9MK7whWMhyjYqXtK.woff2",
+      "line": 25,
+      "snippet": "D9SӨ\u0012+HM\u000fL/|W@t\b\u0000\u0003\u001eo!bS\u000eʨiGBT\"~:\u0015\tiy/4\u0018l6GGmQrSjV־&p.`w'vE[\u001exg^y91\ṯ\"ui+Κ\u0006`-ħ\u000f@2\u0004yy,6\u0000\u0002\u0001X\u0010\u001d&S\t\\0qRȿ'{%$9O$\u0005O\u0011[YC\u001d=E q*އͥSrʬqT\u0004[A*$-@:RI*z\u0018w9) \u0013ɈMS)\u0005UEsK\u000be20$Iv#m\bL*\u0000?F|K$>h˧/sq\u001e\u001esP4a\u0012nM\u0018T&?,"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\fonts\\tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxTcwhsk.woff2",
+      "line": 49,
+      "snippet": "\u001bbm\u00160%Კ\u000ez\\\u001aߚC7NqV\u001a\"B8w]xq\u000eI\u0007&ȴb5@I\u0002W(CB<Q(.ts\u0013\u000e3ߡL.iV\u0012"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\index.html",
+      "line": 17,
+      "snippet": "      <p class=\"vault-sub\">offline · encrypted · one file<br>your photos live inside one encrypted vault file. nothing leaves this pc.</p>"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\index.html",
+      "line": 57,
+      "snippet": "        the vault looks tampered with — something failed to decrypt. nothing was shown and the vault stays locked. if you have a backup copy, restoring it is the safest move."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\index.html",
+      "line": 102,
+      "snippet": "      <p class=\"vault-sub\">add files above — or drop them anywhere on this window — photos, videos, documents, anything. every byte is encrypted before it touches the disk.</p>"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\index.html",
+      "line": 134,
+      "snippet": "    <p class=\"vault-error hidden\" id=\"itemErr\">this keepsake can't be opened — it failed to decrypt. deleting it is the only way forward.</p>"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 7,
+      "snippet": "  tamperSample, vaultImportAESKey, vaultPassScore, bip39Generate,"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 36,
+      "snippet": "  nameCache: new Map(),  // id → decrypted file name (search index) — plaintext, wiped on lock"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 37,
+      "snippet": "  namesReady: null,      // one in-flight decryption of every name, shared across calls"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 128,
+      "snippet": "    const dek = await vaultImportAESKey(dekRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 134,
+      "snippet": "    await saveVault(); // the empty encrypted vault file exists on disk"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 211,
+      "snippet": "  const dek = await vaultImportAESKey(raw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 225,
+      "snippet": "  const dek = await vaultImportAESKey(raw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 330,
+      "snippet": "async function encryptFile(kind, mime, name, bytes) {"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 331,
+      "snippet": "  const itemKeyRaw = crypto.getRandomValues(new Uint8Array(32));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 332,
+      "snippet": "  const itemKey = await vaultImportAESKey(itemKeyRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 341,
+      "snippet": "    nameIv: nameEnc.iv, name: nameEnc.data,"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 342,
+      "snippet": "    iv: wrap.iv, itemKey: wrap.key,   // key wrap — delete = cryptographic delete"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 343,
+      "snippet": "    photoIv: enc.iv, photoLen: enc.data.length, photo: enc.data,"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 347,
+      "snippet": "// SEC-006: importing buffers the whole file in memory (file.arrayBuffer() → AES-GCM"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 347,
+      "snippet": "// SEC-006: importing buffers the whole file in memory (file.arrayBuffer() → AES-GCM"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 369,
+      "snippet": "        state.items.push(await encryptFile('photo', 'image/jpeg', file.name, bytes));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 374,
+      "snippet": "        state.items.push(await encryptFile(kind, mime, file.name, bytes));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 388,
+      "snippet": "  if (skippedBig) bits.push(`${skippedBig} skipped — over 2 GB (too big to encrypt safely)`);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 456,
+      "snippet": "        renderGrid(); // thumbnails come from the cache — no re-decrypt"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 470,
+      "snippet": "// ---- search: names are encrypted, so the index is decrypted lazily in memory ----"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 470,
+      "snippet": "// ---- search: names are encrypted, so the index is decrypted lazily in memory ----"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 471,
+      "snippet": "// Decrypt every file name once (cached), then filter. Nothing is ever written to"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 479,
+      "snippet": "          state.nameCache.set(rec.id, await decText(itemKey, { iv: rec.nameIv, data: rec.name }));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 519,
+      "snippet": "let renderSeq = 0; // stale-render guard — a slow name decrypt must not overwrite a newer filter"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 543,
+      "snippet": "      // already decrypted once this session — reuse the thumbnail, no re-decrypt"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 585,
+      "snippet": "    if (!state.unlocked) return; // locked mid-decrypt — never show plaintext"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 586,
+      "snippet": "    state.thumbCache.set(rec.id, url); // re-renders reuse this — no re-decrypt"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 654,
+      "snippet": "    const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 694,
+      "snippet": "// export a decrypted copy — the only path that writes plaintext to disk, and only"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 703,
+      "snippet": "    const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 710,
+      "snippet": "    toast(\"couldn't export — it failed to decrypt\");"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 9,
+      "snippet": "// Key layering (\"double encryption\"): every photo is encrypted under a fresh"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "PBKDF2",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 18,
+      "snippet": "export const VAULT_ITERS = 600000; // PBKDF2 cost — deliberately steeper than a backup's 150k"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "base64",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 22,
+      "snippet": "// ---- base64 helpers (small key material only — never used for photo bytes) ----"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "btoa\\(",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 30,
+      "snippet": "  return btoa(bin);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "atob\\(",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 33,
+      "snippet": "  const bin = atob(b64);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 40,
+      "snippet": "  const b = crypto.getRandomValues(new Uint8Array(8));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 64,
+      "snippet": "// ---- key derivation + wrapping (AES-256-GCM, fresh salt/IV per wrap) ----"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 64,
+      "snippet": "// ---- key derivation + wrapping (AES-256-GCM, fresh salt/IV per wrap) ----"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 64,
+      "snippet": "// ---- key derivation + wrapping (AES-256-GCM, fresh salt/IV per wrap) ----"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 65,
+      "snippet": "async function deriveKey(input, saltBytes) {"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 67,
+      "snippet": "  const material = await crypto.subtle.importKey('raw', enc.encode(input), { name: 'PBKDF2' }, false, ['deriveKey']);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "PBKDF2",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 67,
+      "snippet": "  const material = await crypto.subtle.importKey('raw', enc.encode(input), { name: 'PBKDF2' }, false, ['deriveKey']);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 67,
+      "snippet": "  const material = await crypto.subtle.importKey('raw', enc.encode(input), { name: 'PBKDF2' }, false, ['deriveKey']);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 68,
+      "snippet": "  return crypto.subtle.deriveKey("
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 68,
+      "snippet": "  return crypto.subtle.deriveKey("
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "PBKDF2",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 69,
+      "snippet": "    { name: 'PBKDF2', salt: saltBytes, iterations: VAULT_ITERS, hash: 'SHA-256' },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 71,
+      "snippet": "    { name: 'AES-GCM', length: 256 },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 71,
+      "snippet": "    { name: 'AES-GCM', length: 256 },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 73,
+      "snippet": "    ['encrypt', 'decrypt']"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 73,
+      "snippet": "    ['encrypt', 'decrypt']"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 77,
+      "snippet": "  const iv = crypto.getRandomValues(new Uint8Array(12));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 77,
+      "snippet": "  const iv = crypto.getRandomValues(new Uint8Array(12));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 78,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, rawBytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 78,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, rawBytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 78,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, rawBytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "subtle\\.encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 78,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, rawBytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 78,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, rawBytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 78,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, rawBytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 79,
+      "snippet": "  return { iv: bufToB64(iv), data: bufToB64(data) };"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 82,
+      "snippet": "  const iv = new Uint8Array(b64ToBuf(wrapper.iv));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 83,
+      "snippet": "  return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, b64ToBuf(wrapper.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 83,
+      "snippet": "  return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, b64ToBuf(wrapper.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 83,
+      "snippet": "  return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, b64ToBuf(wrapper.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "subtle\\.decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 83,
+      "snippet": "  return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, b64ToBuf(wrapper.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 83,
+      "snippet": "  return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, b64ToBuf(wrapper.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 83,
+      "snippet": "  return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, b64ToBuf(wrapper.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 85,
+      "snippet": "export function vaultImportAESKey(raw) {"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 86,
+      "snippet": "  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 86,
+      "snippet": "  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 86,
+      "snippet": "  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 86,
+      "snippet": "  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 86,
+      "snippet": "  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 91,
+      "snippet": "  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', entropy));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 104,
+      "snippet": "  const entropy = crypto.getRandomValues(new Uint8Array(16)); // 128 bits"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 118,
+      "snippet": "  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', entropy));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 129,
+      "snippet": "  const saltP = crypto.getRandomValues(new Uint8Array(16));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 130,
+      "snippet": "  const saltS = crypto.getRandomValues(new Uint8Array(16));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 131,
+      "snippet": "  const kekP = await deriveKey(pass, saltP);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 132,
+      "snippet": "  const kekS = await deriveKey(seedPhrase, saltS);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 133,
+      "snippet": "  const dekRaw = crypto.getRandomValues(new Uint8Array(32));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 141,
+      "snippet": "    wrap: { salt: bufToB64(saltP), iv: wrapP.iv, data: wrapP.data },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 142,
+      "snippet": "    seedWrap: { salt: bufToB64(saltS), iv: wrapS.iv, data: wrapS.data },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 149,
+      "snippet": "// null. The caller imports it via vaultImportAESKey and must wipe it in a finally."
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 152,
+      "snippet": "    const kek = await deriveKey(pass, new Uint8Array(b64ToBuf(manifest.wrap.salt)));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 164,
+      "snippet": "    const kek = await deriveKey(words.join(' '), new Uint8Array(b64ToBuf(manifest.seedWrap.salt)));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 178,
+      "snippet": "    const kekCur = await deriveKey(current, new Uint8Array(b64ToBuf(manifest.wrap.salt)));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 188,
+      "snippet": "    const kekS = await deriveKey(words.join(' '), new Uint8Array(b64ToBuf(manifest.seedWrap.salt)));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 193,
+      "snippet": "  const saltNew = crypto.getRandomValues(new Uint8Array(16));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 194,
+      "snippet": "  const kekNew = await deriveKey(newPass, saltNew);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 197,
+      "snippet": "  manifest.wrap = { salt: bufToB64(saltNew), iv: wrapNew.iv, data: wrapNew.data };"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 208,
+      "snippet": "    const kekCur = await deriveKey(pass, new Uint8Array(b64ToBuf(manifest.wrap.salt)));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 214,
+      "snippet": "  const saltS = crypto.getRandomValues(new Uint8Array(16));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "deriveKey",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 215,
+      "snippet": "  const kekS = await deriveKey(phrase, saltS);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 218,
+      "snippet": "  manifest.seedWrap = { salt: bufToB64(saltS), iv: wrapS.iv, data: wrapS.data };"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 223,
+      "snippet": "// Every photo gets a fresh random 256-bit key; its bytes are encrypted under that"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 227,
+      "snippet": "  const iv = crypto.getRandomValues(new Uint8Array(12));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 227,
+      "snippet": "  const iv = crypto.getRandomValues(new Uint8Array(12));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 228,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, dek, itemKeyRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 228,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, dek, itemKeyRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 228,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, dek, itemKeyRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "subtle\\.encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 228,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, dek, itemKeyRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 228,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, dek, itemKeyRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 228,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, dek, itemKeyRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 229,
+      "snippet": "  return { iv: bufToB64(iv), key: bufToB64(data) };"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 233,
+      "snippet": "  const raw = await crypto.subtle.decrypt("
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "subtle\\.decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 233,
+      "snippet": "  const raw = await crypto.subtle.decrypt("
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 233,
+      "snippet": "  const raw = await crypto.subtle.decrypt("
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 234,
+      "snippet": "    { name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 234,
+      "snippet": "    { name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 234,
+      "snippet": "    { name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 239,
+      "snippet": "    return await vaultImportAESKey(raw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 245,
+      "snippet": "// ---- content encryption ----"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "base64",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 246,
+      "snippet": "// Titles are small → base64 wrappers (same as the phone). Photo bytes are large →"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "base64",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 247,
+      "snippet": "// raw Uint8Array ciphertext that goes straight into the container file (no base64"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 250,
+      "snippet": "  const iv = crypto.getRandomValues(new Uint8Array(12));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 250,
+      "snippet": "  const iv = crypto.getRandomValues(new Uint8Array(12));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 251,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 251,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 251,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "subtle\\.encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 251,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 251,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 251,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 252,
+      "snippet": "  return { iv: bufToB64(iv), data: bufToB64(data) };"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 255,
+      "snippet": "  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) }, key, b64ToBuf(wrap.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 255,
+      "snippet": "  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) }, key, b64ToBuf(wrap.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 255,
+      "snippet": "  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) }, key, b64ToBuf(wrap.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "subtle\\.decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 255,
+      "snippet": "  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) }, key, b64ToBuf(wrap.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 255,
+      "snippet": "  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) }, key, b64ToBuf(wrap.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 255,
+      "snippet": "  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(wrap.iv)) }, key, b64ToBuf(wrap.data));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 263,
+      "snippet": "  const iv = crypto.getRandomValues(new Uint8Array(12));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 263,
+      "snippet": "  const iv = crypto.getRandomValues(new Uint8Array(12));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 264,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 264,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 264,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "subtle\\.encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 264,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 264,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 264,
+      "snippet": "  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 265,
+      "snippet": "  return { iv: bufToB64(iv), data: new Uint8Array(data) };"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 267,
+      "snippet": "export async function decBytes(key, iv, cipherBytes) {"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "crypto\\.subtle",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 268,
+      "snippet": "  const plain = await crypto.subtle.decrypt("
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "subtle\\.decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 268,
+      "snippet": "  const plain = await crypto.subtle.decrypt("
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 268,
+      "snippet": "  const plain = await crypto.subtle.decrypt("
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 269,
+      "snippet": "    { name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(iv)) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "GCM",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 269,
+      "snippet": "    { name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(iv)) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 269,
+      "snippet": "    { name: 'AES-GCM', iv: new Uint8Array(b64ToBuf(iv)) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 279,
+      "snippet": "// Every record is guaranteed checked within ceil(N/3) unlocks. Any decrypt"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 295,
+      "snippet": "      else await decText(itemKey, { iv: rec.nameIv, data: rec.name });"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 15,
+      "snippet": "  wrap: { salt: 'c2FsdA==', iv: 'aXZ2djs=', data: 'ZGF0YQ==' },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 16,
+      "snippet": "  seedWrap: { salt: 'c2FsdA==', iv: 'aXZ2djs=', data: 'ZGF0YQ==' },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 21,
+      "snippet": "  { id: 'p1', kind: 'photo', createdAt: 1724000000002, nameIv: 'aXY=', name: 'bmFtZQ==', iv: 'aXY=', itemKey: 'a2V5', photoIv: 'aXY=', photoLen: 4, photo: new Uint8Array([1, 2, 3, 4]) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 22,
+      "snippet": "  { id: 'v1', kind: 'video', mime: 'video/mp4', size: 6, createdAt: 1724000000003, nameIv: 'aXY=', name: 'bmFtZQ==', iv: 'aXY=', itemKey: 'a2V5', photoIv: 'aXY=', photoLen: 6, photo: new Uint8Array([9, 8, 7, 6, 5, 4]) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 23,
+      "snippet": "  { id: 'd1', kind: 'doc', mime: 'application/pdf', size: 3, createdAt: 1724000000004, nameIv: 'aXY=', name: 'bmFtZQ==', iv: 'aXY=', itemKey: 'a2V5', photoIv: 'aXY=', photoLen: 3, photo: new Uint8Array([25, 50, 44]) },"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 10,
+      "snippet": "  tamperSample, vaultImportAESKey, vaultPassScore, bip39Validate,"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "atob\\(",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 25,
+      "snippet": "  const bytes = new Uint8Array(atob(b64));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "btoa\\(",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 29,
+      "snippet": "  return btoa(bin);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 40,
+      "snippet": "  assert.ok(manifest.wrap.salt && manifest.wrap.iv && manifest.wrap.data);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 41,
+      "snippet": "  assert.ok(manifest.seedWrap.salt && manifest.seedWrap.iv && manifest.seedWrap.data);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 69,
+      "snippet": "// Record schema matches the phone vault exactly: `iv`/`itemKey` = key wrap,"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 71,
+      "snippet": "const dek = await vaultImportAESKey(dekRaw); dekRaw.fill(0); // simulate the caller's import + wipe"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 72,
+      "snippet": "const itemKeyRaw = crypto.getRandomValues(new Uint8Array(32));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 73,
+      "snippet": "const itemKey = await vaultImportAESKey(itemKeyRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "decrypt",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 77,
+      "snippet": "await t('item key unwraps under the DEK and decrypts the name', async () => {"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 79,
+      "snippet": "  rec.iv = keyWrap.iv; rec.itemKey = keyWrap.key; // key wrap goes on the record"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 80,
+      "snippet": "  rec.nameIv = nameEnc.iv; rec.name = nameEnc.data;"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 82,
+      "snippet": "  assert.equal(await decText(k, { iv: rec.nameIv, data: rec.name }), 'me and you.jpg');"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 87,
+      "snippet": "  rec.photoIv = enc.iv; rec.photo = enc.data; // raw ciphertext bytes, straight to the container"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 89,
+      "snippet": "  const plain = await decBytes(k, enc.iv, enc.data);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "encrypt",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 92,
+      "snippet": "await t('ciphertext is not the plaintext (it is actually encrypted)', () => {"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "getRandomValues",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 115,
+      "snippet": "    const kRaw = crypto.getRandomValues(new Uint8Array(32));"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "AES",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 116,
+      "snippet": "    const k = await vaultImportAESKey(kRaw);"
+    },
+    {
+      "group": "crypto-randomness",
+      "pattern": "\\biv\\b",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 120,
+      "snippet": "    items.push({ id: 'id' + String(i).padStart(3, '0'), kind: 'note', iv: kw.iv, itemKey: kw.key, nameIv: nameEnc.iv, name: nameEnc.data });"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "globalThis",
+      "file": "pcvault\\package-lock.json",
+      "line": 1968,
+      "snippet": "    \"node_modules/globalthis\": {"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "globalThis",
+      "file": "pcvault\\package-lock.json",
+      "line": 1970,
+      "snippet": "      \"resolved\": \"https://registry.npmjs.org/globalthis/-/globalthis-1.0.4.tgz\","
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "globalThis",
+      "file": "pcvault\\package-lock.json",
+      "line": 3029,
+      "snippet": "        \"globalthis\": \"^1.0.1\","
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "name\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 5,
+      "snippet": "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 11,
+      "snippet": "<div class=\"wrap\" id=\"app\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 19,
+      "snippet": "        <button id=\"welcomeCreateBtn\" class=\"add-btn vault-btn\">create a vault</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 20,
+      "snippet": "        <button id=\"welcomeOpenBtn\" class=\"add-btn ghost vault-btn\">open a vault file</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 30,
+      "snippet": "      <form id=\"createForm\" class=\"vault-form\" autocomplete=\"off\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 31,
+      "snippet": "        <input type=\"password\" id=\"createPass\" class=\"vault-input\" data-meter=\"createMeter\" placeholder=\"passphrase\" autocomplete=\"new-password\" required>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 32,
+      "snippet": "        <div class=\"vault-meter\" id=\"createMeter\"><i></i><i></i><i></i><i></i></div>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 34,
+      "snippet": "        <p class=\"vault-error\" id=\"createErr\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 35,
+      "snippet": "        <button type=\"submit\" class=\"add-btn vault-btn\" id=\"createBtn\">create the vault</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 36,
+      "snippet": "        <button type=\"button\" class=\"add-btn ghost vault-btn\" id=\"createBackBtn\">back</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 44,
+      "snippet": "      <h1 class=\"vault-wordmark\" id=\"seedTitle\">your 12 words</h1>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 45,
+      "snippet": "      <p class=\"vault-sub\" id=\"seedCopy\">these 12 words are the only way back in if the passphrase is ever forgotten. write them down — they're shown once and never stored anywhere.</p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 46,
+      "snippet": "      <p class=\"vault-warn hidden\" id=\"seedWarn\">your new 12 words. the old ones stop working the moment you save these — write them down first.</p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 47,
+      "snippet": "      <div class=\"vault-seed-grid\" id=\"seedGrid\"></div>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 48,
+      "snippet": "      <button class=\"add-btn vault-btn\" id=\"seedDoneBtn\">I've saved them — enter the vault</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 56,
+      "snippet": "      <div class=\"vault-tamper hidden\" id=\"tamperWarn\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 59,
+      "snippet": "      <form id=\"unlockForm\" class=\"vault-form\" autocomplete=\"off\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 60,
+      "snippet": "        <input type=\"password\" id=\"unlockPass\" class=\"vault-input\" placeholder=\"enter your passphrase\" autocomplete=\"current-password\" required>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 61,
+      "snippet": "        <p class=\"vault-error\" id=\"unlockErr\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 62,
+      "snippet": "        <button type=\"submit\" class=\"add-btn vault-btn\" id=\"unlockBtn\">unlock</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 64,
+      "snippet": "      <button class=\"link\" id=\"seedRecoveryLink\">forgot your passphrase?</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 65,
+      "snippet": "      <form id=\"seedRecoveryForm\" class=\"vault-form hidden\" autocomplete=\"off\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 67,
+      "snippet": "        <textarea id=\"seedRecoveryInput\" rows=\"3\" class=\"vault-input vault-seed-input\" placeholder=\"word word word …\"></textarea>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 68,
+      "snippet": "        <p class=\"vault-error\" id=\"seedRecoveryErr\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 70,
+      "snippet": "        <button type=\"button\" class=\"add-btn ghost vault-btn\" id=\"seedRecoveryCancel\">back</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 72,
+      "snippet": "      <p class=\"vault-fileline\" id=\"lockedPathLine\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 81,
+      "snippet": "        <button id=\"addFilesBtn\" class=\"add-btn small\">+ add files</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 82,
+      "snippet": "        <button id=\"settingsBtn\" class=\"icon-btn\" aria-label=\"settings\" title=\"settings\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 85,
+      "snippet": "        <button id=\"lockBtn\" class=\"icon-btn\" aria-label=\"lock\" title=\"lock\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 90,
+      "snippet": "    <p class=\"vault-fileline clickable\" id=\"vaultPathLine\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 91,
+      "snippet": "    <div class=\"vault-search\" id=\"searchRow\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 93,
+      "snippet": "      <input id=\"searchInput\" class=\"vault-search-input\" type=\"text\" placeholder=\"search by name\" autocomplete=\"off\" spellcheck=\"false\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 94,
+      "snippet": "      <button id=\"searchClear\" class=\"vault-search-clear\" aria-label=\"clear search\" title=\"clear\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 98,
+      "snippet": "    <p class=\"vault-fileline hidden\" id=\"searchCount\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 99,
+      "snippet": "    <div class=\"vault-photo-grid\" id=\"grid\"></div>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 100,
+      "snippet": "    <div class=\"vault-empty hidden\" id=\"gridEmpty\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 104,
+      "snippet": "    <div class=\"vault-empty hidden\" id=\"noMatches\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 113,
+      "snippet": "      <button id=\"itemBackBtn\" class=\"icon-btn\" aria-label=\"back\" title=\"back\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 116,
+      "snippet": "      <h1 id=\"itemTitle\">keepsake</h1>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 118,
+      "snippet": "        <button id=\"itemExportBtn\" class=\"icon-btn\" aria-label=\"export a copy\" title=\"export a copy\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 121,
+      "snippet": "        <button id=\"itemDeleteBtn\" class=\"add-btn danger small\">delete</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 125,
+      "snippet": "      <img id=\"itemImg\" alt=\"\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 126,
+      "snippet": "      <video id=\"itemVideo\" controls playsinline preload=\"metadata\"></video>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 127,
+      "snippet": "      <div id=\"itemDocInfo\" class=\"hidden\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 128,
+      "snippet": "        <div class=\"doc-icon\" id=\"docIcon\"></div>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 129,
+      "snippet": "        <p class=\"doc-name serif\" id=\"docName\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 130,
+      "snippet": "        <p class=\"vault-item-meta\" id=\"docMeta\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 133,
+      "snippet": "    <p class=\"vault-item-meta\" id=\"itemDate\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 134,
+      "snippet": "    <p class=\"vault-error hidden\" id=\"itemErr\">this keepsake can't be opened — it failed to decrypt. deleting it is the only way forward.</p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 140,
+      "snippet": "      <button id=\"settingsBackBtn\" class=\"icon-btn\" aria-label=\"back\" title=\"back\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 150,
+      "snippet": "      <form id=\"changeForm\" class=\"vault-form\" autocomplete=\"off\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 151,
+      "snippet": "        <input type=\"password\" id=\"changeCur\" class=\"vault-input\" placeholder=\"current passphrase\" autocomplete=\"current-password\" required>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 152,
+      "snippet": "        <input type=\"password\" id=\"changeNew\" class=\"vault-input\" data-meter=\"changeMeter\" placeholder=\"new passphrase\" autocomplete=\"new-password\" required>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 153,
+      "snippet": "        <div class=\"vault-meter\" id=\"changeMeter\"><i></i><i></i><i></i><i></i></div>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 155,
+      "snippet": "        <textarea id=\"changeSeed\" rows=\"2\" class=\"vault-input vault-seed-input\" placeholder=\"your 12 words\" required></textarea>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 156,
+      "snippet": "        <p class=\"vault-error\" id=\"changeErr\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 157,
+      "snippet": "        <p class=\"vault-ok\" id=\"changeOk\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 165,
+      "snippet": "      <form id=\"rotateForm\" class=\"vault-form\" autocomplete=\"off\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 166,
+      "snippet": "        <input type=\"password\" id=\"rotatePass\" class=\"vault-input\" placeholder=\"current passphrase\" autocomplete=\"current-password\" required>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 167,
+      "snippet": "        <p class=\"vault-error\" id=\"rotateErr\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 175,
+      "snippet": "      <div class=\"vault-pills\" id=\"idlePills\">"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 185,
+      "snippet": "      <p class=\"vault-fileline\" id=\"settingsPathLine\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 187,
+      "snippet": "        <button id=\"revealBtn\" class=\"add-btn ghost\">show in folder</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 188,
+      "snippet": "        <button id=\"backupBtn\" class=\"add-btn\">back up a copy…</button>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 190,
+      "snippet": "      <p class=\"vault-ok\" id=\"backupOk\"></p>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 196,
+      "snippet": "<input type=\"file\" id=\"photoInput\" multiple hidden>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "id\\s*=\\s*['\"][a-zA-Z_]+['\"]",
+      "file": "pcvault\\src\\index.html",
+      "line": 197,
+      "snippet": "<div id=\"toast\" role=\"status\" aria-live=\"polite\"></div>"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "getElementById",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 12,
+      "snippet": "const $ = (id) => document.getElementById(id);"
+    },
+    {
+      "group": "dom-clobbering",
+      "pattern": "globalThis",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 4,
+      "snippet": "// (globalThis.crypto = WebCrypto). No DOM, no filesystem."
+    },
+    {
+      "group": "dom-sinks",
+      "pattern": "innerHTML",
+      "file": "pcvault\\audit\\SEC-001.md",
+      "line": 11,
+      "snippet": "The preload bridge exposes file operations (`readFile`, `writeFile`, `writeFileAtomic`, `copyFile`, `exists`, `isDir`, `reveal`) that accept a path supplied by the renderer, and the main process acts on it with no validation or allowlist. E"
+    },
+    {
+      "group": "dom-sinks",
+      "pattern": "innerHTML",
+      "file": "pcvault\\findings.json",
+      "line": 142,
+      "snippet": "      \"description\": \"HYPOTHETICAL — the second link does not exist today. If a future code change ever introduces a renderer XSS sink (the audit found zero: all innerHTML uses app-generated BIP39 words or internal object URLs, script-src i"
+    },
+    {
+      "group": "dom-sinks",
+      "pattern": "innerHTML",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 147,
+      "snippet": "  grid.innerHTML = phrase.split(' ').map((w, i) =>"
+    },
+    {
+      "group": "dom-sinks",
+      "pattern": "innerHTML",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 545,
+      "snippet": "      cell.innerHTML = `<img src=\"${cached}\" alt=\"\">${badge}`;"
+    },
+    {
+      "group": "dom-sinks",
+      "pattern": "innerHTML",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 547,
+      "snippet": "      cell.innerHTML = `<div class=\"ph\">${ic(icon)}</div>`;"
+    },
+    {
+      "group": "dom-sinks",
+      "pattern": "innerHTML",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 588,
+      "snippet": "    cell.innerHTML = `<img src=\"${url}\" alt=\"\">${badge}`;"
+    },
+    {
+      "group": "dom-sinks",
+      "pattern": "innerHTML",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 590,
+      "snippet": "    cell.innerHTML = '<div class=\"bad\">can\\'t open</div>';"
+    },
+    {
+      "group": "dom-sinks",
+      "pattern": "innerHTML",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 683,
+      "snippet": "      $('docIcon').innerHTML = ic('file');"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "nodeIntegration",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 18,
+      "snippet": "- `preload.js` — contextBridge → `window.vaultAPI` (sandboxed, no nodeIntegration)."
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "preload",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 18,
+      "snippet": "- `preload.js` — contextBridge → `window.vaultAPI` (sandboxed, no nodeIntegration)."
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "webview",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 46,
+      "snippet": "**Verified beyond the node suites (26 tests: 18 crypto + 8 container):** a full browser integration run drove the REAL UI in the preview webview with a mocked file layer — create → seed (12 chips) → enter → add a PDF + a real canvas-generat"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "preload",
+      "file": "pcvault\\audit\\SEC-001.md",
+      "line": 11,
+      "snippet": "The preload bridge exposes file operations (`readFile`, `writeFile`, `writeFileAtomic`, `copyFile`, `exists`, `isDir`, `reveal`) that accept a path supplied by the renderer, and the main process acts on it with no validation or allowlist. E"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "preload",
+      "file": "pcvault\\audit\\SEC-001.md",
+      "line": 30,
+      "snippet": "- File: `main.js:139` (and `145`, `152`, `161`, `166`) · `preload.js:10`–`16`"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "preload",
+      "file": "pcvault\\findings.json",
+      "line": 35,
+      "snippet": "      \"issue\": \"The preload bridge exposes vault:readFile, vault:writeFile, vault:writeFileAtomic, vault:copyFile, vault:reveal, vault:exists and vault:isDir, and main accepts the renderer-supplied path verbatim with no validation or allowl"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\findings.json",
+      "line": 36,
+      "snippet": "      \"vulnerable\": \"ipcMain.handle('vault:writeFile', async (_e, filePath, bytes) => {\\n  await fsp.writeFile(filePath, Buffer.from(bytes));\\n  return true;\\n});\\n// same shape for readFile (145), writeFileAtomic (152), copyFile (161)\","
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 3,
+      "snippet": "const { app, BrowserWindow, dialog, ipcMain, shell, protocol, net } = require('electron');"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "require\\(['\"]electron",
+      "file": "pcvault\\main.js",
+      "line": 3,
+      "snippet": "const { app, BrowserWindow, dialog, ipcMain, shell, protocol, net } = require('electron');"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "protocol\\.register",
+      "file": "pcvault\\main.js",
+      "line": 12,
+      "snippet": "protocol.registerSchemesAsPrivileged(["
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "new BrowserWindow",
+      "file": "pcvault\\main.js",
+      "line": 36,
+      "snippet": "  win = new BrowserWindow({"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "webPreferences",
+      "file": "pcvault\\main.js",
+      "line": 44,
+      "snippet": "    webPreferences: {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "contextIsolation",
+      "file": "pcvault\\main.js",
+      "line": 45,
+      "snippet": "      contextIsolation: true,"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "nodeIntegration",
+      "file": "pcvault\\main.js",
+      "line": 46,
+      "snippet": "      nodeIntegration: false,"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "preload",
+      "file": "pcvault\\main.js",
+      "line": 48,
+      "snippet": "      preload: path.join(__dirname, 'preload.js'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "process\\.",
+      "file": "pcvault\\main.js",
+      "line": 54,
+      "snippet": "  if (process.env.PCVAULT_DEBUG) {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 148,
+      "snippet": "ipcMain.handle('vault:getLastPath', () => vaultPath);"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 149,
+      "snippet": "ipcMain.handle('vault:forgetPath', () => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 156,
+      "snippet": "ipcMain.handle('vault:pickFolder', async () => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 168,
+      "snippet": "ipcMain.handle('vault:pickVaultFile', async () => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 181,
+      "snippet": "ipcMain.handle('vault:saveCopyAs', async (_e, suggestedName) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 193,
+      "snippet": "ipcMain.handle('vault:saveFileAs', async (_e, suggestedName) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 207,
+      "snippet": "ipcMain.handle('vault:writeFile', async (_e, filePath, bytes) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 214,
+      "snippet": "ipcMain.handle('vault:readFile', async (_e, filePath) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 222,
+      "snippet": "ipcMain.handle('vault:writeFileAtomic', async (_e, filePath, bytes) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "process\\.",
+      "file": "pcvault\\main.js",
+      "line": 224,
+      "snippet": "  const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`;"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 232,
+      "snippet": "ipcMain.handle('vault:copyFile', async (_e, src, dst) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 238,
+      "snippet": "ipcMain.handle('vault:reveal', (_e, filePath) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 244,
+      "snippet": "ipcMain.handle('vault:isDir', async (_e, p) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcMain",
+      "file": "pcvault\\main.js",
+      "line": 253,
+      "snippet": "ipcMain.handle('vault:exists', async (_e, p) => {"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "preload",
+      "file": "pcvault\\package.json",
+      "line": 21,
+      "snippet": "      \"preload.js\","
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 3,
+      "snippet": "const { contextBridge, ipcRenderer } = require('electron');"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "require\\(['\"]electron",
+      "file": "pcvault\\preload.js",
+      "line": 3,
+      "snippet": "const { contextBridge, ipcRenderer } = require('electron');"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 6,
+      "snippet": "  pickFolder: () => ipcRenderer.invoke('vault:pickFolder'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 6,
+      "snippet": "  pickFolder: () => ipcRenderer.invoke('vault:pickFolder'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 7,
+      "snippet": "  pickVaultFile: () => ipcRenderer.invoke('vault:pickVaultFile'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 7,
+      "snippet": "  pickVaultFile: () => ipcRenderer.invoke('vault:pickVaultFile'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 8,
+      "snippet": "  saveCopyAs: (suggestedName) => ipcRenderer.invoke('vault:saveCopyAs', suggestedName),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 8,
+      "snippet": "  saveCopyAs: (suggestedName) => ipcRenderer.invoke('vault:saveCopyAs', suggestedName),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 9,
+      "snippet": "  saveFileAs: (suggestedName) => ipcRenderer.invoke('vault:saveFileAs', suggestedName),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 9,
+      "snippet": "  saveFileAs: (suggestedName) => ipcRenderer.invoke('vault:saveFileAs', suggestedName),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 10,
+      "snippet": "  writeFile: (p, bytes) => ipcRenderer.invoke('vault:writeFile', p, bytes),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 10,
+      "snippet": "  writeFile: (p, bytes) => ipcRenderer.invoke('vault:writeFile', p, bytes),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 11,
+      "snippet": "  readFile: (p) => ipcRenderer.invoke('vault:readFile', p),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 11,
+      "snippet": "  readFile: (p) => ipcRenderer.invoke('vault:readFile', p),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 12,
+      "snippet": "  writeFileAtomic: (p, bytes) => ipcRenderer.invoke('vault:writeFileAtomic', p, bytes),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 12,
+      "snippet": "  writeFileAtomic: (p, bytes) => ipcRenderer.invoke('vault:writeFileAtomic', p, bytes),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 13,
+      "snippet": "  copyFile: (src, dst) => ipcRenderer.invoke('vault:copyFile', src, dst),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 13,
+      "snippet": "  copyFile: (src, dst) => ipcRenderer.invoke('vault:copyFile', src, dst),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 14,
+      "snippet": "  reveal: (p) => ipcRenderer.invoke('vault:reveal', p),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 14,
+      "snippet": "  reveal: (p) => ipcRenderer.invoke('vault:reveal', p),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 15,
+      "snippet": "  isDir: (p) => ipcRenderer.invoke('vault:isDir', p),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 15,
+      "snippet": "  isDir: (p) => ipcRenderer.invoke('vault:isDir', p),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 16,
+      "snippet": "  exists: (p) => ipcRenderer.invoke('vault:exists', p),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 16,
+      "snippet": "  exists: (p) => ipcRenderer.invoke('vault:exists', p),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 17,
+      "snippet": "  getLastPath: () => ipcRenderer.invoke('vault:getLastPath'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 17,
+      "snippet": "  getLastPath: () => ipcRenderer.invoke('vault:getLastPath'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "ipcRenderer",
+      "file": "pcvault\\preload.js",
+      "line": 18,
+      "snippet": "  forgetPath: () => ipcRenderer.invoke('vault:forgetPath'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "invoke\\(",
+      "file": "pcvault\\preload.js",
+      "line": 18,
+      "snippet": "  forgetPath: () => ipcRenderer.invoke('vault:forgetPath'),"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "process\\.",
+      "file": "pcvault\\server.mjs",
+      "line": 12,
+      "snippet": "const envPort = Number.parseInt(process.env.PORT, 10);"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "preload",
+      "file": "pcvault\\src\\index.html",
+      "line": 126,
+      "snippet": "      <video id=\"itemVideo\" controls playsinline preload=\"metadata\"></video>"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "preload",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 616,
+      "snippet": "  video.preload = 'metadata';"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "process\\.",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 85,
+      "snippet": "process.exit(failTests ? 1 : 0);"
+    },
+    {
+      "group": "electron-tauri-webview",
+      "pattern": "process\\.",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 164,
+      "snippet": "process.exit(failTests ? 1 : 0);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "DataTransfer",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 49,
+      "snippet": "Native HTML5 DnD on the grid: cells are `draggable`, a drag shows a rose `drop-before`/`drop-after` inset marker (pointer's left/right half of the target cell decides), dropping on empty space moves the item to the end, and `dragend`/`dragl"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\findings.json",
+      "line": 110,
+      "snippet": "      \"vulnerable\": \"const bytes = new Uint8Array(await file.arrayBuffer());\\nconst kind = mime.startsWith('video/') ? 'video' : 'doc';\","
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\findings.json",
+      "line": 126,
+      "snippet": "      \"issue\": \"handleFiles reads each dropped file fully into RAM (file.arrayBuffer()) and parseVault slurps the entire .cvault file before parsing. A multi-GB video or a huge vault spikes memory. For a single-user personal vault this is a"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\findings.json",
+      "line": 127,
+      "snippet": "      \"vulnerable\": \"const bytes = new Uint8Array(await file.arrayBuffer());\","
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\main.js",
+      "line": 92,
+      "snippet": "      const html = await body.arrayBuffer();"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "input[^>]*type=[\"']file",
+      "file": "pcvault\\src\\index.html",
+      "line": 196,
+      "snippet": "<input type=\"file\" id=\"photoInput\" multiple hidden>"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "revokeObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 240,
+      "snippet": "  state.urls.forEach((u) => URL.revokeObjectURL(u));"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "URL\\.createObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 302,
+      "snippet": "    const url = URL.createObjectURL(file);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "Blob\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 314,
+      "snippet": "        canvas.toBlob((b) => {"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "revokeObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 315,
+      "snippet": "          URL.revokeObjectURL(url);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "revokeObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 319,
+      "snippet": "        URL.revokeObjectURL(url);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "revokeObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 323,
+      "snippet": "    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not an image')); };"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 347,
+      "snippet": "// SEC-006: importing buffers the whole file in memory (file.arrayBuffer() → AES-GCM"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 368,
+      "snippet": "        const bytes = new Uint8Array(await stripped.arrayBuffer());"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 372,
+      "snippet": "        const bytes = new Uint8Array(await file.arrayBuffer());"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "DataTransfer",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 416,
+      "snippet": "  return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "DataTransfer",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 426,
+      "snippet": "    e.dataTransfer.effectAllowed = 'move';"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "DataTransfer",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 427,
+      "snippet": "    e.dataTransfer.setData('text/plain', dragId);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "DataTransfer",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 432,
+      "snippet": "    e.dataTransfer.dropEffect = 'move';"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "Blob\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 560,
+      "snippet": "    blob = new Blob([plain], { type: 'image/jpeg' }); // the Blob copies the bytes"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "Blob\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 572,
+      "snippet": "  const thumb = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.8));"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "URL\\.createObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 573,
+      "snippet": "  const url = URL.createObjectURL(thumb);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "Blob\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 601,
+      "snippet": "  return new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.8));"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "Blob\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 609,
+      "snippet": "    blob = new Blob([plain], { type: rec.mime || 'video/mp4' });"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "URL\\.createObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 613,
+      "snippet": "  const url = URL.createObjectURL(blob);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "URL\\.createObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 631,
+      "snippet": "  const thumbUrl = URL.createObjectURL(thumbBlob);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "Blob\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 664,
+      "snippet": "        blob = new Blob([plain], { type: 'image/jpeg' });"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "URL\\.createObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 668,
+      "snippet": "      const url = URL.createObjectURL(blob);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "Blob\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 675,
+      "snippet": "        blob = new Blob([plain], { type: rec.mime || 'video/mp4' });"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "URL\\.createObjectURL",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 679,
+      "snippet": "      const url = URL.createObjectURL(blob);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "\\.files\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 840,
+      "snippet": "    handleFiles([...e.target.files]);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "\\.files\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 847,
+      "snippet": "    if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "DataTransfer",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 847,
+      "snippet": "    if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 48,
+      "snippet": "    if (b) (b instanceof ArrayBuffer ? new Uint8Array(b) : b).fill(0);"
+    },
+    {
+      "group": "file-handling",
+      "pattern": "ArrayBuffer",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 148,
+      "snippet": "// unlockWithPass / unlockWithSeed return the RAW DEK (ArrayBuffer) on success or"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\main.js",
+      "line": 58,
+      "snippet": "        console.log(`[renderer:${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\main.js",
+      "line": 60,
+      "snippet": "        console.log(`[renderer:${legacy[0]}] ${legacy[1]} (${legacy[3]}:${legacy[2]})`);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\main.js",
+      "line": 64,
+      "snippet": "      console.log(`[main] did-fail-load ${code} ${desc}`);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\main.js",
+      "line": 67,
+      "snippet": "      console.log(`[main] render-process-gone ${details.reason}`);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\main.js",
+      "line": 208,
+      "snippet": "  if (filePath !== lastExportDst) throw new Error('forbidden path');"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\main.js",
+      "line": 215,
+      "snippet": "  if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\main.js",
+      "line": 223,
+      "snippet": "  if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\main.js",
+      "line": 233,
+      "snippet": "  if (!samePath(src, vaultPath) || dst !== lastCopyDst) throw new Error('forbidden path');"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\server.mjs",
+      "line": 45,
+      "snippet": "  console.log(`pcvault dev server: http://127.0.0.1:${port} (serving ${root})`);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "\\.map\\b",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 147,
+      "snippet": "  grid.innerHTML = phrase.split(' ').map((w, i) =>"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 316,
+      "snippet": "          if (b) resolve(b); else reject(new Error('encode failed'));"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 323,
+      "snippet": "    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not an image')); };"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 621,
+      "snippet": "    const to = setTimeout(() => reject(new Error('video timeout')), 15000);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 626,
+      "snippet": "    video.onerror = () => { clearTimeout(to); reject(new Error('video error')); };"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 904,
+      "snippet": "  console.debug('[vault] boot ok — welcome screen');"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 907,
+      "snippet": "      console.debug('[vault] fonts loaded:',"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 916,
+      "snippet": "  console.error(err);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 916,
+      "snippet": "  console.error(err);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 9,
+      "snippet": "  try { await fn(); console.log(`  ok  ${name}`); }"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 10,
+      "snippet": "  catch (e) { failTests++; console.error(`FAIL  ${name}\\n      ${e.message}`); }"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 10,
+      "snippet": "  catch (e) { failTests++; console.error(`FAIL  ${name}\\n      ${e.message}`); }"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 84,
+      "snippet": "console.log(`\\n${passTests - failTests}/${passTests} passed`);"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 21,
+      "snippet": "  try { await fn(); console.log(`  ok  ${name}`); }"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 22,
+      "snippet": "  catch (e) { failTests++; console.error(`FAIL  ${name}\\n      ${e.message}`); }"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "Error\\(",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 22,
+      "snippet": "  catch (e) { failTests++; console.error(`FAIL  ${name}\\n      ${e.message}`); }"
+    },
+    {
+      "group": "logging-leakage",
+      "pattern": "console\\.(log|debug|info|warn|error|trace|dir)",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 163,
+      "snippet": "console.log(`\\n${passTests - failTests}/${passTests} passed`);"
+    },
+    {
+      "group": "network-transport",
+      "pattern": "fetch\\(",
+      "file": "pcvault\\main.js",
+      "line": 91,
+      "snippet": "      const body = await net.fetch(pathToFileURL(filePath).toString());"
+    },
+    {
+      "group": "network-transport",
+      "pattern": "fetch\\(",
+      "file": "pcvault\\main.js",
+      "line": 102,
+      "snippet": "    return net.fetch(pathToFileURL(filePath).toString(), {"
+    },
+    {
+      "group": "network-transport",
+      "pattern": "http://",
+      "file": "pcvault\\server.mjs",
+      "line": 28,
+      "snippet": "    const url = new URL(req.url, 'http://127.0.0.1');"
+    },
+    {
+      "group": "network-transport",
+      "pattern": "http://",
+      "file": "pcvault\\server.mjs",
+      "line": 45,
+      "snippet": "  console.log(`pcvault dev server: http://127.0.0.1:${port} (serving ${root})`);"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "\\$\\{[^}]*\\}\\s*\\)",
+      "file": "pcvault\\main.js",
+      "line": 58,
+      "snippet": "        console.log(`[renderer:${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`);"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "\\$\\{[^}]*\\}\\s*\\)",
+      "file": "pcvault\\main.js",
+      "line": 60,
+      "snippet": "        console.log(`[renderer:${legacy[0]}] ${legacy[1]} (${legacy[3]}:${legacy[2]})`);"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "decodeURIComponent\\(",
+      "file": "pcvault\\server.mjs",
+      "line": 29,
+      "snippet": "    let p = decodeURIComponent(url.pathname);"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "\\$\\{[^}]*\\}\\s*\\)",
+      "file": "pcvault\\server.mjs",
+      "line": 45,
+      "snippet": "  console.log(`pcvault dev server: http://127.0.0.1:${port} (serving ${root})`);"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "\\\\x[0-9a-f]{2}",
+      "file": "pcvault\\src\\fonts\\co3bmX5slCNuHLi8bLeY9MK7whWMhyjYqXtK.woff2",
+      "line": 145,
+      "snippet": "r?VEtGe^`ikVkF45IcZEPVUH]rޯ\u0007:ExJ\\\"}\u0011Ta&\bܗ]`\u0017h)i-D`B\u001b@Bb\u0006\u001b\u0013\u0002SQ\\5ВD\u0010/ڬ\u0015zٜ\b^\u0001-ɵ\"B{ȊNh\u0014\\X8FكA.p\t\u0016R}H"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "fromCharCode",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 28,
+      "snippet": "    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "String\\.fromCharCode",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 28,
+      "snippet": "    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "atob\\(",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 33,
+      "snippet": "  const bin = atob(b64);"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "fromCharCode",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 63,
+      "snippet": "  assert.equal(String.fromCharCode(...bytes.subarray(0, 4)), 'CVLT');"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "String\\.fromCharCode",
+      "file": "pcvault\\test\\container.test.mjs",
+      "line": 63,
+      "snippet": "  assert.equal(String.fromCharCode(...bytes.subarray(0, 4)), 'CVLT');"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "atob\\(",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 25,
+      "snippet": "  const bytes = new Uint8Array(atob(b64));"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "fromCharCode",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 28,
+      "snippet": "  for (const b of bytes) bin += String.fromCharCode(b);"
+    },
+    {
+      "group": "obfuscation-smuggled",
+      "pattern": "String\\.fromCharCode",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 28,
+      "snippet": "  for (const b of bytes) bin += String.fromCharCode(b);"
+    },
+    {
+      "group": "prototype-pollution",
+      "pattern": "JSON\\.parse\\(",
+      "file": "pcvault\\main.js",
+      "line": 135,
+      "snippet": "    const s = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8'));"
+    },
+    {
+      "group": "prototype-pollution",
+      "pattern": "JSON\\.parse\\(",
+      "file": "pcvault\\src\\container.mjs",
+      "line": 69,
+      "snippet": "    const manifest = JSON.parse(td.decode(v.subarray(12, 12 + headerLen)));"
+    },
+    {
+      "group": "prototype-pollution",
+      "pattern": "JSON\\.parse\\(",
+      "file": "pcvault\\src\\container.mjs",
+      "line": 77,
+      "snippet": "      const rec = JSON.parse(td.decode(v.subarray(off, off + jsonLen)));"
+    },
+    {
+      "group": "rn-android-capacitor",
+      "pattern": "loadUrl",
+      "file": "pcvault\\main.js",
+      "line": 52,
+      "snippet": "  win.loadURL(`${SCHEME}://bundle/index.html`);"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "secret",
+      "file": "pcvault\\src\\bip39-words.mjs",
+      "line": 1559,
+      "snippet": "  \"secret\","
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "token",
+      "file": "pcvault\\src\\bip39-words.mjs",
+      "line": 1826,
+      "snippet": "  \"token\","
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\src\\index.html",
+      "line": 31,
+      "snippet": "        <input type=\"password\" id=\"createPass\" class=\"vault-input\" data-meter=\"createMeter\" placeholder=\"passphrase\" autocomplete=\"new-password\" required>"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\src\\index.html",
+      "line": 33,
+      "snippet": "        <input type=\"password\" id=\"createPass2\" class=\"vault-input\" placeholder=\"repeat it\" autocomplete=\"new-password\" required>"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\src\\index.html",
+      "line": 60,
+      "snippet": "        <input type=\"password\" id=\"unlockPass\" class=\"vault-input\" placeholder=\"enter your passphrase\" autocomplete=\"current-password\" required>"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\src\\index.html",
+      "line": 151,
+      "snippet": "        <input type=\"password\" id=\"changeCur\" class=\"vault-input\" placeholder=\"current passphrase\" autocomplete=\"current-password\" required>"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\src\\index.html",
+      "line": 152,
+      "snippet": "        <input type=\"password\" id=\"changeNew\" class=\"vault-input\" data-meter=\"changeMeter\" placeholder=\"new passphrase\" autocomplete=\"new-password\" required>"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\src\\index.html",
+      "line": 154,
+      "snippet": "        <input type=\"password\" id=\"changeNew2\" class=\"vault-input\" placeholder=\"repeat the new one\" autocomplete=\"new-password\" required>"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\src\\index.html",
+      "line": 166,
+      "snippet": "        <input type=\"password\" id=\"rotatePass\" class=\"vault-input\" placeholder=\"current passphrase\" autocomplete=\"current-password\" required>"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 157,
+      "snippet": "await t('passphrase strength: password=1, password1=2, purple-cactus-9!=4', () => {"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 158,
+      "snippet": "  assert.equal(vaultPassScore('password'), 1);"
+    },
+    {
+      "group": "secrets-credentials",
+      "pattern": "password",
+      "file": "pcvault\\test\\crypto.test.mjs",
+      "line": 159,
+      "snippet": "  assert.equal(vaultPassScore('password1'), 2);"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\audit\\SEC-002.md",
+      "line": 11,
+      "snippet": "The CSP meta tag sets `script-src 'self'` with no `unsafe-eval` — the part that matters most is right. The supporting directives are missing: no `object-src 'none'`, no `base-uri 'none'`, no `form-action 'self'`, no `frame-ancestors` (the a"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\audit\\SEC-002.md",
+      "line": 14,
+      "snippet": "The policy hardens to: `default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'`. The ~10 static inline `style=\".."
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\audit\\SEC-002.md",
+      "line": 22,
+      "snippet": "- [ ] The shipped policy contains `object-src 'none'`, `base-uri 'none'`, `form-action 'none'`, `frame-ancestors 'none'`, and `style-src 'self'` with no `unsafe-inline`."
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\findings.json",
+      "line": 56,
+      "snippet": "      \"issue\": \"script-src 'self' with no unsafe-eval is the important part and it is right. The gaps are the supporting directives: no object-src 'none' (Flash/plugin fallback), no base-uri 'none' (base-tag injection), no form-action 'self"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\findings.json",
+      "line": 58,
+      "snippet": "      \"fixed\": \"default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self' — and move the ~10 static inline style=\\\"."
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\findings.json",
+      "line": 63,
+      "snippet": "      \"resolution\": \"Hardened CSP shipped — src/index.html meta now carries default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; font-"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\main.js",
+      "line": 16,
+      "snippet": "// Full CSP. frame-ancestors only works as a response header (ignored in a meta"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\main.js",
+      "line": 19,
+      "snippet": "const CSP_HEADER = \"default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; font-src 'self'\";"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "frame-ancestors",
+      "file": "pcvault\\main.js",
+      "line": 90,
+      "snippet": "      // Deliver the full CSP (incl. frame-ancestors) as a real response header"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "Content-Security-Policy",
+      "file": "pcvault\\main.js",
+      "line": 97,
+      "snippet": "          'Content-Security-Policy': CSP_HEADER,"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "X-Content-Type-Options",
+      "file": "pcvault\\main.js",
+      "line": 98,
+      "snippet": "          'X-Content-Type-Options': 'nosniff',"
+    },
+    {
+      "group": "security-headers",
+      "pattern": "Content-Security-Policy",
+      "file": "pcvault\\src\\index.html",
+      "line": 6,
+      "snippet": "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; font-src 'self'\">"
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\findings.json",
+      "line": 78,
+      "snippet": "      \"poc\": \"None today (no sibling src* directory, and URL dot-segments are normalized before the handler runs).\","
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 653,
+      "snippet": "        \"dotenv\": \"^16.4.5\","
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 654,
+      "snippet": "        \"dotenv-expand\": \"^11.0.6\","
+    },
+    {
+      "group": "server-side",
+      "pattern": "ejs",
+      "file": "pcvault\\package-lock.json",
+      "line": 655,
+      "snippet": "        \"ejs\": \"^3.1.8\","
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 1373,
+      "snippet": "    \"node_modules/dotenv\": {"
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 1375,
+      "snippet": "      \"resolved\": \"https://registry.npmjs.org/dotenv/-/dotenv-16.6.1.tgz\","
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 1383,
+      "snippet": "        \"url\": \"https://dotenvx.com\""
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 1386,
+      "snippet": "    \"node_modules/dotenv-expand\": {"
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 1388,
+      "snippet": "      \"resolved\": \"https://registry.npmjs.org/dotenv-expand/-/dotenv-expand-11.0.7.tgz\","
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 1393,
+      "snippet": "        \"dotenv\": \"^16.4.5\""
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\package-lock.json",
+      "line": 1399,
+      "snippet": "        \"url\": \"https://dotenvx.com\""
+    },
+    {
+      "group": "server-side",
+      "pattern": "ejs",
+      "file": "pcvault\\package-lock.json",
+      "line": 1427,
+      "snippet": "    \"node_modules/ejs\": {"
+    },
+    {
+      "group": "server-side",
+      "pattern": "ejs",
+      "file": "pcvault\\package-lock.json",
+      "line": 1429,
+      "snippet": "      \"resolved\": \"https://registry.npmjs.org/ejs/-/ejs-3.1.10.tgz\","
+    },
+    {
+      "group": "server-side",
+      "pattern": "ejs",
+      "file": "pcvault\\package-lock.json",
+      "line": 1437,
+      "snippet": "        \"ejs\": \"bin/cli.js\""
+    },
+    {
+      "group": "server-side",
+      "pattern": "ejs",
+      "file": "pcvault\\src\\fonts\\-nFhOHM81r4j6k0gjAW3mujVU2B2G_VB0PD2.woff2",
+      "line": 37,
+      "snippet": "Le{(\bjeu+\u0001%FE*lpp\t\bIe@n/f[c:0h12\u0013\u0016V6v\u000eN6!SA&ZFkյ{\u000eNYҽ'һ\u001b 5$\u001b6RĘq(\u000f/\u001fP'đʋb:q$$*mMwa\u00021YU7cv\u0018l\\oO7=Ѿ\u0005gY0ͫ]\u0011\u0010@k+\"8x\u0004$\\\u0006%\u00155Ͷ\u0012\u001d\u0006Ʊf[\u000b\u0016~v <PA\"M6ɌA\"\"\"!\u0003%nLxejs^-{;?\u0010\u0012\u001c<\u0000BD\bCUcaecjjSW=AcЬeM\u001e\\2\u001a\u0012"
+    },
+    {
+      "group": "server-side",
+      "pattern": "pug",
+      "file": "pcvault\\src\\fonts\\-nFhOHM81r4j6k0gjAW3mujVU2B2G_VB3vD212k.woff2",
+      "line": 73,
+      "snippet": "6P\u001cqw&\u000f^-\u001a4AI4$BE\u0012pQA]\u0010a]f!椗6\f\fPuG=\u001e\u0015Y\u000bô\""
+    },
+    {
+      "group": "server-side",
+      "pattern": "pug",
+      "file": "pcvault\\src\\fonts\\-nFnOHM81r4j6k0gjAW3mujVU2B2G_5x0ujy.woff2",
+      "line": 34,
+      "snippet": "W\ff\u001c<1\u0006i(?µ`\u0000꧚\u000eRg&I?EOPug^\fCjF٬\u000b:|ļ-\u00166a5ym\u0002:\u0005"
+    },
+    {
+      "group": "server-side",
+      "pattern": "ejs",
+      "file": "pcvault\\src\\fonts\\co3bmX5slCNuHLi8bLeY9MK7whWMhyjYqXtK.woff2",
+      "line": 220,
+      "snippet": "\u001eZ\u0014U1nLfTKx\u0019F/$~N\u0017jѩcp#\f9M\u0018&sF'E \f\u001e\u0006RO< cʼ/\u001ci\u0012c57bCw_EJS\u000f(L{7܄RI1&\u0006ڐgUX\u0006\u0016yuN҄K(YK\u001aEC9K\t'h\u001dF_zE\fZjj+<&Lbd\u000f\u000eXִYG=auG\u0017\bU̓ (hEB"
+    },
+    {
+      "group": "server-side",
+      "pattern": "ejs",
+      "file": "pcvault\\src\\fonts\\co3bmX5slCNuHLi8bLeY9MK7whWMhyjYrXtKgS4.woff2",
+      "line": 129,
+      "snippet": ",\u0013-6\u0018$R3}&mkk!d9B0m?^T\u0001܌\u0014>v_Xܹ\u0003m+&6c񙮸y6,_W\u0011\f?E\u00069\u0010\u001dTM\\\u0017\u000f\f\u0003\u001bmUS\u001b+\u000fd\u000eߣ\u000fΓJa1~o\u0014_\u0001Jc@'\t\u0014b\u001a|ͼ#mN5ڊ~y\u001e\u00043,`>b4)\u0004\u0006\u0006\u000bU\u001am`\u0011P7VY\u0016eĕn\\Y-ϓ\u00185\u0005pet#iSҫ&\u0011Mɏ##\u000b>\u000bI\u0001TAi&bGz&YL2.Ř@z1\u0005rQm>:_d(WFE\u0004|zW𽐉gClF\tYl3*\u0014\f\u001e\u001eYс<\u0011xqVD=\t6]  ;L7gMj\u0004<%\fi.C3\u001e\u0019TetZ<X+epy6Y\u0005$0ջ\u0004"
+    },
+    {
+      "group": "server-side",
+      "pattern": "pug",
+      "file": "pcvault\\src\\fonts\\tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxPcwhsk.woff2",
+      "line": 32,
+      "snippet": "\u0018|\u0000F\u0012h\u001dh\u000e\u001dҮV\u0016t\u0000!E*\u001aCSh\u0001}\"\fˢl\u000bJ~-\u0006:.!\u001bp\u001c$^\u000f'ڢN|PQ\u0016b\u0011\"Sd\u001ca&[4i:C \u00060\u0018f\u001eOl6\bGd\u001fgwzԧ|?o\u0000\u0004^0\u0002 PFiێ\bsƲ\\,\u0002Aoy\u0003\u000e\u001c׫U/\u0016\u00140DP;\u0010\u0005Qt\u00076LhZ5jnV4h\u0017Iw[(N\u0013T\u001bٕ<\u0000|-;VzR:-eY%pi1CJ\u0011v\u0016WH\u000fny#t.\u0016s0x\u0007^8ZGMizx(\u001cAמ6h\u00059D޸vq^~QXi4Ә_B,ǟe{DlO\u001e\u000ei݊Z.JJFz!\u0000TLH0Ri\f\u0001KKX\u00171d9\u0014"
+    },
+    {
+      "group": "server-side",
+      "pattern": "doT",
+      "file": "pcvault\\src\\fonts\\tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx_cwhsk.woff2",
+      "line": 46,
+      "snippet": "=\fU9ʬ(\u001f2b\u0000~1\"&4\u00111&O\u00013<DDM$fB\u001aƜp#V\u000fU{\u0012M\u00065\u00115k\f;3d֘)M\u0010!f5\u00187Z>S`̢K3f\u0010\u0016|ifTF3K3`>kDOtZ\u001fq*1qfk\u0015<\u0007:\u000e0\u0006VSô\u0011\u0003լ\u0019sIgvh08kO\b{L\u000e"
+    },
+    {
+      "group": "storage-cookies",
+      "pattern": "localStorage",
+      "file": "pcvault\\HANDOFF.md",
+      "line": 40,
+      "snippet": "- Vault file location: chosen at creation via folder picker; remembered (`pcvault.lastPath` in localStorage). Backup = settings → \"back up a copy…\" (or just copy the `.cvault` file — it's self-contained)."
+    },
+    {
+      "group": "storage-cookies",
+      "pattern": "localStorage",
+      "file": "pcvault\\findings.json",
+      "line": 87,
+      "snippet": "      \"title\": \"Vault file path is remembered in localStorage\","
+    },
+    {
+      "group": "storage-cookies",
+      "pattern": "localStorage",
+      "file": "pcvault\\findings.json",
+      "line": 93,
+      "snippet": "      \"vulnerable\": \"localStorage.setItem(LS_PATH, path);\","
+    },
+    {
+      "group": "storage-cookies",
+      "pattern": "localStorage",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 260,
+      "snippet": "  const v = parseInt(localStorage.getItem(LS_IDLE) || '5', 10);"
+    },
+    {
+      "group": "storage-cookies",
+      "pattern": "localStorage",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 867,
+      "snippet": "      localStorage.setItem(LS_IDLE, p.dataset.min);"
+    },
+    {
+      "group": "storage-cookies",
+      "pattern": "indexedDB",
+      "file": "pcvault\\src\\vault-crypto.mjs",
+      "line": 5,
+      "snippet": "// key layering, same wipe discipline. Nothing here touches the DOM, IndexedDB,"
+    },
+    {
+      "group": "template-literals",
+      "pattern": "innerHTML\\s*=\\s*[`'\"]",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 545,
+      "snippet": "      cell.innerHTML = `<img src=\"${cached}\" alt=\"\">${badge}`;"
+    },
+    {
+      "group": "template-literals",
+      "pattern": "innerHTML\\s*=\\s*[`'\"]",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 547,
+      "snippet": "      cell.innerHTML = `<div class=\"ph\">${ic(icon)}</div>`;"
+    },
+    {
+      "group": "template-literals",
+      "pattern": "innerHTML\\s*=\\s*[`'\"]",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 588,
+      "snippet": "    cell.innerHTML = `<img src=\"${url}\" alt=\"\">${badge}`;"
+    },
+    {
+      "group": "template-literals",
+      "pattern": "innerHTML\\s*=\\s*[`'\"]",
+      "file": "pcvault\\src\\renderer.js",
+      "line": 590,
+      "snippet": "    cell.innerHTML = '<div class=\"bad\">can\\'t open</div>';"
+    },
+    {
+      "group": "untrusted-input-sources",
+      "pattern": "new URL\\(",
+      "file": "pcvault\\main.js",
+      "line": 79,
+      "snippet": "    const url = new URL(request.url);"
+    },
+    {
+      "group": "untrusted-input-sources",
+      "pattern": "new URL\\(",
+      "file": "pcvault\\server.mjs",
+      "line": 9,
+      "snippet": "const root = normalize(fileURLToPath(new URL('./src/', import.meta.url)));"
+    },
+    {
+      "group": "untrusted-input-sources",
+      "pattern": "new URL\\(",
+      "file": "pcvault\\server.mjs",
+      "line": 28,
+      "snippet": "    const url = new URL(req.url, 'http://127.0.0.1');"
+    }
+  ],
+  "summary": {
+    "groups_checked": 23,
+    "groups_with_hits": 18,
+    "total_hits": 516
+  }
+}
