@@ -4,6 +4,8 @@ node_modules/
 # Build output
 dist/
 out/
+src-tauri/target/
+pcvault/src-tauri/target/
 
 # Electron
 *.log

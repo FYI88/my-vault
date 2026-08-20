@@ -36,6 +36,7 @@
     }
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "electron": "^43.4.0",
     "electron-builder": "^26.15.3",
     "pdfjs-dist": "6.2.108"

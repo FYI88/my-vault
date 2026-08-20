@@ -1,0 +1,30 @@
+[package]
+name = "my-vault"
+version = "1.8.0"
+description = "Offline encrypted photo vault for personal use — one encrypted file, nothing ever leaves the PC."
+authors = ["you"]
+edition = "2021"
+
+# The library is the actual app (Tauri v2 convention); main.rs is a thin launcher.
+[lib]
+name = "my_vault_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+[profile.release]
+# Smaller/faster binary — matches what a real Tauri release would do.
+codegen-units = 1
+lto = true
+strip = "symbols"
+panic = "abort"
+opt-level = "s"

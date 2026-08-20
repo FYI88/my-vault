@@ -3,14 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'">
 <title>my vault</title>
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <canvas id="authBg" aria-hidden="true"></canvas>
-<div class="win-drag" aria-hidden="true"></div>
+<div class="win-drag" data-tauri-drag-region aria-hidden="true"></div>
 <div class="wrap" id="app">
 
   <!-- welcome -->
@@ -229,6 +228,7 @@
 <input type="file" id="photoInput" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
+<script src="tauri-bridge.js"></script>
 <script type="module" src="renderer.js"></script>
 </body>
 </html>
