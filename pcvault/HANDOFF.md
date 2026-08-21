@@ -5,6 +5,10 @@
 > **REBUILT 2026-08-19.** `node_modules` + `dist` were dropped when the project was re-imported. Restored with a portable Node 22.23.2 (win-x64) in `../.tools/node-v22.23.2-win-x64` (this machine has no system Node), `npm ci` (284 pkgs, 0 vulns), all tests green, EXE rebuilt to **86 MB**. SEC-007/008/009/010 are now resolved in source (see Audit).
 >
 > **v1.4–v1.8 (2026-08-19):** keepsake voice pass, masonry grid with filenames, in-app doc viewer, an offline **pdf.js 6.2.108** canvas PDF viewer (clean toolbar, zero CSP violations), and an interactive particle background on the auth screens. EXE now **91 MB**.
+>
+> **SYNCED FROM GITHUB 2026-08-21.** Repo `github.com/FYI88/my-vault` (private, `master`) cloned to `C:\Users\azureuser\my-vault` and merged into this workspace — brings the **daily journal + living-garden view** (`src/journal.mjs`, `src/garden.mjs`, `test/journal.test.mjs` 14/14), the **phantom gallery** (`src/phantom-gallery.mjs`), the **Tauri v2 port** (`src-tauri/`, 16× smaller EXE — needs Rust, not built here), and `src/tauri-bridge.js`. `npm ci` with the updated lockfile (adds `@tauri-apps/cli`), **41/41 tests green** (18 crypto + 9 container + 14 journal), EXE rebuilt to **91 MB**, asar verified to contain the four new modules. See v1.9 below.
+>
+> **v2.0 — WORMHOLE BACKGROUND (2026-08-21).** The auth-screen background is now a **wormhole vortex** (ported from wodniack's CodePen `XJbYWXx`): 150 perspective rings + up to 9k dots swirling into a tunnel, recolored to the vault palette (rose/mauve/gold/sage on cream). Easing functions inlined (no CDN), dot count scaled by area (smooth at 60fps), strict-CSP-safe. **v2.0.1: the background is now user-selectable in Settings** — a "background" card with wormhole/particles pills, persisted in localStorage (`pcvault.bg`), switching live with a toast. `particles.mjs` gained a proper `destroy()` so the swap is clean. See v2.0 / v2.0.1 below.
 
 ## What it is
 A fully offline Windows desktop vault (Electron) for personal photos. One encrypted file (`myvault.cvault`) holds the whole vault; the app never touches the network. The crypto core is **ported function-by-function from the verified phone vault** in `cyclev2.html` (feature 37 + Phase-6 hardening, security-reviewed): same PBKDF2 600k → KEK → non-extractable DEK layering, same 12-word BIP-39 seed (shown once, never stored), same per-item keys wrapped by the DEK (delete = cryptographic delete), same deterministic tamper sample on unlock, same passphrase strength gate (refuse < 3), same EXIF stripping before encryption.
@@ -124,6 +128,37 @@ The login flow (welcome / create / locked / seed) now carries the animated, inte
 Verified in the preview: particles render behind the welcome card (screenshot — mauve/rose constellation), the animated loop advances and the mouse-grab adds lines, and the console stays clean. 27/27 tests green. EXE rebuilt (91 MB; asar verified to contain `src/particles.mjs`).
 
 **Real EXE smoke-test (2026-08-19):** launched `dist/my-vault-portable.exe` (Electron 43), opened a temporary empty vault and reached the actual locked screen. The packaged `#authBg` canvas was present at 1353×953 while `screen-locked` was active. Canvas pixel hash changed from 878490360 to 508419348 over 1.5 seconds, confirming the packaged animation loop works. No CSP-related console entries. The temporary smoke-test vault was removed after the check.
+
+## v1.9 — journal, phantom gallery + Tauri port (pulled from GitHub 2026-08-21)
+Synced from the private repo (see top SAVE POINT). Features the user built upstream and pushed:
+
+- **Daily journal** (`src/journal.mjs` + `src/garden.mjs`): encrypted per-year journal blobs stored as `journal`-kind records (never shown in the vault grid/search/gallery — `vaultItems()` filters them), with a living-garden canvas view (`createGarden`) where daily word counts grow plants, plus streaks (`calcStreak`) and case-insensitive search (`searchYear`). 14 new node tests cover round-trips, streak edge cases, growth stages and search.
+- **Phantom gallery** (`src/phantom-gallery.mjs`): infinite draggable gallery with 3D arc perspective, inertia physics, and press-to-zoom (`G` toggles) alongside the masonry grid.
+- **Tauri v2 port** (`src-tauri/`): same frontend on a Rust backend, ~16× smaller EXE. **Not buildable on this machine** (no Rust toolchain) — Electron remains the local deliverable.
+- `src/tauri-bridge.js`: side-effect module so the frontend can run under Tauri's IPC as well as Electron's `window.vaultAPI`.
+- `package.json` now also runs `test/journal.test.mjs` in `npm test` and pins `@tauri-apps/cli` in devDependencies.
+
+Verified: `npm ci` clean (0 vulns), **41/41 tests green**, EXE rebuilt (91 MB) and the packaged `app.asar` contains `garden.mjs` / `journal.mjs` / `phantom-gallery.mjs` / `tauri-bridge.js`; dev server boots the new renderer with zero console errors (all four modules import cleanly in the browser preview).
+
+## v2.0 — wormhole vortex background (2026-08-21)
+The auth-screen background (welcome / create / locked / seed) is now a **wormhole vortex**, replacing the particle field (user: "let's try this one" → wodniack's CodePen `XJbYWXx`):
+
+- **`src/wormhole.mjs`** — port of the pen with three changes: (1) the pen imports `easing-utils` from the esm.sh CDN — the easing functions (`outCubic` / `outExpo` / `inExpo` / `linear`) are **inlined**, so it stays zero-network and strict-CSP-safe; (2) the pen spawns **20,000 dots** (laggy) — here the count scales with canvas area (`dotDensity` 4200 px², `minDots` 800, `maxDots` 9000) so it stays smooth at 60fps; (3) **recolored from teal-on-black to the vault palette** — rose-dark / mauve / gold / sage dots + mauve-dark perspective rings on the cream ground, matching the keepsake look.
+- Same API as `particles.mjs` (`initWormhole(canvas)` → `{ setActive, resize, destroy }`), so `renderer.js` swapped one import + one call (`initParticles` → `initWormhole`, line 11 / 57 / 1395). The `#authBg` canvas, `AUTH_SCREENS` gating in `show()`, and `pointer-events:none` CSS are unchanged.
+- **`src/particles.mjs` is kept** as a fallback — to restore the old background, change the `wormhole.mjs` import back to `particles.mjs` and `initWormhole` → `initParticles`.
+- Always animates regardless of OS reduced-motion (same policy as the particles fix).
+
+Verified in the preview: canvas animates (pixel samples move over time), screenshot shows the vortex rings + palette dots behind the welcome card, zero CSP violations, only the expected browser-mode warning. **41/41 tests green** (pure UI swap). EXE rebuilt (91 MB); `app.asar` verified to contain `wormhole.mjs` (and still `particles.mjs`).
+
+## v2.0.1 — background picker in Settings (2026-08-21)
+The background is now **user-selectable** (user: "make it changeable in the settings — from this to the particles"):
+
+- New "background" card in Settings (`index.html`) with two `vault-pills`: **wormhole** (default) and **particles**, matching the auto-lock pill pattern. Choice persists in localStorage (`LS_BG = 'pcvault.bg'`), rendered on boot and when settings opens (`renderBgPills()`).
+- `renderer.js` imports both `initWormhole` and `initParticles`; `mountBackground()` destroys the current controller and mounts the chosen one on the same `#authBg` canvas, re-activating it if the current screen is in the background set. Pill clicks persist + remount + toast ("background: wormhole").
+- `settings` was added to the background-active screen set, so the settings screen **previews the background live** while you pick.
+- `particles.mjs` now exposes a real `destroy()` (removes its window listeners + cancels rAF) so switching back and forth never leaks listeners or stale loops — matched the wormhole's API.
+
+Verified in the preview: clicking the particles pill mounts particles and the canvas content changes (pixel sample 16 vs wormhole's 73 after settling), clicking back restores the wormhole, the `on` pill tracks the stored choice, and the console stays clean. **41/41 tests green**. EXE rebuilt (~90 MB; asar contains `wormhole.mjs` + `particles.mjs`, packaged renderer has the picker code, packaged index.html has both pills).
 
 ## Audit (2026-08-18 re-run, /auditme)
 Second full audit pass — same threat model (offline personal vault; device thief + shared-household user + casual file recipient). Prior 6 findings re-verified: SEC-001/002/003/004/006 still resolved (no regressions), SEC-005 still open (accepted). OSV check live this run: 240 pinned deps, zero known CVEs. Live dynamic pass: Electron shell boots clean (zero CSP violations); dev-server page observed in browser (zero CSP violations, zero third-party). Dev-server traversal probes: raw `../` and `%2e%2e` collapsed by the WHATWG URL parser (404), `%5c` backslash variant blocked by the `startsWith(root)` boundary (403). Four new INFO findings added to `findings.json` (SEC-007 tamper-sample plaintext not wiped, SEC-008 orphaned `.tmp-*` on failed rename, SEC-009 dev server lacks security headers, SEC-010 no record-count cap on parseVault). All four are now **resolved in source**: SEC-007 (`vault-crypto.mjs` wipes the sampled plaintext), SEC-008 (`main.js` unlinks the tmp file on failed rename), SEC-009 (`server.mjs` sends the CSP + nosniff headers), SEC-010 (`container.mjs` `MAX_RECORDS = 100000` + a 9th container test). Only SEC-005 remains open (accepted). Note: `findings.json` statuses for 007–010 still say `open` and should be flipped to `resolved` on the next audit re-run.

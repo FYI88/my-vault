@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "node server.mjs",
-    "test": "node test/crypto.test.mjs && node test/container.test.mjs",
+    "test": "node test/crypto.test.mjs && node test/container.test.mjs && node test/journal.test.mjs",
     "dist": "electron-builder --win portable"
   },
   "build": {
@@ -36,6 +36,7 @@
     }
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "electron": "^43.4.0",
     "electron-builder": "^26.15.3",
     "pdfjs-dist": "6.2.108"

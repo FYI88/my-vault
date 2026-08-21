@@ -3,14 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'">
 <title>my vault</title>
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <canvas id="authBg" aria-hidden="true"></canvas>
-<div class="win-drag" aria-hidden="true"></div>
+<div class="win-drag" data-tauri-drag-region aria-hidden="true"></div>
 <div class="wrap" id="app">
 
   <!-- welcome -->
@@ -93,24 +92,69 @@
         </button>
       </div>
     </div>
-    <p class="vault-fileline clickable" id="vaultPathLine"></p>
-    <div class="vault-search" id="searchRow">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="searchInput" class="vault-search-input" type="text" placeholder="search by name" autocomplete="off" spellcheck="false">
-      <button id="searchClear" class="vault-search-clear" aria-label="clear search" title="clear">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
-      </button>
+    <div class="vault-tabs">
+      <button id="vaultTabBtn" class="vault-tab on">vault</button>
+      <button id="journalTabBtn" class="vault-tab">journal</button>
     </div>
-    <p class="vault-fileline hidden" id="searchCount"></p>
-    <div class="vault-photo-grid" id="grid"></div>
-    <div id="phantomGallery" class="phantom-gallery hidden"></div>
-    <div class="vault-empty hidden" id="gridEmpty">
-      <p>nothing here yet</p>
-      <p class="vault-sub">add files above, or drop them anywhere on this window. photos, videos and documents all belong here.</p>
+    <div id="vaultPane">
+      <p class="vault-fileline clickable" id="vaultPathLine"></p>
+      <div class="vault-search" id="searchRow">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" class="vault-search-input" type="text" placeholder="search by name" autocomplete="off" spellcheck="false">
+        <button id="searchClear" class="vault-search-clear" aria-label="clear search" title="clear">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <p class="vault-fileline hidden" id="searchCount"></p>
+      <div class="vault-photo-grid" id="grid"></div>
+      <div id="phantomGallery" class="phantom-gallery hidden"></div>
+      <div class="vault-empty hidden" id="gridEmpty">
+        <p>nothing here yet</p>
+        <p class="vault-sub">add files above, or drop them anywhere on this window. photos, videos and documents all belong here.</p>
+      </div>
+      <div class="vault-empty hidden" id="noMatches">
+        <p>nothing matches that name</p>
+        <p class="vault-sub">try a different word. search looks at file names.</p>
+      </div>
     </div>
-    <div class="vault-empty hidden" id="noMatches">
-      <p>nothing matches that name</p>
-      <p class="vault-sub">try a different word. search looks at file names.</p>
+    <div id="journalPane" class="journal-pane hidden">
+      <div class="journal-toolbar">
+        <button id="journalYearPrev" class="icon-btn" aria-label="previous year" title="previous year">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <h2 id="journalYearLabel" class="journal-year"></h2>
+        <button id="journalYearNext" class="icon-btn" aria-label="next year" title="next year">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <span class="journal-toolbar-gap"></span>
+        <div class="journal-search" id="journalSearchRow">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="journalSearchInput" class="journal-search-input" type="text" placeholder="search your garden" autocomplete="off" spellcheck="false">
+          <button id="journalSearchClear" class="vault-search-clear" aria-label="clear search" title="clear">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <p class="journal-streak" id="journalStreak"></p>
+      <div class="garden-scroll" id="gardenScroll">
+        <canvas id="gardenCanvas"></canvas>
+      </div>
+      <div class="journal-editor">
+        <p class="journal-day" id="journalDayLabel"></p>
+        <div class="journal-mood-row" id="journalMoodRow">
+          <button class="journal-mood" data-mood="🌱" title="growing">🌱</button>
+          <button class="journal-mood" data-mood="🌸" title="blooming">🌸</button>
+          <button class="journal-mood" data-mood="☀️" title="sunny">☀️</button>
+          <button class="journal-mood" data-mood="🌧️" title="rainy">🌧️</button>
+          <button class="journal-mood" data-mood="🍂" title="quiet">🍂</button>
+          <button class="journal-mood" data-mood="❤️" title="loving">❤️</button>
+        </div>
+        <textarea id="journalEntry" class="journal-entry" rows="3" placeholder="what happened today?"></textarea>
+        <div class="journal-save-row">
+          <button id="journalSaveBtn" class="add-btn">save to your garden</button>
+        </div>
+      </div>
+      <p class="vault-ok journal-onthisday hidden" id="journalOnThisDayText"></p>
     </div>
   </section>
 
@@ -231,6 +275,15 @@
     </div>
 
     <div class="vault-sec-card">
+      <h3 class="vault-sec-title">background</h3>
+      <p class="vault-sub">the living backdrop on the lock screen.</p>
+      <div class="vault-pills" id="bgPills">
+        <button class="vault-pill" data-bg="wormhole">wormhole</button>
+        <button class="vault-pill" data-bg="particles">particles</button>
+      </div>
+    </div>
+
+    <div class="vault-sec-card">
       <h3 class="vault-sec-title">your vault file</h3>
       <p class="vault-fileline" id="settingsPathLine"></p>
       <div class="vault-btn-row">
@@ -246,6 +299,7 @@
 <input type="file" id="photoInput" multiple hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 
+<script src="tauri-bridge.js"></script>
 <script type="module" src="renderer.js"></script>
 </body>
 </html>

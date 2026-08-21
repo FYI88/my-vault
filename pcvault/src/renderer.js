@@ -8,11 +8,15 @@ import {
   vaultWipeRaw, vaultRandId,
 } from './vault-crypto.mjs';
 import { serializeVault, parseVault } from './container.mjs';
+import { initWormhole } from './wormhole.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
+import { createGarden } from './garden.mjs';
+import { emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak, sortedDayKeys, yearOf } from './journal.mjs';
 
 const $ = (id) => document.getElementById(id);
 const LS_IDLE = 'pcvault.idleMin';
+const LS_BG = 'pcvault.bg'; // 'wormhole' (default) or 'particles'
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
 // lucide-style inline icons (the phone app's `ic()` helper, reduced to what this UI uses)
@@ -43,6 +47,10 @@ const state = {
   idleTimer: null,
   galleryMode: false, // phantom infinite gallery view
   phantomGallery: null,
+  journalTab: false,    // Journal tab active (vs Vault)
+  journalCache: new Map(), // year → decrypted journal blob — plaintext, wiped on lock
+  journalYear: null,    // the year the journal screen is showing
+  garden: null,         // canvas garden renderer
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
@@ -107,8 +115,8 @@ function toggleFullscreen() {
 }
 
 // ---- auth-screen particle background (welcome/create/locked/seed) ----
-let particles = null; // controller returned by initParticles
-const AUTH_SCREENS = new Set(['welcome', 'create', 'locked', 'seed']);
+let bgCtrl = null; // background controller — wormhole or particles, per settings
+const AUTH_SCREENS = new Set(['welcome', 'create', 'locked', 'seed', 'settings']);
 
 // ---- in-app PDF viewer (offline pdf.js, canvas-rendered) ----
 let pdfDoc = null;        // pdf.js document proxy (numPages / getPage)
@@ -124,7 +132,7 @@ let pdfjsReady = null;    // lazy import of pdf.js + its worker module
 function show(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`screen-${name}`).classList.add('active');
-  if (particles) particles.setActive(AUTH_SCREENS.has(name));
+  if (bgCtrl) bgCtrl.setActive(AUTH_SCREENS.has(name));
 }
 function showOverlay(id, visible) {
   $(id).classList.toggle('hidden', !visible);
@@ -343,6 +351,13 @@ function lock() {
   state.nameCache.clear();
   state.namesReady = null;
   clearSearch();
+  state.journalCache.clear(); // wipe the decrypted journal — no plaintext survives a lock
+  state.journalYear = null;
+  journalEditKey = null;
+  if (state.garden) { state.garden.destroy(); state.garden = null; }
+  state.journalTab = false;
+  if ($('journalEntry')) $('journalEntry').value = '';
+  showVaultTab();
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
   if (state.phantomGallery) { state.phantomGallery.destroy(); state.phantomGallery = null; }
   state.galleryMode = false;
@@ -450,7 +465,7 @@ async function encryptFile(kind, mime, name, bytes) {
   const nameEnc = await encText(itemKey, name);
   const enc = await encBytes(itemKey, bytes);
   return {
-    id: (kind === 'photo' ? 'p' : kind === 'video' ? 'v' : 'd') + vaultRandId(),
+    id: (kind === 'photo' ? 'p' : kind === 'video' ? 'v' : kind === 'journal' ? 'j' : 'd') + vaultRandId(),
     kind, mime, size: bytes.length,
     createdAt: Date.now(),
     nameIv: nameEnc.iv, name: nameEnc.data,
@@ -604,10 +619,16 @@ function ensureNames() {
   return state.namesReady;
 }
 
+// Journal records are not files — the grid, search, and gallery all skip them.
+function vaultItems() {
+  return state.items.filter((r) => r.kind !== 'journal');
+}
+
 async function filteredItems() {
-  if (!state.searchQuery) return state.items;
+  const items = vaultItems();
+  if (!state.searchQuery) return items;
   await ensureNames();
-  return state.items.filter((r) => (state.nameCache.get(r.id) || '').toLowerCase().includes(state.searchQuery));
+  return items.filter((r) => (state.nameCache.get(r.id) || '').toLowerCase().includes(state.searchQuery));
 }
 
 function clearSearch() {
@@ -622,7 +643,7 @@ function clearSearch() {
 async function populatePhantomGallery() {
   if (!state.phantomGallery || !state.unlocked) return;
   await ensureNames();
-  const items = state.items.map((rec) => ({
+  const items = vaultItems().map((rec) => ({
     id: rec.id,
     thumbUrl: state.thumbCache.get(rec.id) || '',
     name: state.nameCache.get(rec.id) || '',
@@ -655,22 +676,200 @@ function toggleGallery() {
   document.body.classList.toggle('gallery-mode', state.galleryMode);
   setHidden('grid', state.galleryMode);
   setHidden('phantomGallery', !state.galleryMode);
-  setHidden('gridEmpty', state.galleryMode || state.items.length > 0);
+  setHidden('gridEmpty', state.galleryMode || vaultItems().length > 0);
   setHidden('noMatches', true);
   if (state.galleryMode) {
     if (!state.phantomGallery) {
       state.phantomGallery = createPhantomGallery($('phantomGallery'), {
+<<<<<<< HEAD
         backgroundColor: '#fbf6f3', // the vault cream — the page's own color
         cellSize: 240,
         gap: 20,
         parallaxStrength: 0.06,
         parallaxEase: 0.12,
+=======
+        backgroundColor: '#171014',
+        textColor: '#808080',
+        border: { width: 1, style: 'solid', color: '#e9dcd8', showTop: false, showBottom: true, showLeft: true, showRight: true },
+        hoverColor: 'rgba(196,123,131,0.35)',
+        cellSize: 220,
+        gap: 12,
+        cellPadding: 10,
+        arcAmount: 0.5,
+        arcMaxAngleDeg: 24,
+        arcAxis: 'horizontal',
+        edgeFade: 0.2,
+        parallaxStrength: 0.08,
+        parallaxWhileDragging: false,
+>>>>>>> origin/master
         throwFriction: 0.92,
+        throwVelocityScale: 1,
         onItemClick: (item) => openItem(item.id),
       });
     }
     populatePhantomGallery();
   }
+}
+
+// ---- journal (living garden) ----
+// One encrypted record per year. The record's ciphertext is the year blob JSON;
+// decrypt-once into state.journalCache, wiped on lock. Nothing journal-related
+// ever touches disk in plaintext.
+const JOURNAL_MIME = 'application/x-vault-journal';
+let journalEditKey = null; // the day currently open in the editor (a date key)
+
+function journalRecordForYear(year) {
+  return state.items.find((r) => r.kind === 'journal' && r.year === year);
+}
+
+async function journalForYear(year) {
+  if (state.journalCache.has(year)) return state.journalCache.get(year);
+  const rec = journalRecordForYear(year);
+  if (!rec) {
+    const empty = emptyYear(year);
+    state.journalCache.set(year, empty);
+    return empty;
+  }
+  try {
+    const itemKey = await unwrapItemKey(state.dek, rec);
+    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    try {
+      const blob = parseYearJSON(new TextDecoder().decode(plain));
+      if (!state.unlocked) return emptyYear(year); // locked mid-decrypt — drop it
+      state.journalCache.set(year, blob);
+      return blob;
+    } finally {
+      vaultWipeRaw(plain);
+    }
+  } catch (e) {
+    // tampered/damaged year — surface as empty rather than crash the garden
+    const empty = emptyYear(year);
+    state.journalCache.set(year, empty);
+    return empty;
+  }
+}
+
+async function saveJournalEntry(year, key, text, mood) {
+  if (!state.unlocked || !state.dek) return;
+  const blob = await journalForYear(year);
+  if ((!text || !text.trim()) && !mood) {
+    delete blob.days[key]; // empty entry → remove the day (plant uprooted)
+  } else {
+    blob.days[key] = { text: (text || '').trim(), mood: mood || '', updatedAt: Date.now() };
+  }
+  // replace the year record wholesale — the old ciphertext and its wrapped key die
+  state.items = state.items.filter((r) => !(r.kind === 'journal' && r.year === year));
+  const bytes = new TextEncoder().encode(serializeYear(blob));
+  const rec = await encryptFile('journal', JOURNAL_MIME, String(year), bytes);
+  rec.year = year;
+  state.items.push(rec);
+  state.journalCache.set(year, blob);
+  await saveVault();
+}
+
+function prettyDay(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function setMoodSelection(mood) {
+  document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
+    b.classList.toggle('on', b.dataset.mood === mood);
+  });
+}
+
+function openJournalDay(key) {
+  journalEditKey = key;
+  const year = yearKey(key);
+  journalForYear(year).then((blob) => {
+    if (!state.unlocked || journalEditKey !== key) return;
+    const entry = blob.days[key] || {};
+    $('journalDayLabel').textContent = prettyDay(key);
+    $('journalEntry').value = entry.text || '';
+    setMoodSelection(entry.mood || '');
+  });
+}
+
+async function renderOnThisDay(blob, year) {
+  const txt = $('journalOnThisDayText');
+  const mmdd = todayKey().slice(5); // month-day of today
+  const years = new Set();
+  for (const rec of state.items) {
+    if (rec.kind === 'journal' && rec.year && rec.year !== year) years.add(rec.year);
+  }
+  const past = [...years].sort((a, b) => b - a);
+  for (const y of past) {
+    const b = await journalForYear(y);
+    const key = `${y}-${mmdd}`;
+    const e = b.days[key];
+    if (e && e.text) {
+      txt.textContent = `a year ago (${y}): ${e.text}`;
+      setHidden('journalOnThisDayText', false);
+      return;
+    }
+  }
+  setHidden('journalOnThisDayText', true);
+}
+
+async function renderJournal() {
+  if (!state.unlocked) return;
+  const year = state.journalYear || yearOf(new Date());
+  state.journalYear = year;
+  const blob = await journalForYear(year);
+  if (!state.unlocked || state.journalYear !== year) return;
+  $('journalYearLabel').textContent = String(year);
+  const streak = calcStreak(sortedDayKeys(blob));
+  $('journalStreak').textContent = streak
+    ? `${streak} day${streak === 1 ? '' : 's'} in a row`
+    : 'plant your first entry today';
+  if (state.garden) state.garden.setYear(blob);
+  // default editor day: today for the current year, else the latest entry in that
+  // year (or Jan 1) — it must stay inside the year being shown, or a save would
+  // write the entry into the wrong year record.
+  if (!journalEditKey || yearKey(journalEditKey) !== year) {
+    if (year === yearOf(new Date())) {
+      journalEditKey = todayKey();
+    } else {
+      const keys = sortedDayKeys(blob);
+      journalEditKey = keys.length ? keys[keys.length - 1] : `${year}-01-01`;
+    }
+  }
+  openJournalDay(journalEditKey);
+  renderOnThisDay(blob, year);
+  applyJournalSearch();
+}
+
+function applyJournalSearch() {
+  const q = $('journalSearchInput') ? $('journalSearchInput').value : '';
+  if (state.garden) state.garden.setQuery(q);
+}
+
+function showJournalTab() {
+  state.journalTab = true;
+  $('vaultTabBtn').classList.remove('on');
+  $('journalTabBtn').classList.add('on');
+  setHidden('vaultPane', true);
+  setHidden('journalPane', false);
+  // file controls are vault-only; journal has its own toolbar
+  setHidden('addFilesBtn', true);
+  setHidden('galleryToggleBtn', true);
+  if (!state.garden) {
+    state.garden = createGarden($('gardenCanvas'), {
+      todayKey: todayKey(),
+      onDayClick: (key) => openJournalDay(key),
+    });
+  }
+  renderJournal();
+}
+
+function showVaultTab() {
+  state.journalTab = false;
+  $('vaultTabBtn').classList.add('on');
+  $('journalTabBtn').classList.remove('on');
+  setHidden('vaultPane', false);
+  setHidden('journalPane', true);
+  setHidden('addFilesBtn', false);
+  setHidden('galleryToggleBtn', false);
 }
 
 // ---- grid + lazy thumbs ----
@@ -700,7 +899,7 @@ async function renderGrid() {
   setHidden('gridEmpty', querying || shown.length > 0);
   setHidden('noMatches', !querying || shown.length > 0);
   if (querying) {
-    $('searchCount').textContent = `${shown.length} of ${state.items.length} files`;
+    $('searchCount').textContent = `${shown.length} of ${vaultItems().length} files`;
     setHidden('searchCount', false);
   } else {
     setHidden('searchCount', true);
@@ -903,7 +1102,7 @@ async function openPdf(itemId, bytes) {
     standardFontDataUrl: PDF_FONT_URL,
   });
   const doc = await task.promise;
-  if (!state.unlocked || currentItemId !== itemId) { task.destroy().catch(() => {}); return; }
+  if (!state.unlocked || currentItemId !== itemId) { task.destroy().catch(() => { }); return; }
   pdfTask = task;
   pdfDoc = doc;
   pdfPageCount = doc.numPages;
@@ -920,7 +1119,7 @@ function closePdf() {
   const task = pdfTask;
   pdfTask = null;
   pdfDoc = null;
-  if (task) { try { task.destroy().catch(() => {}); } catch (e) { /* noop */ } }
+  if (task) { try { task.destroy().catch(() => { }); } catch (e) { /* noop */ } }
   pdfPage = 1;
   pdfPageCount = 0;
   pdfScale = 1;
@@ -1140,6 +1339,32 @@ function renderIdlePills() {
   });
 }
 
+// ---- background picker (wormhole vs particles) ----
+function bgChoice() {
+  return localStorage.getItem(LS_BG) === 'particles' ? 'particles' : 'wormhole';
+}
+
+function renderBgPills() {
+  const choice = bgChoice();
+  document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.bg === choice);
+  });
+}
+
+// Mount the selected background controller on #authBg. Call whenever the choice
+// changes or on boot. Reuses the same canvas; the previous controller is
+// destroyed first (particles has no destroy — optional chaining handles it).
+function mountBackground() {
+  if (bgCtrl) bgCtrl.destroy?.();
+  const canvas = $('authBg');
+  if (!canvas) { bgCtrl = null; return; }
+  bgCtrl = bgChoice() === 'particles'
+    ? initParticles(canvas)
+    : initWormhole(canvas);
+  const active = document.querySelector('.screen.active');
+  bgCtrl.setActive(!!active && AUTH_SCREENS.has(active.id.replace('screen-', '')));
+}
+
 // ---- strength meter ----
 function updateMeter(input) {
   const meter = input.dataset.meter ? $(input.dataset.meter) : null;
@@ -1190,6 +1415,34 @@ function wire() {
   });
   $('addFilesBtn').addEventListener('click', () => $('photoInput').click());
   $('galleryToggleBtn').addEventListener('click', toggleGallery);
+  $('vaultTabBtn').addEventListener('click', showVaultTab);
+  $('journalTabBtn').addEventListener('click', showJournalTab);
+  $('journalSaveBtn').addEventListener('click', async () => {
+    const key = journalEditKey || todayKey();
+    const year = yearKey(key);
+    const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
+    await saveJournalEntry(year, key, $('journalEntry').value, mood);
+    toast('saved to your garden');
+    await renderJournal();
+  });
+  document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
+    b.addEventListener('click', () => setMoodSelection(b.dataset.mood));
+  });
+  $('journalSearchInput').addEventListener('input', applyJournalSearch);
+  $('journalSearchClear').addEventListener('click', () => {
+    $('journalSearchInput').value = '';
+    applyJournalSearch();
+  });
+  $('journalYearPrev').addEventListener('click', () => {
+    state.journalYear = (state.journalYear || yearOf(new Date())) - 1;
+    journalEditKey = null;
+    renderJournal();
+  });
+  $('journalYearNext').addEventListener('click', () => {
+    state.journalYear = (state.journalYear || yearOf(new Date())) + 1;
+    journalEditKey = null;
+    renderJournal();
+  });
   $('photoInput').addEventListener('change', (e) => {
     handleFiles([...e.target.files]);
     e.target.value = '';
@@ -1211,6 +1464,7 @@ function wire() {
   $('settingsBtn').addEventListener('click', () => {
     refreshPathLines();
     renderIdlePills();
+    renderBgPills();
     setErr('changeErr', ''); setOk('changeOk', '');
     setErr('rotateErr', '');
     show('settings');
@@ -1236,7 +1490,7 @@ function wire() {
   });
   $('viewerPlay').addEventListener('click', () => {
     const vid = $('itemVideo');
-    if (vid.paused) vid.play().catch(() => {}); else vid.pause();
+    if (vid.paused) vid.play().catch(() => { }); else vid.pause();
   });
   const stage = $('viewerStage');
   stage.addEventListener('wheel', (e) => {
@@ -1295,6 +1549,14 @@ function wire() {
       toast(p.dataset.min === '0' ? 'auto-lock off' : `auto-lock: ${p.dataset.min} min`);
     });
   });
+  document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      localStorage.setItem(LS_BG, p.dataset.bg);
+      renderBgPills();
+      mountBackground();
+      toast(p.dataset.bg === 'particles' ? 'background: particles' : 'background: wormhole');
+    });
+  });
   $('vaultPathLine').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('revealBtn').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('backupBtn').addEventListener('click', async () => {
@@ -1344,8 +1606,9 @@ function wire() {
 async function boot() {
   wire();
   renderIdlePills();
+  renderBgPills();
   ensureIO();
-  if ($('authBg')) particles = initParticles($('authBg'));
+  mountBackground();
   if (!window.vaultAPI) {
     // The page only runs inside the desktop app: window.vaultAPI is injected by
     // preload.js (Electron-only). A plain browser serving the same files via the
