@@ -8,6 +8,7 @@ import {
   vaultWipeRaw, vaultRandId,
 } from './vault-crypto.mjs';
 import { serializeVault, parseVault } from './container.mjs';
+import { initWormhole } from './wormhole.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
 import { createGarden } from './garden.mjs';
@@ -15,6 +16,7 @@ import { emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak,
 
 const $ = (id) => document.getElementById(id);
 const LS_IDLE = 'pcvault.idleMin';
+const LS_BG = 'pcvault.bg'; // 'wormhole' (default) or 'particles'
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
 // lucide-style inline icons (the phone app's `ic()` helper, reduced to what this UI uses)
@@ -54,8 +56,8 @@ let currentItemId = null;
 let toastTimer = null;
 
 // ---- auth-screen particle background (welcome/create/locked/seed) ----
-let particles = null; // controller returned by initParticles
-const AUTH_SCREENS = new Set(['welcome', 'create', 'locked', 'seed']);
+let bgCtrl = null; // background controller — wormhole or particles, per settings
+const AUTH_SCREENS = new Set(['welcome', 'create', 'locked', 'seed', 'settings']);
 
 // ---- in-app PDF viewer (offline pdf.js, canvas-rendered) ----
 let pdfDoc = null;        // pdf.js document proxy (numPages / getPage)
@@ -71,7 +73,7 @@ let pdfjsReady = null;    // lazy import of pdf.js + its worker module
 function show(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`screen-${name}`).classList.add('active');
-  if (particles) particles.setActive(AUTH_SCREENS.has(name));
+  if (bgCtrl) bgCtrl.setActive(AUTH_SCREENS.has(name));
 }
 function showOverlay(id, visible) {
   $(id).classList.toggle('hidden', !visible);
@@ -591,7 +593,7 @@ function toggleGallery() {
       state.phantomGallery = createPhantomGallery($('phantomGallery'), {
         backgroundColor: '#171014',
         textColor: '#808080',
-        borderColor: '#e9dcd8',
+        border: { width: 1, style: 'solid', color: '#e9dcd8', showTop: false, showBottom: true, showLeft: true, showRight: true },
         hoverColor: 'rgba(196,123,131,0.35)',
         cellSize: 220,
         gap: 12,
@@ -601,7 +603,9 @@ function toggleGallery() {
         arcAxis: 'horizontal',
         edgeFade: 0.2,
         parallaxStrength: 0.08,
+        parallaxWhileDragging: false,
         throwFriction: 0.92,
+        throwVelocityScale: 1,
         onItemClick: (item) => openItem(item.id),
       });
     }
@@ -1229,6 +1233,32 @@ function renderIdlePills() {
   });
 }
 
+// ---- background picker (wormhole vs particles) ----
+function bgChoice() {
+  return localStorage.getItem(LS_BG) === 'particles' ? 'particles' : 'wormhole';
+}
+
+function renderBgPills() {
+  const choice = bgChoice();
+  document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.bg === choice);
+  });
+}
+
+// Mount the selected background controller on #authBg. Call whenever the choice
+// changes or on boot. Reuses the same canvas; the previous controller is
+// destroyed first (particles has no destroy — optional chaining handles it).
+function mountBackground() {
+  if (bgCtrl) bgCtrl.destroy?.();
+  const canvas = $('authBg');
+  if (!canvas) { bgCtrl = null; return; }
+  bgCtrl = bgChoice() === 'particles'
+    ? initParticles(canvas)
+    : initWormhole(canvas);
+  const active = document.querySelector('.screen.active');
+  bgCtrl.setActive(!!active && AUTH_SCREENS.has(active.id.replace('screen-', '')));
+}
+
 // ---- strength meter ----
 function updateMeter(input) {
   const meter = input.dataset.meter ? $(input.dataset.meter) : null;
@@ -1328,6 +1358,7 @@ function wire() {
   $('settingsBtn').addEventListener('click', () => {
     refreshPathLines();
     renderIdlePills();
+    renderBgPills();
     setErr('changeErr', ''); setOk('changeOk', '');
     setErr('rotateErr', '');
     show('settings');
@@ -1351,6 +1382,14 @@ function wire() {
       renderIdlePills();
       resetIdle();
       toast(p.dataset.min === '0' ? 'auto-lock off' : `auto-lock: ${p.dataset.min} min`);
+    });
+  });
+  document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      localStorage.setItem(LS_BG, p.dataset.bg);
+      renderBgPills();
+      mountBackground();
+      toast(p.dataset.bg === 'particles' ? 'background: particles' : 'background: wormhole');
     });
   });
   $('vaultPathLine').addEventListener('click', () => window.vaultAPI.reveal(state.path));
@@ -1391,8 +1430,9 @@ function wire() {
 async function boot() {
   wire();
   renderIdlePills();
+  renderBgPills();
   ensureIO();
-  if ($('authBg')) particles = initParticles($('authBg'));
+  mountBackground();
   if (!window.vaultAPI) {
     // The page only runs inside the desktop app: window.vaultAPI is injected by
     // preload.js (Electron-only). A plain browser serving the same files via the

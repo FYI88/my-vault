@@ -168,5 +168,17 @@ export function initParticles(canvas) {
   resize();
   seed();
 
-  return { setActive, resize };
+  // destroy() lets renderer.js swap this controller out for another background
+  // (e.g. the wormhole) without leaking listeners or a stale rAF loop.
+  function destroy() {
+    window.removeEventListener('mousemove', onMove, { passive: true });
+    window.removeEventListener('mouseleave', onLeave);
+    window.removeEventListener('click', onClick);
+    window.removeEventListener('resize', resize);
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    active = false;
+    particles = [];
+  }
+
+  return { setActive, resize, destroy };
 }
