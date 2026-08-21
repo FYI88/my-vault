@@ -1,40 +1,41 @@
 <div align="center">
 
-# 🔐 My Vault
+# My Vault
 
 **Zero-knowledge, offline encrypted photo & document vault with an interactive living journal and dual Electron + Tauri desktop shells.**
 
 One encrypted file holds everything — photos, videos, documents, PDFs, and encrypted journals.  
 *Nothing ever leaves your PC. No cloud. No network. Just you and your vault.*
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4.svg)]()
-[![Tauri](https://img.shields.io/badge/Tauri-v2%20(Rust)-24c8db.svg)]()
-[![Electron](https://img.shields.io/badge/Electron-43.0-47848f.svg)]()
-[![Crypto](https://img.shields.io/badge/crypto-AES--256--GCM%20%2B%20PBKDF2-green.svg)]()
-[![License](https://img.shields.io/badge/license-private-red.svg)]()
+<br/>
+
+![Version](https://img.shields.io/badge/Version-2.0.0-3b2d35?style=for-the-badge)
+![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078d4?style=for-the-badge&logo=windows&logoColor=white)
+![Tauri](https://img.shields.io/badge/Tauri-v2%20(Rust)-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
+![Electron](https://img.shields.io/badge/Electron-43.0-47848f?style=for-the-badge&logo=electron&logoColor=white)
+![Security](https://img.shields.io/badge/Security-AES--256--GCM-107c41?style=for-the-badge&logo=shield&logoColor=white)
 
 </div>
 
 ---
 
-## ✨ Features
+## System Capabilities
 
-| Feature Category | Capabilities & Highlights |
-|------------------|---------------------------|
-| 🖼️ **Immersive Media Viewer** | Full-stage viewer with scroll-wheel zooming, double-click focus, drag-to-pan, `←`/`→` arrow key navigation, `F` key fullscreen, video play overlay, item counter (`1 of N`), and auto-hiding glassmorphic controls. |
-| 🌿 **Encrypted Daily Journal** | Living garden view powered by encrypted annual JSON blobs. Track daily entries, moods, habit streaks, instant search, and "On This Day" memory throwbacks. |
-| 🌌 **Interactive Themes** | Toggle between **Constellation Particles** (mouse-interactive particle gravity) and **Dynamic Canvas Wormhole** background rendering with settings customization. |
-| 🎨 **Phantom 3D Gallery** | Infinite draggable 3D arc perspective gallery with inertia physics, custom cream vault palette (`#fbf6f3`), and press-to-zoom. Press `G` to toggle. |
-| 📄 **In-App Document Engine** | Native offline **pdf.js** rendering with page controls and zoom + rich in-app plaintext editor for `.txt`, `.md`, `.json`, `.csv`, `.js`, `.css`, and `.html`. |
-| 🔒 **Zero-Knowledge Security** | PBKDF2 (600,000 iterations), WebCrypto non-extractable AES-256-GCM keys, BIP-39 12-word recovery seeds, cryptographic single-item deletion, EXIF metadata stripping, tamper-proofing, and zero network calls. |
-| ⚡ **Dual Desktop Shells** | Native support for both **Electron 43** (portable EXE) and **Tauri v2** (Rust backend with 5.4 MB EXE & 29 MB RAM footprint). |
-| 🔍 **Masonry Grid & Search** | Responsive column layout (2–5 columns), drag-and-drop file import, drag reordering, and instant zero-disk filename search. |
-| ⏱️ **Auto-Lock & Hardening** | Inactivity auto-lock (1 / 5 / 15 min), manual lock shortcut, background lock on minimize/close, and sample tamper checks on unlock. |
+| Feature Module | Technical Specification |
+|----------------|-------------------------|
+| **Immersive Media Viewer** | Full-stage viewer with scroll-wheel zooming, double-click focus, drag-to-pan, `←`/`→` arrow key navigation, `F` key fullscreen, video play overlay, item counter (`1 of N`), and auto-hiding glassmorphic controls. |
+| **Encrypted Daily Journal** | Living garden view powered by encrypted annual JSON blobs. Track daily entries, moods, habit streaks, instant search, and "On This Day" memory throwbacks. |
+| **Interactive Themes** | Toggle between **Constellation Particles** (mouse-interactive particle gravity) and **Dynamic Canvas Wormhole** background rendering with settings customization. |
+| **Phantom 3D Gallery** | Infinite draggable 3D arc perspective gallery with inertia physics, custom cream vault palette (`#fbf6f3`), and press-to-zoom. Press `G` to toggle. |
+| **In-App Document Engine** | Native offline **pdf.js** rendering with page controls and zoom + rich in-app plaintext editor for `.txt`, `.md`, `.json`, `.csv`, `.js`, `.css`, and `.html`. |
+| **Zero-Knowledge Security** | PBKDF2 (600,000 iterations), WebCrypto non-extractable AES-256-GCM keys, BIP-39 12-word recovery seeds, cryptographic single-item deletion, EXIF metadata stripping, tamper-proofing, and zero network calls. |
+| **Dual Desktop Shells** | Native support for both **Electron 43** (portable EXE) and **Tauri v2** (Rust backend with 5.4 MB EXE & 29 MB RAM footprint). |
+| **Masonry Grid & Search** | Responsive column layout (2–5 columns), drag-and-drop file import, drag reordering, and instant zero-disk filename search. |
+| **Auto-Lock & Hardening** | Inactivity auto-lock (1 / 5 / 15 min), manual lock shortcut, background lock on minimize/close, and sample tamper checks on unlock. |
 
 ---
 
-## 🔒 Security Architecture
+## Security Architecture
 
 ```text
 Passphrase ──→ PBKDF2-SHA-256 (600,000 iterations) ──→ KEK ──┐
@@ -59,7 +60,7 @@ DEK (Data Encryption Key)
 
 ---
 
-## ⚡ Electron vs. Tauri v2 Benchmark
+## Desktop Runtime Comparison
 
 The vault ships with **two interchangeable desktop backends** using the exact same HTML5/CSS3/JS renderer and crypto engine (`src/`).
 
@@ -74,31 +75,31 @@ The vault ships with **two interchangeable desktop backends** using the exact sa
 
 ---
 
-## 🚀 Quick Start & Development
+## Development & Build Guide
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) v18+
 - (Optional for Tauri builds) [Rust toolchain](https://www.rust-lang.org/) & C++ Build Tools
 
-### 1. Clone & Install
+### 1. Repository Setup
 ```bash
 git clone https://github.com/FYI88/my-vault.git
 cd my-vault/pcvault
 npm ci
 ```
 
-### 2. Run App (Electron)
+### 2. Launch Development Shell
 ```bash
 npm start
 ```
 
-### 3. Run Dev Server (Browser Preview)
+### 3. Browser Preview Server
 ```bash
 npm run dev
 # → Local preview available at http://localhost:8779/
 ```
 
-### 4. Build Executables
+### 4. Production Build Pipeline
 ```bash
 # Build Portable Electron EXE (dist/my-vault-portable.exe)
 npm run dist
@@ -107,7 +108,7 @@ npm run dist
 npx tauri build
 ```
 
-### 5. Automated Tests
+### 5. Test Suite Verification
 ```bash
 npm test
 # → 27/27 test suite passing (18 WebCrypto + 9 Container format tests)
@@ -115,7 +116,7 @@ npm test
 
 ---
 
-## 📁 Project Structure
+## Repository Structure
 
 ```text
 pcvault/
@@ -150,26 +151,26 @@ pcvault/
 
 ---
 
-## 🛡️ Security Audit Status
+## Security Audit Report
 
 All 10 security audit findings from August 2026 are **fully resolved**:
 
-| ID | Security Item | Status | Resolution Detail |
-|----|---------------|--------|-------------------|
-| **SEC-001** | Trusted IPC paths | ✅ Resolved | Main process enforces dialog-minted path authorization. |
-| **SEC-002** | WebCrypto protocol origin | ✅ Resolved | Custom `app://` scheme guarantees secure WebCrypto context. |
-| **SEC-003** | Content Security Policy | ✅ Resolved | Strict CSP headers without `unsafe-eval` or inline scripts. |
-| **SEC-004** | Path confidentiality | ✅ Resolved | Raw file paths remain isolated in main process. |
-| **SEC-005** | Media EXIF retention | ⚠️ Accepted | Photos EXIF-stripped via canvas; raw videos kept intact. |
-| **SEC-006** | Large file import guard | ✅ Resolved | Skips files > 2 GB to prevent memory exhaustion. |
-| **SEC-007** | Memory cleanup | ✅ Resolved | Plaintext buffers zeroed immediately after tamper check. |
-| **SEC-008** | Atomic rename cleanup | ✅ Resolved | Orphaned `.tmp-*` files auto-purged on failure. |
-| **SEC-009** | Dev server security headers | ✅ Resolved | Added strict security headers to local dev server. |
-| **SEC-010** | Record count validation | ✅ Resolved | Enforced record upper-bound limits on vault parsing. |
+| Audit Reference | Vulnerability Assessment | Status | Resolution Detail |
+|-----------------|--------------------------|--------|-------------------|
+| **SEC-001** | Trusted IPC paths | Resolved | Main process enforces dialog-minted path authorization. |
+| **SEC-002** | WebCrypto protocol origin | Resolved | Custom `app://` scheme guarantees secure WebCrypto context. |
+| **SEC-003** | Content Security Policy | Resolved | Strict CSP headers without `unsafe-eval` or inline scripts. |
+| **SEC-004** | Path confidentiality | Resolved | Raw file paths remain isolated in main process. |
+| **SEC-005** | Media EXIF retention | Accepted | Photos EXIF-stripped via canvas; raw videos kept intact. |
+| **SEC-006** | Large file import guard | Resolved | Skips files > 2 GB to prevent memory exhaustion. |
+| **SEC-007** | Memory cleanup | Resolved | Plaintext buffers zeroed immediately after tamper check. |
+| **SEC-008** | Atomic rename cleanup | Resolved | Orphaned `.tmp-*` files auto-purged on failure. |
+| **SEC-009** | Dev server security headers | Resolved | Added strict security headers to local dev server. |
+| **SEC-010** | Record count validation | Resolved | Enforced record upper-bound limits on vault parsing. |
 
 ---
 
-## 📄 License & Credits
+## License
 
-Built with ❤️ using **WebCrypto**, **Electron**, and **Tauri**.  
+Built with **WebCrypto**, **Electron**, and **Tauri**.  
 *Private repository — for personal use.*
