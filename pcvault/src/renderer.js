@@ -45,7 +45,66 @@ const state = {
   phantomGallery: null,
 };
 let currentItemId = null;
+let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
 let toastTimer = null;
+
+// ---- immersive viewer (full-bleed stage + floating chrome) ----
+let viewerZoom = 1;          // photo zoom factor (1 = fit)
+let viewerPanX = 0;
+let viewerPanY = 0;
+let viewerZoomDrag = null;   // active pan gesture
+let chromeTimer = null;
+let chromeHidden = false;
+const CHROME_IDLE_MS = 2500; // stillness before the HUD fades out
+
+function viewerOpen() { return !$('itemOverlay').classList.contains('hidden'); }
+
+function setChromeHidden(hidden) {
+  chromeHidden = hidden;
+  $('viewerTop').classList.toggle('chrome-hidden', hidden);
+  $('viewerBottom').classList.toggle('chrome-hidden', hidden);
+}
+function pokeChrome(e) {
+  if (!viewerOpen()) return;
+  // keep the chrome visible while the cursor rests on a HUD control
+  if (e && e.target && e.target.closest && e.target.closest('.viewer-hud')) return;
+  setChromeHidden(false);
+  clearTimeout(chromeTimer);
+  chromeTimer = setTimeout(() => { if (viewerOpen()) setChromeHidden(true); }, CHROME_IDLE_MS);
+}
+
+function resetViewerZoom() {
+  viewerZoom = 1;
+  viewerPanX = 0;
+  viewerPanY = 0;
+  viewerZoomDrag = null;
+  const img = $('itemImg');
+  img.classList.remove('zoomed', 'dragging');
+  img.style.transform = '';
+  img.style.transformOrigin = '';
+}
+function setViewerZoom(zoom, oxPct, oyPct) {
+  viewerZoom = Math.min(5, Math.max(1, zoom));
+  const img = $('itemImg');
+  img.style.transformOrigin = `${oxPct}% ${oyPct}%`;
+  img.classList.toggle('zoomed', viewerZoom > 1);
+  if (viewerZoom <= 1) viewerPanX = viewerPanY = 0;
+  img.style.transform = `translate(${viewerPanX}px, ${viewerPanY}px) scale(${viewerZoom})`;
+}
+
+function viewerNav(delta) {
+  if (!state.unlocked || !currentItemId || !state.items.length) return;
+  const idx = state.items.findIndex((r) => r.id === currentItemId);
+  if (idx === -1) return;
+  const next = state.items[(idx + delta + state.items.length) % state.items.length];
+  openItem(next.id);
+}
+
+function toggleFullscreen() {
+  const el = $('itemOverlay');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (el.requestFullscreen) el.requestFullscreen();
+}
 
 // ---- auth-screen particle background (welcome/create/locked/seed) ----
 let particles = null; // controller returned by initParticles
@@ -73,6 +132,7 @@ function showOverlay(id, visible) {
 function closeItemOverlay() {
   showOverlay('itemOverlay', false);
   currentItemId = null;
+  currentItemKind = null;
   closePdf();
   const video = $('itemVideo');
   video.pause(); video.removeAttribute('src'); video.load();
@@ -80,7 +140,12 @@ function closeItemOverlay() {
   setHidden('itemImg', true);
   setHidden('itemDocInfo', true);
   setHidden('itemText', true);
+  setHidden('viewerPlay', true);
   $('itemTextContent').textContent = '';
+  resetViewerZoom();
+  clearTimeout(chromeTimer);
+  setChromeHidden(false);
+  if (document.fullscreenElement) document.exitFullscreen();
 }
 
 // ---- tiny helpers ----
@@ -271,6 +336,7 @@ function lock() {
   state.pendingDek = null;
   state.rotatePhrase = null;
   currentItemId = null;
+  currentItemKind = null;
   state.urls.forEach((u) => URL.revokeObjectURL(u));
   state.urls.clear();
   state.thumbCache.clear();
@@ -285,6 +351,11 @@ function lock() {
   showOverlay('itemOverlay', false);
   $('itemImg').removeAttribute('src');
   setHidden('itemImg', true);
+  setHidden('viewerPlay', true);
+  resetViewerZoom();
+  clearTimeout(chromeTimer);
+  setChromeHidden(false);
+  if (document.fullscreenElement) document.exitFullscreen();
   const video = $('itemVideo');
   video.pause();
   video.removeAttribute('src');
@@ -556,13 +627,32 @@ async function populatePhantomGallery() {
     thumbUrl: state.thumbCache.get(rec.id) || '',
     name: state.nameCache.get(rec.id) || '',
     kind: rec.kind,
+    meta: rec.kind === 'photo' ? String(new Date(rec.createdAt).getFullYear()) : fmtSize(rec.size),
   }));
   state.phantomGallery.setItems(items);
+  // The gallery needs the photos too, but thumbnails only land in the cache when
+  // the grid's IntersectionObserver reaches a cell. Hydrate anything missing so
+  // toggling straight into the gallery never shows dark tiles. The gallery reads
+  // the items array on every frame — mutating `thumbUrl` in place updates the
+  // cells without a rebuild.
+  const missing = state.items.filter((rec) => rec.kind !== 'doc' && !state.thumbCache.has(rec.id));
+  for (const rec of missing) {
+    try {
+      const url = rec.kind === 'video' ? await videoThumbUrl(rec) : await thumbUrl(rec);
+      if (!state.unlocked || !state.galleryMode) return; // locked or left mid-hydrate
+      state.thumbCache.set(rec.id, url);
+      const it = items.find((i) => i.id === rec.id);
+      if (it) it.thumbUrl = url;
+    } catch (err) {
+      // damaged record — the tile stays dark, same as the grid's "can't open"
+    }
+  }
 }
 
 function toggleGallery() {
   state.galleryMode = !state.galleryMode;
   $('galleryToggleBtn').classList.toggle('on', state.galleryMode);
+  document.body.classList.toggle('gallery-mode', state.galleryMode);
   setHidden('grid', state.galleryMode);
   setHidden('phantomGallery', !state.galleryMode);
   setHidden('gridEmpty', state.galleryMode || state.items.length > 0);
@@ -570,18 +660,11 @@ function toggleGallery() {
   if (state.galleryMode) {
     if (!state.phantomGallery) {
       state.phantomGallery = createPhantomGallery($('phantomGallery'), {
-        backgroundColor: '#171014',
-        textColor: '#808080',
-        borderColor: '#e9dcd8',
-        hoverColor: 'rgba(196,123,131,0.35)',
-        cellSize: 220,
-        gap: 12,
-        cellPadding: 10,
-        arcAmount: 0.5,
-        arcMaxAngleDeg: 24,
-        arcAxis: 'horizontal',
-        edgeFade: 0.2,
-        parallaxStrength: 0.08,
+        backgroundColor: '#fbf6f3', // the vault cream — the page's own color
+        cellSize: 240,
+        gap: 20,
+        parallaxStrength: 0.06,
+        parallaxEase: 0.12,
         throwFriction: 0.92,
         onItemClick: (item) => openItem(item.id),
       });
@@ -872,7 +955,12 @@ async function openItem(id) {
   const rec = state.items.find((r) => r.id === id);
   if (!rec) return;
   currentItemId = id;
+  currentItemKind = rec.kind;
+  const viewIdx = state.items.findIndex((r) => r.id === id);
+  $('viewerCount').textContent = viewIdx === -1 ? '' : `${viewIdx + 1} of ${state.items.length}`;
   setHidden('itemErr', true);
+  resetViewerZoom();
+  setHidden('viewerPlay', true);
   $('itemTitle').textContent = '';
   $('itemDate').textContent = '';
   $('itemImg').removeAttribute('src');
@@ -887,6 +975,7 @@ async function openItem(id) {
   $('itemTextContent').textContent = '';
   setHidden('itemText', true);
   showOverlay('itemOverlay', true);
+  pokeChrome(); // show the chrome; it fades out after a moment of stillness
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
     const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });
@@ -919,6 +1008,7 @@ async function openItem(id) {
       state.urls.add(url);
       setHidden('itemVideo', false);
       $('itemVideo').src = url;
+      setHidden('viewerPlay', false); // paused → the big play button sits over the frame
     } else {
       // docs: PDF and text render in-app; everything else falls back to icon + export
       const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
@@ -947,6 +1037,7 @@ async function openItem(id) {
   } catch (err) {
     // tampered/damaged record — loud, with delete still armed (the repair path)
     closePdf();
+    setHidden('viewerPlay', true);
     setHidden('itemErr', false);
   }
 }
@@ -1127,13 +1218,72 @@ function wire() {
   $('settingsBackBtn').addEventListener('click', () => show('unlocked'));
   $('lockBtn').addEventListener('click', lock);
   $('itemBackBtn').addEventListener('click', closeItemOverlay);
-  $('itemOverlay').querySelector('.item-overlay-backdrop').addEventListener('click', closeItemOverlay);
   $('itemDeleteBtn').addEventListener('click', handleDelete);
   $('itemExportBtn').addEventListener('click', handleExport);
   $('pdfPrev').addEventListener('click', () => pdfGo(-1));
   $('pdfNext').addEventListener('click', () => pdfGo(1));
   $('pdfZoomOut').addEventListener('click', () => pdfZoom(-1));
   $('pdfZoomIn').addEventListener('click', () => pdfZoom(1));
+
+  // ---- immersive viewer wiring ----
+  $('viewerPrevBtn').addEventListener('click', () => viewerNav(-1));
+  $('viewerNextBtn').addEventListener('click', () => viewerNav(1));
+  $('viewerFullscreenBtn').addEventListener('click', toggleFullscreen);
+  const v = $('itemVideo');
+  v.addEventListener('play', () => setHidden('viewerPlay', true));
+  v.addEventListener('pause', () => {
+    if (viewerOpen() && currentItemKind === 'video') setHidden('viewerPlay', false);
+  });
+  $('viewerPlay').addEventListener('click', () => {
+    const vid = $('itemVideo');
+    if (vid.paused) vid.play().catch(() => {}); else vid.pause();
+  });
+  const stage = $('viewerStage');
+  stage.addEventListener('wheel', (e) => {
+    if (!viewerOpen() || $('itemImg').classList.contains('hidden')) return;
+    e.preventDefault();
+    const img = $('itemImg');
+    const r = img.getBoundingClientRect();
+    const ox = Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100));
+    const oy = Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100));
+    setViewerZoom(viewerZoom * (e.deltaY < 0 ? 1.25 : 0.8), ox, oy);
+  }, { passive: false });
+  stage.addEventListener('click', (e) => {
+    // clicking the letterbox around the media toggles the chrome
+    if (e.target !== stage || !viewerOpen()) return;
+    if (chromeHidden) pokeChrome(); else setChromeHidden(true);
+  });
+  const viewImg = $('itemImg');
+  viewImg.addEventListener('pointerdown', (e) => {
+    if (viewerZoom <= 1) return;
+    viewerZoomDrag = { x: e.clientX, y: e.clientY, px: viewerPanX, py: viewerPanY };
+    viewImg.setPointerCapture(e.pointerId);
+    viewImg.classList.add('dragging');
+  });
+  viewImg.addEventListener('pointermove', (e) => {
+    if (!viewerZoomDrag) return;
+    viewerPanX = viewerZoomDrag.px + (e.clientX - viewerZoomDrag.x);
+    viewerPanY = viewerZoomDrag.py + (e.clientY - viewerZoomDrag.y);
+    viewImg.style.transform = `translate(${viewerPanX}px, ${viewerPanY}px) scale(${viewerZoom})`;
+  });
+  viewImg.addEventListener('pointerup', () => {
+    viewerZoomDrag = null;
+    viewImg.classList.remove('dragging');
+  });
+  viewImg.addEventListener('dblclick', (e) => {
+    if (viewerZoom > 1) {
+      resetViewerZoom();
+    } else {
+      const r = viewImg.getBoundingClientRect();
+      const ox = Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100));
+      const oy = Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100));
+      setViewerZoom(2, ox, oy);
+    }
+  });
+  $('itemOverlay').addEventListener('pointermove', pokeChrome);
+  $('itemOverlay').addEventListener('pointerleave', () => {
+    if (viewerOpen()) setChromeHidden(true);
+  });
 
   $('changeForm').addEventListener('submit', handleChangePass);
   $('rotateForm').addEventListener('submit', handleRotate);
@@ -1164,11 +1314,22 @@ function wire() {
     inp.addEventListener('input', () => updateMeter(inp));
   });
 
-  // keyboard shortcut: G toggles between masonry grid and phantom gallery
+  // keyboard shortcuts: Esc/←/→/F drive the viewer; G toggles the gallery view
   window.addEventListener('keydown', (e) => {
     if (!state.unlocked) return;
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    if (viewerOpen()) {
+      if (e.key === 'Escape') {
+        if (!document.fullscreenElement) closeItemOverlay();
+        return;
+      }
+      if (e.target.tagName === 'VIDEO') return; // native controls own the arrows while focused
+      if (e.key === 'ArrowLeft') { e.preventDefault(); viewerNav(-1); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); viewerNav(1); return; }
+      if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
+      return;
+    }
     if (e.key === 'g' || e.key === 'G') {
       e.preventDefault();
       toggleGallery();

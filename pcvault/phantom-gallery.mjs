@@ -107,34 +107,18 @@ export function createPhantomGallery(container, opts = {}) {
   let dragOccurred = false; // the pointer actually dragged since pointerdown
   let zoomOccurred = false; // the press-hold zoom fired since pointerdown
   let viewport = { w: 0, h: 0 };
-  // whole-grid tilt: the grid rotates gently with the cursor (rotateX/Y about
-  // the container center) and pulls back while dragging — replaces the old
-  // per-cell arc, which read as "not geometrical".
-  const tilt = { rx: 0, ry: 0, s: 1 };
-  const tiltTarget = { rx: 0, ry: 0, s: 1 };
 
   // ---- DOM setup ----
   // width:100% but NOT height:100% — the caller's stylesheet (or a wrapper) owns
   // the height. Forcing height:100% clobbers .phantom-gallery's fixed height and
   // collapses the container to 0px when the parent has no intrinsic height.
-  container.style.cssText = `width:100%;background:${C.backgroundColor};position:relative;overflow:hidden;touch-action:none;cursor:grab;user-select:none;perspective:1200px;transform-style:preserve-3d;`;
+  container.style.cssText = `width:100%;background:${C.backgroundColor};position:relative;overflow:hidden;touch-action:none;cursor:grab;user-select:none;perspective:1000px;transform-style:preserve-3d;`;
   const gridEl = document.createElement('div');
-  gridEl.style.cssText = 'position:absolute;width:100%;height:100%;transform-style:preserve-3d;will-change:transform;';
+  gridEl.style.cssText = 'position:absolute;width:100%;height:100%;transform-style:preserve-3d;';
   container.appendChild(gridEl);
-  // edge-fade vignette — adaptive: dark edges on dark backgrounds (reference
-  // look), a soft shadow on light backgrounds (cream theme) so the curved
-  // screen still reads without turning into gray mud.
+  // edge-fade vignette
   const vignette = document.createElement('div');
-  const bgLuma = (() => {
-    const m = /^#?([0-9a-f]{6})$/i.exec(C.backgroundColor.trim());
-    if (!m) return 0;
-    const n = parseInt(m[1], 16);
-    return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
-  })();
-  const vg = bgLuma > 0.5
-    ? 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.04) 60%, rgba(0,0,0,0.10) 90%, rgba(0,0,0,0.20) 100%)'
-    : 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0.8) 90%, rgba(0,0,0,1) 100%)';
-  vignette.style.cssText = `position:absolute;inset:0;pointer-events:none;background:${vg};`;
+  vignette.style.cssText = 'position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0.8) 90%, rgba(0,0,0,1) 100%);';
   container.appendChild(vignette);
 
   // ---- viewport tracking ----
@@ -153,33 +137,49 @@ export function createPhantomGallery(container, opts = {}) {
   function makeCell(x, y) {
     const el = document.createElement('div');
     el.className = 'pgal-cell';
-    // frameless floating tile: no borders, no caption, no padding — just the
-    // photo, rounded like the app's cards, lifted by a soft shadow. This is
-    // the "phantom" look: photos float on the page instead of a bordered grid.
-    el.style.cssText = 'position:absolute;border-radius:14px;overflow:hidden;background:transparent;cursor:pointer;transition:box-shadow 0.25s ease;box-shadow:0 15px 35px rgba(74,63,66,0.18);';
+    // sharp cells separated by the border line on the bottom/left/right — the
+    // reference renders no top border, so tiles read as a clean grid of "ghost"
+    // panes floating on the curved screen.
+    const bw = (C.borderWidth * crispBorder()) + 'px';
+    const bStyle = `${bw} solid ${C.borderColor}`;
+    const bTop = C.borderTop ? `border-top:${bStyle};` : '';
+    el.style.cssText = `position:absolute;border:0;${bTop}border-bottom:${bStyle};border-left:${bStyle};border-right:${bStyle};background:rgba(0,0,0,0.1);cursor:pointer;transition:background-color 0.3s ease;display:flex;flex-direction:column;box-sizing:border-box;transform-style:preserve-3d;`;
+    el.style.padding = C.cellPadding + 'px';
+    // image — ghost treatment: a soft blur + desaturation + inner vignette
+    // give each photo the dreamy "ghost" look of the reference demo images
+    // (the demo photos are dark, blurred art shots). Hover sharpens it.
     const imgWrap = document.createElement('div');
     const ghost = C.ghostImages !== false
-      ? 'filter:blur(0.6px) saturate(0.9) brightness(0.95);transition:filter 0.3s ease;'
+      ? 'filter:blur(0.6px) saturate(0.9) brightness(0.95);box-shadow:inset 0 0 24px rgba(0,0,0,0.5);transition:filter 0.3s ease;'
       : '';
-    imgWrap.style.cssText = `position:absolute;inset:0;background-size:cover;background-position:center;${ghost}`;
+    imgWrap.style.cssText = `flex:1;background-size:cover;background-position:center;margin-bottom:${C.gap}px;border-radius:4px;${ghost}`;
     el.appendChild(imgWrap);
+    // caption
+    const cap = document.createElement('div');
+    cap.style.cssText = `color:${C.textColor};font-size:12px;font-family:'JetBrains Mono',monospace;display:flex;justify-content:space-between;align-items:center;`;
+    el.appendChild(cap);
+    const titleSpan = document.createElement('span');
+    titleSpan.style.cssText = 'font-weight:bold;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    cap.appendChild(titleSpan);
+    const metaSpan = document.createElement('span');
+    metaSpan.style.cssText = 'flex:none;margin-left:6px;';
+    cap.appendChild(metaSpan);
 
     el.addEventListener('mouseenter', () => {
-      el.style.boxShadow = '0 18px 40px rgba(74,63,66,0.32), 0 0 0 2px rgba(196,123,131,0.4)';
-      if (C.ghostImages !== false) imgWrap.style.filter = 'none';
+      el.style.backgroundColor = C.hoverColor;
+      if (C.ghostImages !== false) el.children[0].style.filter = 'none';
     });
     el.addEventListener('mouseleave', () => {
-      el.style.boxShadow = '';
-      if (C.ghostImages !== false) imgWrap.style.filter = '';
+      el.style.backgroundColor = 'rgba(0,0,0,0.1)';
+      if (C.ghostImages !== false) el.children[0].style.filter = '';
     });
     return el;
   }
 
   function updateCells() {
     const cellW = cellSize;
-    const pitch = cellW + C.gap;
-    const sx = Math.floor(-off.x / pitch) - 5;
-    const sy = Math.floor(-off.y / pitch) - 5;
+    const sx = Math.floor(-off.x / cellW) - 5;
+    const sy = Math.floor(-off.y / cellW) - 5;
     const needed = new Set();
 
     for (let y = sy; y < sy + GRID; y++) {
@@ -192,21 +192,33 @@ export function createPhantomGallery(container, opts = {}) {
           gridEl.appendChild(el);
           cellEls.set(k, el);
         }
-        // clean tiling: pitch = cell + gap, snapped to device pixels so the
-        // grid stays geometrically perfect at any display scale
-        const left = snapPx(x * pitch + off.x + inertia.x);
-        const top = snapPx(y * pitch + off.y + inertia.y);
+        // position + 3D transform (positions snapped to device pixels so the
+        // white separation lines stay crisp at fractional display scales)
+        const left = snapPx(x * cellW + off.x + mouseOff.x + inertia.x);
+        const top = snapPx(y * cellW + off.y + mouseOff.y + inertia.y);
+        const cx = left + cellW / 2;
+        const cy = top + cellW / 2;
+        const { z, yaw, pitch, edge } = arcTransform(cx, cy, viewport.w || 1, viewport.h || 1, C.arcAxis, C.arcMaxAngleDeg, C.arcAmount);
+        const scale = 1 - C.edgeFade * (edge * edge);
+        const opacity = 1 - 0.4 * (edge * C.arcAmount);
+
         el.style.left = left + 'px';
         el.style.top = top + 'px';
         el.style.width = snapPx(cellW) + 'px';
         el.style.height = snapPx(cellW) + 'px';
+        el.style.transform = `translate3d(0,0,${z}px) rotateY(${yaw}deg) rotateX(${pitch}deg) scale(${scale})`;
+        el.style.opacity = opacity;
 
         // content
         const idx = Math.abs((x + y * 3) % (items.length || 1));
         const item = items[idx];
+        const imgWrap = el.children[0];
+        const cap = el.children[1];
         if (item) {
           el._item = item;
-          el.children[0].style.backgroundImage = item.thumbUrl ? `url(${item.thumbUrl})` : '';
+          imgWrap.style.backgroundImage = item.thumbUrl ? `url(${item.thumbUrl})` : '';
+          cap.children[0].textContent = item.name || 'Untitled';
+          cap.children[1].textContent = item.meta || item.kind || '';
         } else {
           el._item = null;
         }
@@ -260,17 +272,6 @@ export function createPhantomGallery(container, opts = {}) {
       mouseOff.x = lerp(mouseOff.x, 0, C.parallaxEase);
       mouseOff.y = lerp(mouseOff.y, 0, C.parallaxEase);
     }
-
-    // grid tilt — eased toward the cursor-driven target; the whole grid is one
-    // flat plane that gently rotates (a page, not a cylinder) and pulls back
-    // to 0.85 while dragging, per the AI's recipe
-    tilt.rx = lerp(tilt.rx, tiltTarget.rx, 0.08);
-    tilt.ry = lerp(tilt.ry, tiltTarget.ry, 0.08);
-    tilt.s = lerp(tilt.s, tiltTarget.s, 0.12);
-    if (Math.abs(tilt.rx - tiltTarget.rx) < 0.01) tilt.rx = tiltTarget.rx;
-    if (Math.abs(tilt.ry - tiltTarget.ry) < 0.01) tilt.ry = tiltTarget.ry;
-    if (Math.abs(tilt.s - tiltTarget.s) < 0.005) tilt.s = tiltTarget.s;
-    gridEl.style.transform = `translate3d(${mouseOff.x}px, ${mouseOff.y}px, 0) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) scale(${tilt.s})`;
 
     updateCells();
     raf = requestAnimationFrame(tick);
@@ -333,16 +334,13 @@ export function createPhantomGallery(container, opts = {}) {
       lastMove.t = now;
     }
 
-    // parallax + grid tilt targets (only when not pressing)
+    // parallax (only when not pressing)
     if (C.parallaxEnabled && !pressing && !dragging && container.getBoundingClientRect) {
       const rect = container.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       targetMouseOff.x = (rect.width / 2 - mx) * C.parallaxStrength;
       targetMouseOff.y = (rect.height / 2 - my) * C.parallaxStrength;
-      // ±12° tilt toward the cursor — the AI's rotateX/rotateY recipe
-      tiltTarget.ry = ((mx / rect.width) - 0.5) * 24;
-      tiltTarget.rx = ((my / rect.height) - 0.5) * -24;
     }
 
     if (!pressing) return;
@@ -351,7 +349,6 @@ export function createPhantomGallery(container, opts = {}) {
     if (!dragging && Math.hypot(dx, dy) > 4) {
       dragging = true;
       dragOccurred = true;
-      tiltTarget.s = 0.85; // pull the grid back while dragging (AI recipe)
       startOff = { x: off.x, y: off.y };
     }
     if (dragging) {
@@ -374,7 +371,6 @@ export function createPhantomGallery(container, opts = {}) {
       inertia.y = 0;
     }
     dragging = false;
-    tiltTarget.s = 1;
     // zoom back in
     const rect = container.getBoundingClientRect();
     const pivot = { x: rect.width / 2, y: rect.height / 2 };

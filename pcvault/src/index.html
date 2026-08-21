@@ -114,57 +114,74 @@
     </div>
   </section>
 
-  <!-- single item overlay (photo / video / doc) -->
+  <!-- immersive item viewer (photo / video / doc) — full-bleed stage, floating HUD -->
   <div id="itemOverlay" class="item-overlay hidden">
-    <div class="item-overlay-backdrop"></div>
-    <div class="item-overlay-card">
-      <div class="vault-head">
-        <button id="itemBackBtn" class="icon-btn" aria-label="back" title="back">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-        </button>
-        <h1 id="itemTitle"></h1>
-        <div class="vault-head-gap">
-          <button id="itemExportBtn" class="icon-btn" aria-label="export a copy" title="export a copy">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <div class="viewer-stage" id="viewerStage">
+      <img id="itemImg" class="hidden" alt="">
+      <video id="itemVideo" class="hidden" controls playsinline preload="metadata"></video>
+      <button id="viewerPlay" class="viewer-play hidden" aria-label="play" title="play">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+      </button>
+      <div id="itemPdf" class="item-pdf hidden">
+        <div class="pdf-bar">
+          <button id="pdfPrev" class="icon-btn" aria-label="previous page" title="previous page">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
           </button>
-          <button id="itemDeleteBtn" class="add-btn danger small">delete</button>
+          <span class="pdf-page" id="pdfPageLabel">page 1 of 1</span>
+          <button id="pdfNext" class="icon-btn" aria-label="next page" title="next page">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <span class="pdf-bar-gap"></span>
+          <button id="pdfZoomOut" class="icon-btn" aria-label="zoom out" title="zoom out">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <span class="pdf-zoom" id="pdfZoomLabel">100%</span>
+          <button id="pdfZoomIn" class="icon-btn" aria-label="zoom in" title="zoom in">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="pdf-scroll" id="pdfScroll">
+          <canvas id="pdfCanvas" width="1" height="1"></canvas>
         </div>
       </div>
-      <div class="item-stage">
-        <img id="itemImg" class="hidden" alt="">
-        <video id="itemVideo" class="hidden" controls playsinline preload="metadata"></video>
-        <div id="itemPdf" class="item-pdf hidden">
-          <div class="pdf-bar">
-            <button id="pdfPrev" class="icon-btn" aria-label="previous page" title="previous page">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-            </button>
-            <span class="pdf-page" id="pdfPageLabel">page 1 of 1</span>
-            <button id="pdfNext" class="icon-btn" aria-label="next page" title="next page">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
-            <span class="pdf-bar-gap"></span>
-            <button id="pdfZoomOut" class="icon-btn" aria-label="zoom out" title="zoom out">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-            <span class="pdf-zoom" id="pdfZoomLabel">100%</span>
-            <button id="pdfZoomIn" class="icon-btn" aria-label="zoom in" title="zoom in">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-          </div>
-          <div class="pdf-scroll" id="pdfScroll">
-            <canvas id="pdfCanvas" width="1" height="1"></canvas>
-          </div>
-        </div>
-        <div id="itemText" class="item-text hidden"><pre id="itemTextContent"></pre></div>
-        <div id="itemDocInfo" class="hidden">
-          <div class="doc-icon" id="docIcon"></div>
-          <p class="doc-name serif" id="docName"></p>
-          <p class="vault-item-meta" id="docMeta"></p>
-        </div>
+      <div id="itemText" class="item-text hidden"><pre id="itemTextContent"></pre></div>
+      <div id="itemDocInfo" class="hidden">
+        <div class="doc-icon" id="docIcon"></div>
+        <p class="doc-name serif" id="docName"></p>
+        <p class="vault-item-meta" id="docMeta"></p>
       </div>
-      <p class="vault-item-meta" id="itemDate"></p>
-      <p class="vault-error hidden" id="itemErr">this file couldn't be read. deleting it removes it from the vault.</p>
     </div>
+
+    <div class="viewer-hud viewer-top" id="viewerTop">
+      <button id="itemBackBtn" class="hud-btn" aria-label="back" title="back (Esc)">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <div class="viewer-title-wrap">
+        <h1 id="itemTitle" class="viewer-title"></h1>
+        <p class="viewer-date" id="itemDate"></p>
+      </div>
+      <div class="vault-head-gap">
+        <button id="viewerFullscreenBtn" class="hud-btn" aria-label="fullscreen" title="fullscreen (F)">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+        <button id="itemExportBtn" class="hud-btn" aria-label="export a copy" title="export a copy">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button id="itemDeleteBtn" class="hud-chip" aria-label="delete" title="delete">delete</button>
+      </div>
+    </div>
+
+    <div class="viewer-hud viewer-bottom" id="viewerBottom">
+      <button id="viewerPrevBtn" class="hud-btn" aria-label="previous" title="previous (←)">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <span class="viewer-count" id="viewerCount"></span>
+      <button id="viewerNextBtn" class="hud-btn" aria-label="next" title="next (→)">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    </div>
+
+    <p class="viewer-err hidden" id="itemErr">this file couldn't be read. deleting it removes it from the vault.</p>
   </div>
 
   <!-- settings -->

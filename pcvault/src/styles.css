@@ -35,6 +35,11 @@
 ::-webkit-scrollbar-thumb:hover{ background:var(--mauve-dark); }
 ::-webkit-scrollbar-corner{ background:transparent; }
 
+/* ----- interactive elements in hidden titlebar window ----- */
+button, input, textarea, select, .add-btn, .icon-btn, .hud-btn, .hud-chip, .vault-fileline, a {
+  -webkit-app-region: no-drag;
+}
+
 html, body{ height:100%; }
 body{
   background:var(--bg);
@@ -177,19 +182,36 @@ textarea.vault-input{ resize:vertical; text-align:left; line-height:1.5; }
 @media (min-width:1200px){ .vault-photo-grid{ columns:5; } }
 .vault-photo-cell{
   display:inline-block; width:100%; vertical-align:top; break-inside:avoid; -webkit-column-break-inside:avoid;
-  margin:0 0 0.6rem; border-radius:10px; background:var(--card); border:1px solid var(--border);
-  overflow:hidden; cursor:pointer; color:var(--text-soft); transition:border-color 0.2s; position:relative;
+  margin:0 0 0.6rem; cursor:pointer; color:var(--text-soft); position:relative;
 }
-.vault-photo-cell:hover{ border-color:var(--rose-dark); }
-.vault-photo-cell .cell-media{ position:relative; width:100%; background:var(--card); }
+.vault-photo-cell .cell-media{
+  position:relative; width:100%; border-radius:12px; overflow:hidden;
+  background:var(--card);
+  transition:box-shadow 0.2s ease, transform 0.2s ease;
+}
+.vault-photo-cell:hover .cell-media{
+  box-shadow:0 0 0 2px var(--rose-dark), 0 4px 14px rgba(150,110,115,0.18);
+  transform:translateY(-2px);
+}
 .vault-photo-cell img{ width:100%; height:auto; display:block; }
 .vault-photo-cell .ph{ aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; }
 .vault-photo-cell .ph .ic{ width:22px; height:22px; opacity:0.55; }
+.vault-photo-cell[data-kind="doc"] .cell-media{ background:rgba(169,138,160,0.16); }
+.vault-photo-cell[data-kind="doc"] .ph .ic{ color:var(--mauve-dark); opacity:0.85; }
 .vault-photo-cell .cell-name{
   font-family:'JetBrains Mono',monospace; font-size:0.62rem; letter-spacing:0.02em;
-  color:var(--text-soft); padding:0.45rem 0.55rem; border-top:1px solid var(--border);
+  color:var(--text-soft); padding:0.4rem 0.2rem 0;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left;
 }
+/* hover-overlay caption variant (toggled with .grid-hover-names on the grid) */
+.grid-hover-names .vault-photo-cell .cell-name{
+  position:absolute; left:0; right:0; bottom:0; padding:1.2rem 0.6rem 0.5rem;
+  background:linear-gradient(transparent, rgba(23,16,20,0.82));
+  color:#fbf6f3; opacity:0; transition:opacity 0.22s ease;
+  border-radius:0 0 12px 12px; pointer-events:none;
+}
+.grid-hover-names .vault-photo-cell:hover .cell-name,
+.grid-hover-names .vault-photo-cell.hover-sim .cell-name{ opacity:1; }
 .vault-photo-cell .play-badge{
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   pointer-events:none;
@@ -314,40 +336,152 @@ textarea.vault-input{ resize:vertical; text-align:left; line-height:1.5; }
 #toast.show{ opacity:1; transform:translate(-50%,0); }
 
 /* ----- phantom infinite gallery ----- */
+/* gallery mode is full-bleed: no page padding, no max-width, no card — the
+   grid IS the page (that's what "integrated" means). The header/search keep
+   their spots; the gallery stretches edge-to-edge below them. */
+body.gallery-mode{ padding:0; }
+body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
 .phantom-gallery{
   width:100%; height:calc(100vh - 120px);
-  margin-top:0.5rem; border-radius:12px;
+  margin-top:0.5rem;
+  /* no border-radius: a radius would clip the separation lines at the corners */
   overflow:hidden; position:relative;
+  user-select:none; -webkit-user-select:none;
+}
+.gallery-mode .phantom-gallery{
+  margin:0.4rem 0 0; height:calc(100vh - 138px);
 }
 #galleryToggleBtn.on{ color:var(--rose-dark); background:rgba(196,123,131,0.15); }
 
-/* ----- item overlay (card modal) ----- */
+/* ----- item viewer (full-bleed immersive) -----
+   The stage fills the whole window on a near-black ground; chrome floats as
+   translucent HUD bars that fade out after a moment of stillness. */
 .item-overlay{
   position:fixed; inset:0; z-index:100;
-  display:flex; align-items:center; justify-content:center;
-  animation:overlayIn 0.2s ease;
+  background:#171014; animation:viewerFade 0.22s ease;
 }
 .item-overlay.hidden{ display:none; }
-.item-overlay-backdrop{
+@keyframes viewerFade{ from{opacity:0;} to{opacity:1;} }
+@media (prefers-reduced-motion: reduce){ .item-overlay{ animation:none; } }
+
+.viewer-stage{
   position:absolute; inset:0;
-  background:rgba(23,16,20,0.7); backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center;
+  user-select:none;
 }
-.item-overlay-card{
-  position:relative; z-index:1;
-  width:92vw; max-width:900px; max-height:88vh;
-  background:var(--cream); border:1px solid var(--border);
-  border-radius:16px; overflow:hidden;
-  box-shadow:0 25px 60px rgba(0,0,0,0.35);
-  display:flex; flex-direction:column;
-  animation:cardIn 0.25s ease;
+.viewer-stage img{
+  max-width:100%; max-height:100%;
+  object-fit:contain; cursor:zoom-in;
+  transition:transform 0.15s ease;
+  will-change:transform;
 }
-@keyframes overlayIn{ from{opacity:0;} to{opacity:1;} }
-@keyframes cardIn{ from{opacity:0; transform:scale(0.95) translateY(10px);} to{opacity:1; transform:none;} }
-.item-overlay .item-stage{
-  flex:1; min-height:0; border-radius:0; margin-top:0;
-  background:#171014;
+.viewer-stage img.zoomed{ cursor:grab; }
+.viewer-stage img.dragging{ cursor:grabbing; transition:none; }
+.viewer-stage video{ max-width:100%; max-height:100%; outline:none; background:#000; }
+
+.viewer-play{
+  position:absolute; z-index:3; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:84px; height:84px; border-radius:50%;
+  background:rgba(23,16,20,0.5); border:1px solid rgba(251,246,243,0.22);
+  color:#fbf6f3; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:background 0.2s ease, transform 0.12s ease;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
 }
-.item-overlay .item-stage img,
-.item-overlay .item-stage video{
-  max-height:calc(88vh - 120px);
+.viewer-play:hover{ background:rgba(196,123,131,0.55); border-color:rgba(196,123,131,0.7); }
+.viewer-play:active{ transform:translate(-50%,-50%) scale(0.94); }
+.viewer-play .ic{ width:34px; height:34px; margin-left:4px; fill:currentColor; stroke:currentColor; }
+
+.viewer-hud{
+  position:absolute; left:0; right:0; z-index:4;
+  display:flex; align-items:center; gap:0.55rem;
+  padding:1rem 1.15rem;
+  transition:opacity 0.35s ease;
 }
+.viewer-top{ top:0; justify-content:space-between; background:linear-gradient(rgba(23,16,20,0.72), rgba(23,16,20,0)); }
+.viewer-bottom{ bottom:0; justify-content:center; background:linear-gradient(rgba(23,16,20,0), rgba(23,16,20,0.72)); }
+.viewer-hud.chrome-hidden{ opacity:0; pointer-events:none; }
+
+.viewer-title-wrap{ display:flex; flex-direction:column; gap:0.15rem; min-width:0; align-items:flex-start; }
+.viewer-title{
+  font-family:'DM Serif Display',serif; font-style:italic; font-weight:400;
+  font-size:1.35rem; line-height:1.2; color:#fbf6f3; letter-spacing:0.5px;
+  word-break:break-all; max-width:52vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.viewer-date{ font-family:'JetBrains Mono',monospace; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.04em; color:rgba(251,246,243,0.6); }
+
+.hud-btn{
+  border:1px solid rgba(251,246,243,0.18); background:rgba(251,246,243,0.07);
+  color:#fbf6f3; border-radius:999px; padding:0.5rem; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+}
+.hud-btn:hover{ background:rgba(196,123,131,0.32); border-color:rgba(196,123,131,0.55); }
+.hud-btn .ic{ width:18px; height:18px; stroke-width:1.8px; }
+.hud-chip{
+  border:1px solid rgba(251,246,243,0.18); background:rgba(251,246,243,0.07);
+  color:#fbf6f3; border-radius:999px; padding:0.42rem 0.85rem; cursor:pointer;
+  font-family:'JetBrains Mono',monospace; font-size:0.62rem; text-transform:uppercase;
+  letter-spacing:0.05em; transition:background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+}
+.hud-chip:hover{ background:rgba(196,123,131,0.32); border-color:rgba(196,123,131,0.55); }
+.hud-chip.armed{ background:var(--rose-dark); border-color:var(--rose-dark); color:#fff; }
+
+.viewer-count{
+  font-family:'JetBrains Mono',monospace; font-size:0.62rem; letter-spacing:0.06em;
+  color:rgba(251,246,243,0.75); min-width:5rem; text-align:center; user-select:none;
+}
+.viewer-err{
+  position:absolute; left:50%; bottom:4.2rem; transform:translateX(-50%);
+  z-index:4; font-family:'JetBrains Mono',monospace; font-size:0.68rem; letter-spacing:0.02em;
+  color:var(--rose-dark); background:rgba(23,16,20,0.8); border:1px solid rgba(196,123,131,0.4);
+  border-radius:10px; padding:0.5rem 0.9rem; text-align:center; max-width:80vw;
+}
+
+/* docs keep readable cards on the dark stage */
+.viewer-stage .item-pdf{
+  width:min(900px, 92vw); height:min(78vh, calc(100vh - 160px));
+  display:flex; flex-direction:column; border-radius:12px; overflow:hidden;
+  background:#fff; box-shadow:0 18px 50px rgba(0,0,0,0.45);
+}
+.viewer-stage .pdf-bar{
+  flex:none; display:flex; align-items:center; gap:0.35rem;
+  padding:0.35rem 0.55rem; background:var(--card); border-bottom:1px solid var(--border);
+}
+.viewer-stage .pdf-bar .icon-btn{ color:var(--mauve-dark); padding:0.3rem; }
+.viewer-stage .pdf-bar .icon-btn:hover{ color:var(--rose-dark); background:rgba(196,123,131,0.1); }
+.viewer-stage .pdf-bar .icon-btn:disabled{ opacity:0.35; cursor:default; background:none; }
+.viewer-stage .pdf-page, .viewer-stage .pdf-zoom{
+  font-family:'JetBrains Mono',monospace; font-size:0.62rem; letter-spacing:0.02em;
+  color:var(--text-soft); white-space:nowrap; user-select:none;
+}
+.viewer-stage .pdf-bar-gap{ flex:1; }
+.viewer-stage .pdf-scroll{
+  flex:1; overflow:auto; display:flex; align-items:flex-start; justify-content:center;
+  padding:1.1rem; background:#d8d1cf;
+}
+.viewer-stage .pdf-scroll canvas{
+  display:block; background:#fff; box-shadow:0 2px 14px rgba(0,0,0,0.28); border-radius:2px;
+}
+
+.viewer-stage .item-text{
+  width:min(900px, 92vw); max-height:calc(100vh - 180px); overflow:auto;
+  background:rgba(251,246,243,0.06); border:1px solid rgba(251,246,243,0.1);
+  border-radius:12px; padding:1.2rem 1.4rem;
+}
+.viewer-stage .item-text pre{
+  white-space:pre-wrap; word-break:break-word; font-family:'JetBrains Mono',monospace;
+  font-size:0.8rem; line-height:1.6; color:#fbf6f3; margin:0; text-align:left; width:100%;
+}
+
+#itemDocInfo{
+  display:flex; flex-direction:column; align-items:center; gap:0.5rem;
+  padding:1.5rem; background:rgba(251,246,243,0.06); border:1px solid rgba(251,246,243,0.1);
+  border-radius:12px; max-width:min(560px, 90vw);
+}
+#itemDocInfo .doc-icon{ color:var(--rose); }
+#itemDocInfo .doc-icon .ic{ width:44px; height:44px; }
+#itemDocInfo .doc-name{ font-size:1.1rem; color:#fbf6f3; max-width:420px; word-break:break-all; text-align:center; }
+#itemDocInfo .vault-item-meta{ color:rgba(251,246,243,0.6); margin-top:0.2rem; }

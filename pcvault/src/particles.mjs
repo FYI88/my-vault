@@ -20,7 +20,7 @@ const CFG = {
   radiusMax: 3,
   maxSpeed: 0.6,            // px per frame (~36 px/s at 60 fps)
   pushCount: 4,             // particles added per click
-  hardCap: 170,             // click-spam guard
+  hardCap: 500,             // click-spam guard — raised from 170 on request
 };
 
 export function initParticles(canvas) {
