@@ -11,12 +11,15 @@ import { serializeVault, parseVault } from './container.mjs';
 import { initWormhole } from './wormhole.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
-import { createGarden } from './garden.mjs';
-import { emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak, sortedDayKeys, yearOf } from './journal.mjs';
+import {
+  emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak, sortedDayKeys,
+  yearOf, searchYear, monthCells, exportYearMarkdown, entryWordCount,
+} from './journal.mjs';
 
 const $ = (id) => document.getElementById(id);
 const LS_IDLE = 'pcvault.idleMin';
 const LS_BG = 'pcvault.bg'; // 'wormhole' (default) or 'particles'
+const LS_CHROME = 'pcvault.chrome'; // 'mac' (default) or 'win' — titlebar controls style
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
 // lucide-style inline icons (the phone app's `ic()` helper, reduced to what this UI uses)
@@ -50,7 +53,6 @@ const state = {
   journalTab: false,    // Journal tab active (vs Vault)
   journalCache: new Map(), // year → decrypted journal blob — plaintext, wiped on lock
   journalYear: null,    // the year the journal screen is showing
-  garden: null,         // canvas garden renderer
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
@@ -132,6 +134,9 @@ let pdfjsReady = null;    // lazy import of pdf.js + its worker module
 function show(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`screen-${name}`).classList.add('active');
+  // which header lives in the thin titlebar
+  document.body.classList.toggle('head-unlocked', name === 'unlocked');
+  document.body.classList.toggle('head-settings', name === 'settings');
   if (bgCtrl) bgCtrl.setActive(AUTH_SCREENS.has(name));
 }
 function showOverlay(id, visible) {
@@ -171,6 +176,35 @@ function refreshPathLines() {
   $('lockedPathLine').textContent = state.path || '';
   $('vaultPathLine').textContent = state.path || '';
   $('settingsPathLine').textContent = state.path || '';
+}
+
+
+// ---- action dispatcher (one seam: the action-row buttons, the keyboard
+//      shortcuts, and the long-press on the title all call runAction; each
+//      action's behavior lives here exactly once) ----
+function openSettings() {
+  refreshPathLines();
+  renderIdlePills();
+  renderBgPills();
+  setErr('changeErr', ''); setOk('changeOk', '');
+  setErr('rotateErr', '');
+  show('settings');
+}
+function revealVaultFile() {
+  if (!state.path) return;
+  if (window.vaultAPI && window.vaultAPI.reveal) window.vaultAPI.reveal(state.path);
+  toast(state.path);
+}
+const ACTIONS = {
+  'add-files': () => { const inp = $('photoInput'); if (inp) inp.click(); },
+  gallery: toggleGallery,
+  settings: openSettings,
+  lock: () => lock(),
+  reveal: revealVaultFile,
+};
+function runAction(name) {
+  const fn = ACTIONS[name];
+  if (fn) fn();
 }
 
 // ---- vault file ----
@@ -354,14 +388,13 @@ function lock() {
   state.journalCache.clear(); // wipe the decrypted journal — no plaintext survives a lock
   state.journalYear = null;
   journalEditKey = null;
-  if (state.garden) { state.garden.destroy(); state.garden = null; }
   state.journalTab = false;
   if ($('journalEntry')) $('journalEntry').value = '';
   showVaultTab();
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
   if (state.phantomGallery) { state.phantomGallery.destroy(); state.phantomGallery = null; }
   state.galleryMode = false;
-  $('galleryToggleBtn').classList.remove('on');
+  if ($('galleryToggleBtn')) $('galleryToggleBtn').classList.remove('on');
   setHidden('phantomGallery', true);
   showOverlay('itemOverlay', false);
   $('itemImg').removeAttribute('src');
@@ -423,6 +456,16 @@ function fmtSize(n) {
   if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
   if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
   return (n / 1073741824).toFixed(2) + ' GB';
+}
+// Display rule: long filenames are noise in the gallery and viewer. Show the
+// first word of the name, capped at 6 chars + ellipsis. The full name is
+// untouched metadata — search, export, and the hover tooltip all use it.
+function shortName(name) {
+  if (!name) return '';
+  const base = name.replace(/\.[^./\\]+$/, ''); // drop the extension
+  const first = base.split(/[\s_\-–—.]+/).filter(Boolean)[0] || base;
+  if (first.length <= 6) return first;
+  return first.slice(0, 6) + '…';
 }
 function stripExif(file) {
   // re-encode through a canvas: EXIF (GPS etc.) is never written and orientation
@@ -643,13 +686,17 @@ function clearSearch() {
 async function populatePhantomGallery() {
   if (!state.phantomGallery || !state.unlocked) return;
   await ensureNames();
-  const items = vaultItems().map((rec) => ({
-    id: rec.id,
-    thumbUrl: state.thumbCache.get(rec.id) || '',
-    name: state.nameCache.get(rec.id) || '',
-    kind: rec.kind,
-    meta: rec.kind === 'photo' ? String(new Date(rec.createdAt).getFullYear()) : fmtSize(rec.size),
-  }));
+  const items = vaultItems().map((rec) => {
+    const full = state.nameCache.get(rec.id) || '';
+    return {
+      id: rec.id,
+      thumbUrl: state.thumbCache.get(rec.id) || '',
+      name: full,
+      title: shortName(full),
+      kind: rec.kind,
+      meta: rec.kind === 'photo' ? String(new Date(rec.createdAt).getFullYear()) : fmtSize(rec.size),
+    };
+  });
   state.phantomGallery.setItems(items);
   // The gallery needs the photos too, but thumbnails only land in the cache when
   // the grid's IntersectionObserver reaches a cell. Hydrate anything missing so
@@ -672,7 +719,7 @@ async function populatePhantomGallery() {
 
 function toggleGallery() {
   state.galleryMode = !state.galleryMode;
-  $('galleryToggleBtn').classList.toggle('on', state.galleryMode);
+  if ($('galleryToggleBtn')) $('galleryToggleBtn').classList.toggle('on', state.galleryMode);
   document.body.classList.toggle('gallery-mode', state.galleryMode);
   setHidden('grid', state.galleryMode);
   setHidden('phantomGallery', !state.galleryMode);
@@ -681,27 +728,19 @@ function toggleGallery() {
   if (state.galleryMode) {
     if (!state.phantomGallery) {
       state.phantomGallery = createPhantomGallery($('phantomGallery'), {
-<<<<<<< HEAD
-        backgroundColor: '#fbf6f3', // the vault cream — the page's own color
+        backgroundColor: '#171014', // warm near-black — matches the item viewer stage
+        textColor: '#8f8986',
+        border: { width: 1, style: 'solid', color: 'rgba(251,246,243,0.9)' },
+        hoverColor: 'rgba(255,85,136,0.6)',
         cellSize: 240,
-        gap: 20,
-        parallaxStrength: 0.06,
-        parallaxEase: 0.12,
-=======
-        backgroundColor: '#171014',
-        textColor: '#808080',
-        border: { width: 1, style: 'solid', color: '#e9dcd8', showTop: false, showBottom: true, showLeft: true, showRight: true },
-        hoverColor: 'rgba(196,123,131,0.35)',
-        cellSize: 220,
-        gap: 12,
-        cellPadding: 10,
-        arcAmount: 0.5,
-        arcMaxAngleDeg: 24,
+        gap: 14,
+        cellPadding: 12,
+        arcAmount: 0.6,
+        arcMaxAngleDeg: 28,
         arcAxis: 'horizontal',
-        edgeFade: 0.2,
+        edgeFade: 0.25,
         parallaxStrength: 0.08,
-        parallaxWhileDragging: false,
->>>>>>> origin/master
+        parallaxEase: 0.12,
         throwFriction: 0.92,
         throwVelocityScale: 1,
         onItemClick: (item) => openItem(item.id),
@@ -711,7 +750,7 @@ function toggleGallery() {
   }
 }
 
-// ---- journal (living garden) ----
+// ---- journal (writing-first) ----
 // One encrypted record per year. The record's ciphertext is the year blob JSON;
 // decrypt-once into state.journalCache, wiped on lock. Nothing journal-related
 // ever touches disk in plaintext.
@@ -742,7 +781,7 @@ async function journalForYear(year) {
       vaultWipeRaw(plain);
     }
   } catch (e) {
-    // tampered/damaged year — surface as empty rather than crash the garden
+    // tampered/damaged year — surface as empty rather than crash the journal
     const empty = emptyYear(year);
     state.journalCache.set(year, empty);
     return empty;
@@ -772,6 +811,19 @@ function prettyDay(key) {
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+// Export the visible year as a markdown document — the "your words are never
+// locked in" guarantee. Same save-dialog + write path as item export.
+async function handleJournalExport() {
+  if (!state.unlocked || state.journalYear == null) return;
+  const year = state.journalYear;
+  const blob = await journalForYear(year);
+  const md = exportYearMarkdown(blob, prettyDay);
+  const dst = await window.vaultAPI.saveFileAs(`${year}.md`);
+  if (!dst) return;
+  await window.vaultAPI.writeFile(dst, new TextEncoder().encode(md));
+  toast(`exported ${year}.md`);
+}
+
 function setMoodSelection(mood) {
   document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
     b.classList.toggle('on', b.dataset.mood === mood);
@@ -788,6 +840,100 @@ function openJournalDay(key) {
     $('journalEntry').value = entry.text || '';
     setMoodSelection(entry.mood || '');
   });
+}
+
+function shortDay(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
+}
+
+// The 12-month calendar grid — plain DOM built from the pure monthCells().
+function renderCalendar(blob, matches) {
+  const year = blob.year;
+  const today = todayKey();
+  const matchSet = new Set(matches || []);
+  const monthNames = [...Array(12)].map((_, m) =>
+    new Date(year, m, 1).toLocaleDateString(undefined, { month: 'long' }));
+  const dows = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const cal = $('journalCalendar');
+  cal.textContent = '';
+  for (let m = 0; m < 12; m++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'calendar-month';
+    const name = document.createElement('h4');
+    name.className = 'calendar-month-name';
+    name.textContent = monthNames[m];
+    const days = document.createElement('div');
+    days.className = 'cal-days';
+    for (const d of dows) {
+      const dow = document.createElement('span');
+      dow.className = 'cal-dow';
+      dow.textContent = d;
+      days.appendChild(dow);
+    }
+    for (const week of monthCells(year, m)) {
+      for (const cell of week) {
+        if (!cell.key) {
+          const blank = document.createElement('span');
+          blank.className = 'cal-day empty';
+          days.appendChild(blank);
+          continue;
+        }
+        const btn = document.createElement('button');
+        btn.className = 'cal-day';
+        btn.textContent = String(cell.day);
+        if (blob.days[cell.key]) btn.classList.add('has-entry');
+        if (cell.key === today) btn.classList.add('today');
+        if (matchSet.has(cell.key)) btn.classList.add('match');
+        btn.addEventListener('click', () => openJournalDay(cell.key));
+        days.appendChild(btn);
+      }
+    }
+    wrap.appendChild(name);
+    wrap.appendChild(days);
+    cal.appendChild(wrap);
+  }
+}
+
+// Reverse-chronological entry list — date, mood, first line, word count.
+function renderEntryList(blob, matches) {
+  const list = $('journalEntryList');
+  list.textContent = '';
+  const keys = (matches && matches.length ? matches : sortedDayKeys(blob)).slice().reverse();
+  $('journalEntryCount').textContent = keys.length ? `${keys.length} entr${keys.length === 1 ? 'y' : 'ies'}` : '';
+  if (!keys.length) {
+    const empty = document.createElement('p');
+    empty.className = 'journal-empty';
+    empty.textContent = matches && matches.length === 0
+      ? "nothing matches that search."
+      : 'no entries yet this year. the first line of today is waiting.';
+    list.appendChild(empty);
+    return;
+  }
+  for (const key of keys) {
+    const e = blob.days[key] || {};
+    const text = (e.text || '').trim();
+    const row = document.createElement('button');
+    row.className = 'journal-entry-row';
+    const date = document.createElement('span');
+    date.className = 'journal-entry-date';
+    date.textContent = shortDay(key);
+    const mood = document.createElement('span');
+    mood.className = 'journal-entry-mood';
+    mood.textContent = e.mood || '';
+    const preview = document.createElement('span');
+    preview.className = 'journal-entry-preview';
+    preview.textContent = text.split('\n')[0] || '(no text)';
+    const words = document.createElement('span');
+    words.className = 'journal-entry-words';
+    words.textContent = entryWordCount(text) ? `${entryWordCount(text)} words` : '';
+    row.appendChild(date);
+    row.appendChild(mood);
+    row.appendChild(preview);
+    row.appendChild(words);
+    row.addEventListener('click', () => openJournalDay(key));
+    list.appendChild(row);
+  }
 }
 
 async function renderOnThisDay(blob, year) {
@@ -821,8 +967,7 @@ async function renderJournal() {
   const streak = calcStreak(sortedDayKeys(blob));
   $('journalStreak').textContent = streak
     ? `${streak} day${streak === 1 ? '' : 's'} in a row`
-    : 'plant your first entry today';
-  if (state.garden) state.garden.setYear(blob);
+    : 'write your first entry today';
   // default editor day: today for the current year, else the latest entry in that
   // year (or Jan 1) — it must stay inside the year being shown, or a save would
   // write the entry into the wrong year record.
@@ -841,7 +986,16 @@ async function renderJournal() {
 
 function applyJournalSearch() {
   const q = $('journalSearchInput') ? $('journalSearchInput').value : '';
-  if (state.garden) state.garden.setQuery(q);
+  const year = state.journalYear;
+  if (!state.unlocked || year == null) return;
+  journalForYear(year).then((blob) => {
+    if (!state.unlocked || state.journalYear !== year) return;
+    // an empty query is "no search", not "match everything" — pass null so the
+    // calendar only shows its normal entry dots and the list is unfiltered
+    const matches = q.trim() ? searchYear(blob, q) : null;
+    renderCalendar(blob, matches);
+    renderEntryList(blob, matches);
+  });
 }
 
 function showJournalTab() {
@@ -851,14 +1005,8 @@ function showJournalTab() {
   setHidden('vaultPane', true);
   setHidden('journalPane', false);
   // file controls are vault-only; journal has its own toolbar
-  setHidden('addFilesBtn', true);
-  setHidden('galleryToggleBtn', true);
-  if (!state.garden) {
-    state.garden = createGarden($('gardenCanvas'), {
-      todayKey: todayKey(),
-      onDayClick: (key) => openJournalDay(key),
-    });
-  }
+  if ($('addFilesBtn')) setHidden('addFilesBtn', true);
+  if ($('galleryToggleBtn')) setHidden('galleryToggleBtn', true);
   renderJournal();
 }
 
@@ -868,8 +1016,8 @@ function showVaultTab() {
   $('journalTabBtn').classList.remove('on');
   setHidden('vaultPane', false);
   setHidden('journalPane', true);
-  setHidden('addFilesBtn', false);
-  setHidden('galleryToggleBtn', false);
+  if ($('addFilesBtn')) setHidden('addFilesBtn', false);
+  if ($('galleryToggleBtn')) setHidden('galleryToggleBtn', false);
 }
 
 // ---- grid + lazy thumbs ----
@@ -925,8 +1073,8 @@ async function renderGrid() {
     const name = state.nameCache.get(rec.id) || '';
     const caption = document.createElement('div');
     caption.className = 'cell-name';
-    caption.textContent = name;
-    if (name) caption.title = name;
+    caption.textContent = shortName(name); // long titles stay out of the grid
+    if (name) caption.title = name; // full name on hover, always
     cell.appendChild(media);
     cell.appendChild(caption);
     cell.addEventListener('click', () => openItem(rec.id));
@@ -1102,7 +1250,7 @@ async function openPdf(itemId, bytes) {
     standardFontDataUrl: PDF_FONT_URL,
   });
   const doc = await task.promise;
-  if (!state.unlocked || currentItemId !== itemId) { task.destroy().catch(() => { }); return; }
+  if (!state.unlocked || currentItemId !== itemId) { task.destroy().catch(() => {}); return; }
   pdfTask = task;
   pdfDoc = doc;
   pdfPageCount = doc.numPages;
@@ -1119,7 +1267,7 @@ function closePdf() {
   const task = pdfTask;
   pdfTask = null;
   pdfDoc = null;
-  if (task) { try { task.destroy().catch(() => { }); } catch (e) { /* noop */ } }
+  if (task) { try { task.destroy().catch(() => {}); } catch (e) { /* noop */ } }
   pdfPage = 1;
   pdfPageCount = 0;
   pdfScale = 1;
@@ -1178,7 +1326,8 @@ async function openItem(id) {
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
     const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });
-    $('itemTitle').textContent = name;
+    $('itemTitle').textContent = shortName(name);
+    $('itemTitle').title = name; // full name on hover, always
     const metaBits = [new Date(rec.createdAt).toLocaleString()];
     if (rec.mime) metaBits.push(rec.mime);
     if (rec.kind !== 'photo' && rec.size != null) metaBits.push(fmtSize(rec.size));
@@ -1225,7 +1374,8 @@ async function openItem(id) {
           setHidden('itemText', false);
         } else {
           $('docIcon').innerHTML = ic('file');
-          $('docName').textContent = name;
+          $('docName').textContent = shortName(name);
+          $('docName').title = name;
           $('docMeta').textContent = fmtSize(rec.size);
           setHidden('itemDocInfo', false);
         }
@@ -1351,6 +1501,22 @@ function renderBgPills() {
   });
 }
 
+// ---- window-chrome picker (mac traffic lights vs compact windows controls) ----
+function chromeChoice() {
+  return localStorage.getItem(LS_CHROME) === 'win' ? 'win' : 'mac';
+}
+
+function applyChrome(style) {
+  document.body.classList.toggle('chrome-win', style === 'win');
+}
+
+function renderChromePills() {
+  const choice = chromeChoice();
+  document.querySelectorAll('#chromePills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.chrome === choice);
+  });
+}
+
 // Mount the selected background controller on #authBg. Call whenever the choice
 // changes or on boot. Reuses the same canvas; the previous controller is
 // destroyed first (particles has no destroy — optional chaining handles it).
@@ -1375,8 +1541,48 @@ function updateMeter(input) {
   });
 }
 
+// ---- frameless titlebar (macOS-style traffic lights) ----
+function initWindowControls() {
+  const wc = window.vaultAPI && window.vaultAPI.windowControls;
+  document.querySelectorAll('.tl, .win-ctl').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!wc) return;
+      const act = btn.dataset.win;
+      if (act === 'close') wc.close();
+      else if (act === 'minimize') wc.minimize();
+      else if (act === 'maximize') wc.toggleMaximize();
+    });
+  });
+  $('titlebar').addEventListener('dblclick', (e) => {
+    if (e.target.closest('.tl')) return;
+    if (wc) wc.toggleMaximize();
+  });
+  // real fullscreen hides the bar entirely (like macOS)
+  document.addEventListener('fullscreenchange', () => {
+    $('titlebar').classList.toggle('hidden', !!document.fullscreenElement);
+  });
+  // minimized windows don't always fire blur on Windows — gray the dots while hidden
+  document.addEventListener('visibilitychange', () => {
+    document.body.classList.toggle('win-inactive', document.hidden);
+  });
+  if (!wc) return; // browser preview without the desktop bridge
+  const setRestoreGlyphs = (max) => {
+    document.querySelectorAll('[data-win="maximize"]').forEach((b) => b.classList.toggle('is-restore', !!max));
+  };
+  wc.getState().then((s) => {
+    if (!s) return;
+    setRestoreGlyphs(s.maximized);
+    document.body.classList.toggle('win-inactive', !s.focused);
+  }).catch(() => {});
+  wc.onMaximized((max) => setRestoreGlyphs(max));
+  wc.onFocus((f) => document.body.classList.toggle('win-inactive', !f));
+}
+
 // ---- wiring ----
 function wire() {
+  initWindowControls();
+  initTitlePress();
   wireReorder();
   $('welcomeCreateBtn').addEventListener('click', () => show('create'));
   $('welcomeOpenBtn').addEventListener('click', async () => {
@@ -1413,8 +1619,13 @@ function wire() {
   $('searchInput').addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { clearSearch(); renderGrid(); $('searchInput').blur(); }
   });
-  $('addFilesBtn').addEventListener('click', () => $('photoInput').click());
-  $('galleryToggleBtn').addEventListener('click', toggleGallery);
+  const actionBar = $('actionBar');
+  if (actionBar) {
+    actionBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (btn) runAction(btn.dataset.action);
+    });
+  }
   $('vaultTabBtn').addEventListener('click', showVaultTab);
   $('journalTabBtn').addEventListener('click', showJournalTab);
   $('journalSaveBtn').addEventListener('click', async () => {
@@ -1422,7 +1633,7 @@ function wire() {
     const year = yearKey(key);
     const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
     await saveJournalEntry(year, key, $('journalEntry').value, mood);
-    toast('saved to your garden');
+    toast('saved');
     await renderJournal();
   });
   document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
@@ -1433,6 +1644,7 @@ function wire() {
     $('journalSearchInput').value = '';
     applyJournalSearch();
   });
+  $('journalExportBtn').addEventListener('click', handleJournalExport);
   $('journalYearPrev').addEventListener('click', () => {
     state.journalYear = (state.journalYear || yearOf(new Date())) - 1;
     journalEditKey = null;
@@ -1461,16 +1673,7 @@ function wire() {
     if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]);
   });
 
-  $('settingsBtn').addEventListener('click', () => {
-    refreshPathLines();
-    renderIdlePills();
-    renderBgPills();
-    setErr('changeErr', ''); setOk('changeOk', '');
-    setErr('rotateErr', '');
-    show('settings');
-  });
   $('settingsBackBtn').addEventListener('click', () => show('unlocked'));
-  $('lockBtn').addEventListener('click', lock);
   $('itemBackBtn').addEventListener('click', closeItemOverlay);
   $('itemDeleteBtn').addEventListener('click', handleDelete);
   $('itemExportBtn').addEventListener('click', handleExport);
@@ -1479,7 +1682,29 @@ function wire() {
   $('pdfZoomOut').addEventListener('click', () => pdfZoom(-1));
   $('pdfZoomIn').addEventListener('click', () => pdfZoom(1));
 
-  // ---- immersive viewer wiring ----
+  
+function initTitlePress() {
+  const title = $('vaultTitle');
+  if (!title) return;
+  let timer = null;
+  const cancel = () => {
+    clearTimeout(timer);
+    title.classList.remove('pressing');
+  };
+  title.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    title.classList.add('pressing');
+    timer = setTimeout(() => {
+      title.classList.remove('pressing');
+      runAction('reveal');
+    }, 700);
+  });
+  title.addEventListener('pointerup', cancel);
+  title.addEventListener('pointerleave', cancel);
+  title.addEventListener('pointercancel', cancel);
+}
+
+// ---- immersive viewer wiring ----
   $('viewerPrevBtn').addEventListener('click', () => viewerNav(-1));
   $('viewerNextBtn').addEventListener('click', () => viewerNav(1));
   $('viewerFullscreenBtn').addEventListener('click', toggleFullscreen);
@@ -1557,6 +1782,14 @@ function wire() {
       toast(p.dataset.bg === 'particles' ? 'background: particles' : 'background: wormhole');
     });
   });
+  document.querySelectorAll('#chromePills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      localStorage.setItem(LS_CHROME, p.dataset.chrome);
+      applyChrome(p.dataset.chrome);
+      renderChromePills();
+      toast(p.dataset.chrome === 'win' ? 'window chrome: windows' : 'window chrome: mac dots');
+    });
+  });
   $('vaultPathLine').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('revealBtn').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('backupBtn').addEventListener('click', async () => {
@@ -1579,6 +1812,14 @@ function wire() {
   // keyboard shortcuts: Esc/←/→/F drive the viewer; G toggles the gallery view
   window.addEventListener('keydown', (e) => {
     if (!state.unlocked) return;
+    // Ctrl shortcuts work even while typing in a search box
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'i') { e.preventDefault(); runAction('add-files'); return; }
+      if (k === 'g') { e.preventDefault(); runAction('gallery'); return; }
+      if (k === ',') { e.preventDefault(); runAction('settings'); return; }
+      if (k === 'l') { e.preventDefault(); runAction('lock'); return; }
+    }
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
     if (viewerOpen()) {
@@ -1607,6 +1848,8 @@ async function boot() {
   wire();
   renderIdlePills();
   renderBgPills();
+  renderChromePills();
+  applyChrome(chromeChoice());
   ensureIO();
   mountBackground();
   if (!window.vaultAPI) {

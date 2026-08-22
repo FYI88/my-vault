@@ -9,7 +9,59 @@
 </head>
 <body>
 <canvas id="authBg" aria-hidden="true"></canvas>
-<div class="win-drag" data-tauri-drag-region aria-hidden="true"></div>
+<!-- thin titlebar: macOS-style traffic lights + the app header in one strip
+     (Electron is frameless; the page draws the window chrome itself). -->
+<div class="titlebar" id="titlebar" data-tauri-drag-region>
+  <div class="traffic-lights">
+    <button id="tlClose" class="tl tl-close" data-win="close" aria-label="close" title="close">
+      <svg class="tl-glyph" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg>
+    </button>
+    <button id="tlMin" class="tl tl-min" data-win="minimize" aria-label="minimize" title="minimize">
+      <svg class="tl-glyph" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 6h6"/></svg>
+    </button>
+    <button id="tlMax" class="tl tl-max" data-win="maximize" aria-label="maximize" title="maximize">
+      <svg class="tl-glyph tl-max-glyph" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="6" height="6"/></svg>
+      <svg class="tl-glyph tl-restore-glyph" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4.5 3.5h4v4"/><path d="M3.5 4.5h4v4"/></svg>
+    </button>
+  </div>
+  <div class="vault-head" id="headUnlocked">
+    <h1 id="vaultTitle" title="hold to find your vault file">my vault</h1>
+    </div>
+  <div class="vault-head" id="headSettings">
+    <button id="settingsBackBtn" class="icon-btn" aria-label="back" title="back">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    <h1>vault settings</h1>
+    
+  </div>
+  <div class="win-controls" id="winControls">
+    <button id="winMin" class="win-ctl" data-win="minimize" aria-label="minimize" title="minimize">
+      <svg class="win-glyph" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 6h7"/></svg>
+    </button>
+    <button id="winMax" class="win-ctl" data-win="maximize" aria-label="maximize" title="maximize">
+      <svg class="win-glyph win-max-glyph" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7"/></svg>
+      <svg class="win-glyph win-restore-glyph" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M4.5 2.5h5v5"/><path d="M2.5 4.5h5v5"/></svg>
+    </button>
+    <button id="winClose" class="win-ctl win-close" data-win="close" aria-label="close" title="close">
+      <svg class="win-glyph" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- action row: the vault actions live under the titlebar, not in it -->
+<div class="action-bar" id="actionBar">
+  <button id="addFilesBtn" class="add-btn small" data-action="add-files">+ add files</button>
+  <button id="galleryToggleBtn" class="icon-btn" data-action="gallery" aria-label="toggle gallery view" title="gallery view (Ctrl+G)">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+  </button>
+  <button id="settingsBtn" class="icon-btn" data-action="settings" aria-label="settings" title="settings (Ctrl+,)">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+  <button id="lockBtn" class="icon-btn" data-action="lock" aria-label="lock" title="lock (Ctrl+L)">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+  </button>
+</div>
+
 <div class="wrap" id="app">
 
   <!-- welcome -->
@@ -77,21 +129,6 @@
 
   <!-- unlocked -->
   <section id="screen-unlocked" class="screen">
-    <div class="vault-head">
-      <h1>my vault</h1>
-      <div class="vault-head-gap">
-        <button id="addFilesBtn" class="add-btn small">+ add files</button>
-        <button id="galleryToggleBtn" class="icon-btn" aria-label="toggle gallery view" title="gallery view">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        </button>
-        <button id="settingsBtn" class="icon-btn" aria-label="settings" title="settings">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
-        <button id="lockBtn" class="icon-btn" aria-label="lock" title="lock">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        </button>
-      </div>
-    </div>
     <div class="vault-tabs">
       <button id="vaultTabBtn" class="vault-tab on">vault</button>
       <button id="journalTabBtn" class="vault-tab">journal</button>
@@ -127,19 +164,20 @@
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <span class="journal-toolbar-gap"></span>
+        <button id="journalExportBtn" class="icon-btn" aria-label="export this year as markdown" title="export this year as markdown">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
         <div class="journal-search" id="journalSearchRow">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input id="journalSearchInput" class="journal-search-input" type="text" placeholder="search your garden" autocomplete="off" spellcheck="false">
+          <input id="journalSearchInput" class="journal-search-input" type="text" placeholder="search your journal" autocomplete="off" spellcheck="false">
           <button id="journalSearchClear" class="vault-search-clear" aria-label="clear search" title="clear">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
       </div>
       <p class="journal-streak" id="journalStreak"></p>
-      <div class="garden-scroll" id="gardenScroll">
-        <canvas id="gardenCanvas"></canvas>
-      </div>
-      <div class="journal-editor">
+
+      <section class="journal-card journal-composer">
         <p class="journal-day" id="journalDayLabel"></p>
         <div class="journal-mood-row" id="journalMoodRow">
           <button class="journal-mood" data-mood="🌱" title="growing">🌱</button>
@@ -149,11 +187,27 @@
           <button class="journal-mood" data-mood="🍂" title="quiet">🍂</button>
           <button class="journal-mood" data-mood="❤️" title="loving">❤️</button>
         </div>
-        <textarea id="journalEntry" class="journal-entry" rows="3" placeholder="what happened today?"></textarea>
+        <textarea id="journalEntry" class="journal-entry" rows="4" placeholder="what happened today?"></textarea>
         <div class="journal-save-row">
-          <button id="journalSaveBtn" class="add-btn">save to your garden</button>
+          <button id="journalSaveBtn" class="add-btn">save entry</button>
         </div>
-      </div>
+      </section>
+
+      <section class="journal-card">
+        <div class="journal-section-head">
+          <h3 class="journal-section-title">the year</h3>
+        </div>
+        <div class="calendar-grid" id="journalCalendar"></div>
+      </section>
+
+      <section class="journal-card">
+        <div class="journal-section-head">
+          <h3 class="journal-section-title">entries</h3>
+          <span class="journal-count" id="journalEntryCount"></span>
+        </div>
+        <div class="journal-entries" id="journalEntryList"></div>
+      </section>
+
       <p class="vault-ok journal-onthisday hidden" id="journalOnThisDayText"></p>
     </div>
   </section>
@@ -230,14 +284,6 @@
 
   <!-- settings -->
   <section id="screen-settings" class="screen">
-    <div class="vault-head">
-      <button id="settingsBackBtn" class="icon-btn" aria-label="back" title="back">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-      </button>
-      <h1>vault settings</h1>
-      <span class="vault-head-spacer"></span>
-    </div>
-
     <div class="vault-sec-card">
       <h3 class="vault-sec-title">change passphrase</h3>
       <p class="vault-sub">enter your recovery words to confirm you can still get back in.</p>
@@ -280,6 +326,15 @@
       <div class="vault-pills" id="bgPills">
         <button class="vault-pill" data-bg="wormhole">wormhole</button>
         <button class="vault-pill" data-bg="particles">particles</button>
+      </div>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">window chrome</h3>
+      <p class="vault-sub">how the controls in the top bar look.</p>
+      <div class="vault-pills" id="chromePills">
+        <button class="vault-pill" data-chrome="mac">mac dots</button>
+        <button class="vault-pill" data-chrome="win">windows</button>
       </div>
     </div>
 

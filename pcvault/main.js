@@ -46,16 +46,12 @@ function createWindow() {
     backgroundColor: '#fbf6f3', // --cream — no flash of a different tone behind the page
     title: 'My Vault',
     autoHideMenuBar: true,
-    // Hidden native title bar + color-matched overlay: the close/maximize/minimize
-    // buttons stay NATIVE (drawn by Windows) but sit on a cream band instead of
-    // the OS dark-mode black bar. The .win-drag strip in styles.css makes the band
-    // draggable (double-click maximizes, standard drag behavior).
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#f2eae5',      // slightly darker than --cream (#fbf6f3) — reads as chrome, not a seam
-      symbolColor: '#4a3f42', // --text
-      height: 40,
-    },
+    // Frameless: the page draws its own thin titlebar (macOS-style traffic lights
+    // + the app header in one strip — .titlebar in styles.css), so the window
+    // chrome belongs to the keepsake design instead of floating OS buttons on a
+    // band. Controls go through the win:* IPC below; the strip is the drag region
+    // and double-click maximizes. (Tradeoff: no Win11 snap-layout flyout.)
+    frame: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -84,6 +80,14 @@ function createWindow() {
   }
 
   win.on('closed', () => { win = null; });
+
+  // Push window state to the renderer so the traffic lights can react:
+  // the green dot swaps to the restore glyph while maximized, and all three
+  // dots desaturate while the window is unfocused (macOS-style).
+  win.on('maximize', () => win.webContents.send('win:maximized', true));
+  win.on('unmaximize', () => win.webContents.send('win:maximized', false));
+  win.on('focus', () => win.webContents.send('win:focused', true));
+  win.on('blur', () => win.webContents.send('win:focused', false));
 }
 
 app.whenReady().then(() => {
@@ -128,6 +132,20 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   app.quit();
 });
+
+// ---- window controls (frameless titlebar) ----------------------------------
+ipcMain.on('win:minimize', () => { if (win) win.minimize(); });
+ipcMain.on('win:toggleMaximize', () => {
+  if (!win) return;
+  if (win.isMaximized()) win.unmaximize();
+  else win.maximize();
+});
+ipcMain.on('win:close', () => { if (win) win.close(); });
+// Initial state, requested by the renderer on boot (events above only fire on change).
+ipcMain.handle('win:getState', () => ({
+  maximized: !!win && win.isMaximized(),
+  focused: !!win && win.isFocused(),
+}));
 
 // ---- Vault file IPC ---------------------------------------------------------
 // Trusted-path model: every path the renderer can hand us must have been minted

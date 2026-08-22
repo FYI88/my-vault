@@ -16,4 +16,14 @@ contextBridge.exposeInMainWorld('vaultAPI', {
   exists: (p) => ipcRenderer.invoke('vault:exists', p),
   getLastPath: () => ipcRenderer.invoke('vault:getLastPath'),
   forgetPath: () => ipcRenderer.invoke('vault:forgetPath'),
+
+  // Frameless window controls (the page draws its own traffic lights).
+  windowControls: {
+    minimize: () => ipcRenderer.send('win:minimize'),
+    toggleMaximize: () => ipcRenderer.send('win:toggleMaximize'),
+    close: () => ipcRenderer.send('win:close'),
+    getState: () => ipcRenderer.invoke('win:getState'),
+    onMaximized: (cb) => ipcRenderer.on('win:maximized', (_e, v) => cb(v)),
+    onFocus: (cb) => ipcRenderer.on('win:focused', (_e, v) => cb(v)),
+  },
 });

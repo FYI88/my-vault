@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   dateKey, todayKey, yearKey, yearOf, emptyYear, parseYearJSON, serializeYear,
   calcStreak, entryWordCount, growthStage, sortedDayKeys, searchYear,
+  yearGrid, isLeapYear, pickDoodle, DOODLE_VARIANTS, monthCells, exportYearMarkdown,
 } from '../src/journal.mjs';
 
 let passTests = 0, failTests = 0;
@@ -122,6 +123,113 @@ await t('searchYear matches entry text case-insensitively', () => {
   assert.deepEqual(searchYear(blob, '🌿'), ['2026-01-02']);
   assert.deepEqual(searchYear(blob, ''), ['2026-01-01', '2026-01-02']);
   assert.deepEqual(searchYear(blob, 'zzz'), []);
+});
+
+await t('yearGrid covers every day of a common year ascending', () => {
+  const g = yearGrid(2026); // not a leap year
+  assert.equal(g.length, 365);
+  assert.equal(g[0].key, '2026-01-01');
+  assert.equal(g[364].key, '2026-12-31');
+  assert.equal(g[0].col, 0);
+  assert.equal(g[0].row, 0);
+  assert.equal(g[7].row, 1); // a new week
+  assert.equal(g[364].col, 364 % 7);
+});
+
+await t('yearGrid covers 366 days in a leap year', () => {
+  assert.equal(yearGrid(2024).length, 366);
+  assert.equal(yearGrid(2024)[365].key, '2024-12-31');
+});
+
+await t('yearGrid flags month starts', () => {
+  const g = yearGrid(2026);
+  const starts = g.filter((c) => c.monthStart).map((c) => c.key);
+  assert.deepEqual(starts, [
+    '2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01',
+    '2026-07-01', '2026-08-01', '2026-09-01', '2026-10-01', '2026-11-01', '2026-12-01',
+  ]);
+});
+
+await t('yearGrid honors a custom column count', () => {
+  const g = yearGrid(2026, 10);
+  assert.equal(g[0].col, 0);
+  assert.equal(g[9].col, 9);
+  assert.equal(g[10].col, 0);
+  assert.equal(g[10].row, 1);
+});
+
+await t('isLeapYear handles the century rule', () => {
+  assert.equal(isLeapYear(2024), true);
+  assert.equal(isLeapYear(2026), false);
+  assert.equal(isLeapYear(2000), true); // divisible by 400
+  assert.equal(isLeapYear(1900), false); // divisible by 100 but not 400
+});
+
+await t('pickDoodle is deterministic and within the stage variant range', () => {
+  for (const stage of [1, 2, 3, 4]) {
+    const n = DOODLE_VARIANTS[stage];
+    for (const seed of ['2026-01-01', '2026-06-15', '2026-12-31']) {
+      for (const mood of ['', '🌸', '❤️']) {
+        const a = pickDoodle(stage, mood, seed);
+        const b = pickDoodle(stage, mood, seed);
+        assert.ok(a >= 0 && a < n, `variant ${a} out of range for stage ${stage}`);
+        assert.equal(a, b, 'same inputs must pick the same doodle');
+      }
+    }
+  }
+});
+
+await t('pickDoodle varies with mood and seed', () => {
+  // not guaranteed for every input, but these specific ones must differ
+  const a = pickDoodle(4, '🌸', '2026-03-14');
+  const b = pickDoodle(4, '❤️', '2026-03-14');
+  const c = pickDoodle(4, '🌸', '2026-03-15');
+  assert.notEqual(a, b);
+  assert.notEqual(a, c);
+});
+
+await t('monthCells pads leading weekdays and keeps 7 per row', () => {
+  // August 2026 starts on a Saturday (2026-08-01 is a Saturday)
+  const weeks = monthCells(2026, 7);
+  assert.equal(new Date(2026, 7, 1).getDay(), 6); // sanity: Sat
+  assert.equal(weeks[0].length, 7);
+  assert.equal(weeks[0][0].day, null); // Sun
+  assert.equal(weeks[0][6].day, 1);    // Sat = Aug 1
+  const flat = weeks.flat().filter((c) => c.day !== null);
+  assert.equal(flat.length, 31);
+  assert.equal(flat[0].key, '2026-08-01');
+  assert.equal(flat[30].key, '2026-08-31');
+});
+
+await t('monthCells pads the trailing week of a short month', () => {
+  // February 2026 has 28 days and starts on a Sunday
+  const weeks = monthCells(2026, 1);
+  assert.equal(new Date(2026, 1, 1).getDay(), 0); // Sun
+  assert.equal(weeks[0][0].day, 1);
+  const flat = weeks.flat().filter((c) => c.day !== null);
+  assert.equal(flat.length, 28);
+  assert.equal(weeks[weeks.length - 1].length, 7);
+});
+
+await t('exportYearMarkdown renders a readable year document', () => {
+  const blob = {
+    v: 1, year: 2026,
+    days: {
+      '2026-08-21': { text: 'quiet day', mood: '🌱', updatedAt: 1 },
+      '2026-08-20': { text: 'walked by the river\n\nlong walk.', mood: '', updatedAt: 2 },
+    },
+  };
+  const md = exportYearMarkdown(blob, (k) => k);
+  assert.ok(md.startsWith('# 2026\n'));
+  assert.ok(md.includes('## 2026-08-20'));
+  assert.ok(md.includes('## 2026-08-21'));
+  assert.ok(md.indexOf('2026-08-20') < md.indexOf('2026-08-21')); // ascending
+  assert.ok(md.includes('_mood 🌱_'));
+  assert.ok(md.includes('walked by the river'));
+});
+
+await t('exportYearMarkdown handles an empty year', () => {
+  assert.equal(exportYearMarkdown(emptyYear(2026)), '# 2026\n');
 });
 
 console.log(`\n${passTests - failTests}/${passTests} passed`);
