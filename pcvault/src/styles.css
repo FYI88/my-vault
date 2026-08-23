@@ -135,6 +135,35 @@ body.theme-mono .vault-tabs .vault-tab,
 body.theme-mono .vault-fileline{ letter-spacing:0.08em; }
 body.theme-mono ::-webkit-scrollbar-thumb{ background:#b5b5b5; }
 body.theme-mono ::-webkit-scrollbar-thumb:hover{ background:#8c8c8c; }
+/* ----- mono typography: geometric monospace (GC Beluga Mono) replaces the
+   cream theme's serif pairing — DM Serif Display + Cormorant Garamond. */
+body.theme-mono{ font-family:'GC Beluga Mono',monospace; font-size:14px; }
+body.theme-mono .vault-input{ font-family:'GC Beluga Mono',monospace; font-size:0.88rem; }
+body.theme-mono .vault-wordmark,
+body.theme-mono .vault-wordmark-bar,
+body.theme-mono .vault-head h1,
+body.theme-mono .titlebar .vault-head h1,
+body.theme-mono .vault-tab,
+body.theme-mono .vault-tabs .vault-tab,
+body.theme-mono .vault-pill,
+body.theme-mono .vault-sub,
+body.theme-mono .vault-hint,
+body.theme-mono .vault-btn,
+body.theme-mono .hud-btn,
+body.theme-mono .hud-chip,
+body.theme-mono .cal-month-label,
+body.theme-mono .journal-entry-row,
+body.theme-mono .settings-card h3,
+body.theme-mono .settings-card p,
+body.theme-mono .add-btn{ font-family:'GC Beluga Mono',monospace; font-style:normal; }
+body.theme-mono .vault-head h1{ font-size:1.3rem; }
+body.theme-mono .titlebar .vault-head h1{ font-size:0.82rem; }
+body.theme-mono .vault-sub{ font-size:0.75rem; }
+body.theme-mono .vault-hint{ font-size:0.68rem; }
+body.theme-mono .vault-btn{ font-size:0.8rem; }
+body.theme-mono .vault-tab{ font-size:0.78rem; }
+body.theme-mono .settings-card h3{ font-size:0.85rem; }
+body.theme-mono .settings-card p{ font-size:0.72rem; }
 *{box-sizing:border-box;margin:0;padding:0;}
 :focus-visible{ outline:2px solid var(--mauve-dark); outline-offset:2px; }
 :focus:not(:focus-visible){ outline:none; }

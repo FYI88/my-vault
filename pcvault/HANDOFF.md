@@ -393,6 +393,19 @@ Replaced the previous cached app icon with a refined monochrome mark based on th
 - **Build:** rebuilt `dist/my-vault-portable.exe` with `npm run dist`; artifact size is 94,920,645 bytes, built 2026-08-23 08:29.
 - **Verification:** ICO header has six PNG entries, the EXE's associated icon extracts as a 32x32 white-backed raster, all 52 tests pass, and the unpacked packaged `My Vault.exe` launched with a responsive `my vault` window and CDP HTTP 200. Test processes were closed afterward.
 
+## v2.9.12 — GC Beluga Mono typography for the mono theme (2026-08-23)
+
+The mono theme now uses **GC Beluga Mono**, a geometric monospace from Glyphonic Studio (demo, personal use). Its clean angular letterforms pair with the stencil VAULT wordmark better than any sans-serif did.
+
+- **Offline fonts** — three TTF files bundled in `src/fonts/`: Regular (400), Medium (500), SemiBold (600), sourced from the user's `Documents/mono.zip`. `fonts.css` has the `@font-face` declarations.
+- **Mono font overrides** — `body.theme-mono` swaps the default `Cormorant Garamond` body font to `GC Beluga Mono, monospace`. The headings, buttons, inputs, tabs, labels, journal rows, and settings cards all use GC Beluga Mono with `font-style: normal`. The branded wordmarks already use the PNG image via `font-size:0`, so they are unaffected.
+- **JetBrains Mono also stays** — seed input, file metadata lines, hints and all code-level text keep JetBrains Mono.
+- **Font sizing** — body drops to `14px` (from the root 17px), headings to 0.82–1.3rem, buttons/inputs to 0.78–0.88rem, body text to 0.68–0.75rem. Monospace glyphs are wider than proportional serifs, so this keeps the text compact and readable instead of blowing up the layout.
+- **Cream theme untouched** — switching back restores Cormorant Garamond / DM Serif Display at the original 17px root exactly (verified in preview).
+- **Inter + DM Sans kept in the bundle** — both prior font experiments remain in `src/fonts/` but are unused by any active theme; they can be cleaned up in a future pass.
+
+**Verified:** 52/52 tests green, preview shows GC Beluga Mono on all non-code text elements in mono, font-family restores cleanly to Cormorant Garamond in cream.
+
 ## Audit (2026-08-18 re-run, /auditme)
 Second full audit pass — same threat model (offline personal vault; device thief + shared-household user + casual file recipient). Prior 6 findings re-verified: SEC-001/002/003/004/006 still resolved (no regressions), SEC-005 still open (accepted). OSV check live this run: 240 pinned deps, zero known CVEs. Live dynamic pass: Electron shell boots clean (zero CSP violations); dev-server page observed in browser (zero CSP violations, zero third-party). Dev-server traversal probes: raw `../` and `%2e%2e` collapsed by the WHATWG URL parser (404), `%5c` backslash variant blocked by the `startsWith(root)` boundary (403). Four new INFO findings added to `findings.json` (SEC-007 tamper-sample plaintext not wiped, SEC-008 orphaned `.tmp-*` on failed rename, SEC-009 dev server lacks security headers, SEC-010 no record-count cap on parseVault). All four are now **resolved in source**: SEC-007 (`vault-crypto.mjs` wipes the sampled plaintext), SEC-008 (`main.js` unlinks the tmp file on failed rename), SEC-009 (`server.mjs` sends the CSP + nosniff headers), SEC-010 (`container.mjs` `MAX_RECORDS = 100000` + a 9th container test). Only SEC-005 remains open (accepted). Note: `findings.json` statuses for 007–010 still say `open` and should be flipped to `resolved` on the next audit re-run.
 
