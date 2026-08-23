@@ -15,6 +15,7 @@ const manifest = {
   wrap: { salt: 'c2FsdA==', iv: 'aXZ2djs=', data: 'ZGF0YQ==' },
   seedWrap: { salt: 'c2FsdA==', iv: 'aXZ2djs=', data: 'ZGF0YQ==' },
   tamperIdx: 0,
+  prefs: { galleryStyle: 'drift' },
 };
 const items = [
   { id: 'n1', kind: 'note', createdAt: 1724000000001, nameIv: 'aXY=', name: 'bmFtZQ==' },
@@ -28,6 +29,7 @@ await t('serialize → parse round-trips manifest + items losslessly', () => {
   const parsed = parseVault(bytes);
   assert.ok(parsed);
   assert.deepEqual(parsed.manifest, manifest);
+  assert.ok(parsed.manifest.prefs && parsed.manifest.prefs.galleryStyle === 'drift'); // prefs travel with the file
   assert.equal(parsed.items.length, 4);
   assert.deepEqual(parsed.items[0], items[0]);
   const p1 = parsed.items[1];

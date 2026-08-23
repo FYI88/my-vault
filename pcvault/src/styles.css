@@ -40,13 +40,13 @@ body{
   background:var(--bg);
   font-family:'Cormorant Garamond',serif;
   color:var(--text);
-  padding:2.4rem 1.25rem 3rem;
+  padding:0 1.25rem 3rem;
   min-height:100vh;
   transition:background var(--transition), color var(--transition);
   user-select:none; -webkit-user-select:none;
 }
 input, textarea, select, [contenteditable]{ user-select:auto; -webkit-user-select:auto; }
-.wrap{ max-width:1400px; margin:0 auto; position:relative; z-index:1; }
+.wrap{ max-width:1400px; margin:0 auto; position:relative; z-index:1; padding-top:calc(34px + 1.1rem); }
 
 /* ----- thin frameless titlebar -----
    Electron runs frameless (frame:false) — the page draws the window chrome
@@ -59,7 +59,19 @@ input, textarea, select, [contenteditable]{ user-select:auto; -webkit-user-selec
   display:flex; align-items:center; justify-content:center;
   background:#f2eae5; border-bottom:1px solid rgba(74,63,66,0.08);
   -webkit-app-region:drag; user-select:none; -webkit-user-select:none;
+  transition:background 0.35s ease, border-color 0.35s ease;
 }
+
+/* transparent bar on auth screens — the vortex/particles canvas bleeds through */
+body.auth-screen .titlebar{
+  background:transparent;
+  border-bottom-color:transparent;
+}
+body.auth-screen .titlebar .vault-wordmark-bar,
+body.auth-screen .titlebar .vault-head h1,
+body.auth-screen .tl,
+body.auth-screen .win-ctl{ color:var(--rose-dark); }
+body.auth-screen .traffic-lights{ filter:drop-shadow(0 0 3px rgba(251,246,243,0.5)); }
 .traffic-lights{ display:flex; gap:8px; align-items:center; -webkit-app-region:no-drag; position:absolute; left:0.8rem; }
 .tl{
   width:12px; height:12px; border-radius:50%; border:none; padding:0; cursor:pointer;
@@ -79,7 +91,9 @@ input, textarea, select, [contenteditable]{ user-select:auto; -webkit-user-selec
 body.win-inactive .tl{ filter:saturate(0.3) brightness(0.92); }
 
 /* compact native-style controls (right side — Settings → window chrome → windows) */
-.win-controls{ display:none; align-items:center; gap:2px; -webkit-app-region:no-drag; position:absolute; right:0.8rem; }
+.win-controls{ display:none; align-items:center; gap:2px; -webkit-app-region:no-drag; }
+/* actions cluster lives in the titlebar's right corner, left of the window controls */
+.title-right{ position:absolute; right:0.8rem; top:0; bottom:0; display:flex; align-items:center; gap:0.35rem; -webkit-app-region:no-drag; }
 body.chrome-win .win-controls{ display:flex; }
 body.chrome-win .traffic-lights{ display:none; }
 .win-ctl{
@@ -97,9 +111,9 @@ body.chrome-win .traffic-lights{ display:none; }
 body.win-inactive .win-ctl{ opacity:0.55; }
 
 /* the app header lives in the bar; which head shows depends on the active screen */
-#headUnlocked, #headSettings{ display:none; }
-body.head-unlocked #headUnlocked{ display:flex; }
+#headSettings{ display:none; }
 body.head-settings #headSettings{ display:flex; }
+body.head-settings .title-center{ display:none; }
 .titlebar .vault-head{ width:auto; }
 .titlebar .vault-head h1{
   font-family:'DM Serif Display',serif; font-style:italic; font-weight:400;
@@ -108,31 +122,24 @@ body.head-settings #headSettings{ display:flex; }
 .titlebar .vault-head .icon-btn{ padding:0.3rem; }
 .titlebar .vault-head .icon-btn .ic{ width:16px; height:16px; }
 .titlebar .vault-head-gap{ gap:0.15rem; }
-.titlebar .add-btn.small{ padding:0.28rem 0.62rem; font-size:0.66rem; }
 
-
-/* ----- action row (under the titlebar) -----
-   The vault actions (add files / gallery / settings / lock) live in a thin row
-   right under the titlebar. Shown only while unlocked, like the head it serves. */
-.action-bar{
-  position:fixed; top:34px; left:0; right:0; height:36px; z-index:190;
-  display:none; align-items:center; justify-content:center; gap:0.7rem;
-  background:#f2eae5; border-bottom:1px solid rgba(74,63,66,0.08);
-  -webkit-app-region:no-drag; user-select:none;
+/* centered wordmark in the bar */
+.title-center{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  pointer-events:none;
 }
-body.head-unlocked .action-bar{ display:flex; }
-.action-bar .icon-btn{ padding:0.3rem; }
-.action-bar .icon-btn .ic{ width:16px; height:16px; }
-.action-bar .add-btn.small{ padding:0.28rem 0.62rem; font-size:0.66rem; }
+.vault-wordmark-bar{
+  font-family:'DM Serif Display',serif; font-style:italic; font-weight:400;
+  font-size:0.95rem; color:var(--rose-dark); letter-spacing:0.5px; line-height:1;
+  margin:0; white-space:nowrap;
+}
+
+/* page-level action bar — sticky below the titlebar, auto-hides on scroll-down */
+.page-actions{ display:none; }
+
+
 #galleryToggleBtn.on{ color:var(--rose-dark); background:rgba(196,123,131,0.15); }
 
-/* long-press affordance on the centered title */
-#vaultTitle{
-  cursor:default; border-radius:6px; padding:0.1rem 0.3rem; margin:-0.1rem -0.3rem;
-  transition:background 0.15s ease, color 0.15s ease;
-  -webkit-app-region:no-drag;
-}
-#vaultTitle.pressing{ background:rgba(196,123,131,0.16); color:var(--mauve-dark); }
 
 /* ----- interactive elements in hidden titlebar window ----- */
 button, input, textarea, select, .add-btn, .icon-btn, .hud-btn, .hud-chip, .vault-fileline, a {
@@ -416,7 +423,6 @@ textarea.vault-input{ resize:vertical; text-align:left; line-height:1.5; }
 /* gallery mode is full-bleed: no page padding, no max-width, no card — the
    grid IS the page (that's what "integrated" means). The header/search keep
    their spots; the gallery stretches edge-to-edge below them. */
-body.head-unlocked{ padding-top:5rem; }
 body.gallery-mode{ padding:0; }
 body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
 
@@ -432,6 +438,78 @@ body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
   margin:0.4rem 0 0; height:calc(100vh - 176px);
 }
 #galleryToggleBtn.on{ color:var(--rose-dark); background:rgba(196,123,131,0.15); }
+
+/* ----- drift wall gallery (React Bits DriftWall, ported) ----- */
+.drift-wall{
+  /* height/width come from .phantom-gallery / gallery-mode (host #phantomGallery).
+     Don't set them here — the CSS cascade would clobber the correct calc() heights. */
+  position:relative; overflow:hidden;
+  -webkit-mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 var(--dw-edge), transparent 100%),
+    linear-gradient(to top, #000 var(--dw-edge), transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 var(--dw-edge), transparent 100%),
+    linear-gradient(to top, #000 var(--dw-edge), transparent 100%);
+  mask-composite: intersect;
+}
+.drift-wall__plane{
+  position:absolute; top:50%; left:50%;
+  display:flex; flex-direction:row;
+  transform-style:preserve-3d; cursor:pointer;
+  transform-origin:50% 50%; will-change:transform;
+}
+.drift-wall__col{
+  position:relative;
+  width:calc(var(--dw-tile-w, 200px) + var(--dw-gap, 18px));
+  transform-style:preserve-3d;
+}
+.drift-wall__track{
+  display:flex; flex-direction:column;
+  will-change:transform; transform-style:preserve-3d;
+}
+.drift-wall__tile{
+  position:relative; display:block; border:none; padding:0; background:none;
+  width:100%; height:calc(var(--dw-tile-h, 132px) + var(--dw-gap, 18px));
+  flex:0 0 auto; outline:none; transform-style:preserve-3d; cursor:pointer;
+}
+.drift-wall__inner{
+  position:absolute; inset:calc(var(--dw-gap, 18px) / 2);
+  display:block; border-radius:var(--dw-radius, 14px); overflow:hidden;
+  background:#171014; opacity:var(--dw-dim, 0.55);
+  transform:translateZ(0); pointer-events:none;
+  box-shadow:0 6px 22px -10px rgba(0,0,0,0.6);
+  transition:transform 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.42s cubic-bezier(0.22,1,0.36,1), box-shadow 0.42s cubic-bezier(0.22,1,0.36,1);
+}
+.drift-wall__tile img{
+  width:100%; height:100%; object-fit:cover; display:block;
+  filter:grayscale(var(--dw-gray, 0)) saturate(0.92);
+  transition:filter 0.42s cubic-bezier(0.22,1,0.36,1);
+  user-select:none; -webkit-user-drag:none;
+}
+.drift-wall__overlay{
+  position:absolute; inset:0; background:var(--dw-overlay, #171014);
+  opacity:0.42; pointer-events:none;
+  transition:opacity 0.42s cubic-bezier(0.22,1,0.36,1);
+}
+.drift-wall__tile.is-active .drift-wall__inner,
+.drift-wall__tile:focus-visible .drift-wall__inner{
+  opacity:1; transform:translateZ(var(--dw-lift, 64px));
+  box-shadow:0 24px 60px -18px rgba(0,0,0,0.7);
+}
+.drift-wall__tile.is-active img,
+.drift-wall__tile:focus-visible img{ filter:grayscale(0) saturate(1.05); }
+.drift-wall__tile.is-active .drift-wall__overlay,
+.drift-wall__tile:focus-visible .drift-wall__overlay{ opacity:0; }
+@media (prefers-reduced-motion: reduce){
+  .drift-wall__plane,
+  .drift-wall__track{ will-change:auto; }
+}
+@media (prefers-reduced-motion: reduce){
+  .drift-wall__inner,
+  .drift-wall__tile img,
+  .drift-wall__overlay{ transition:none; }
+}
 
 /* ----- item viewer (full-bleed immersive) -----
    The stage fills the whole window on a near-black ground; chrome floats as
@@ -571,6 +649,7 @@ body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
   display:flex; gap:0.35rem; align-items:center; width:100%;
   margin:0.4rem 0 0.75rem;
 }
+.vault-tabs-gap{ flex:1; }
 .vault-tab{
   background:none; border:1px solid var(--border); border-radius:999px;
   font-family:'JetBrains Mono',monospace; font-size:0.62rem; text-transform:uppercase;
@@ -579,6 +658,34 @@ body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
 }
 .vault-tab:hover{ border-color:var(--mauve-dark); }
 .vault-tab.on{ background:var(--mauve-dark); border-color:var(--mauve-dark); color:#fff; }
+
+/* action sidebar — fixed vertical tray on the right edge, togglable */
+.action-sidebar{
+  position:fixed; right:0.5rem; top:calc(34px + 2.8rem); z-index:150;
+  display:flex; flex-direction:column; align-items:center; gap:0.25rem;
+  transition:opacity 0.25s ease, transform 0.25s ease;
+}
+.sidebar-toggle{
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  padding:0.35rem; cursor:pointer; color:var(--mauve-dark);
+  display:flex; align-items:center; justify-content:center;
+  transition:background var(--transition), color var(--transition);
+  box-shadow:var(--shadow);
+}
+.sidebar-toggle:hover{ background:var(--mauve-dark); color:#fff; }
+.sidebar-toggle .ic{ width:16px; height:16px; }
+.sidebar-tray{
+  display:flex; flex-direction:column; gap:0.15rem;
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  padding:0.25rem; box-shadow:var(--shadow);
+  opacity:1; transform:translateX(0);
+  transition:opacity 0.22s ease, transform 0.22s ease;
+}
+.sidebar-tray.hidden{
+  opacity:0; transform:translateX(0.5rem); pointer-events:none;
+}
+.sidebar-tray .icon-btn{ padding:0.35rem; }
+.sidebar-tray .icon-btn .ic{ width:17px; height:17px; }
 
 .journal-pane{ width:100%; animation:vaultIn 0.3s ease; }
 .journal-toolbar{

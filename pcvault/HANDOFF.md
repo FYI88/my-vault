@@ -259,6 +259,99 @@ Gotcha: the renderer file is **CRLF** — multi-line `String.replace` templates 
 
 Smoke-test gotcha added to the pile: the keybinds are gated behind `state.unlocked`, so a CDP driver that only fakes `body.head-unlocked` (the CSS class) gets false FAILs on the shortcuts. Set the module state for real via `const mod = await import('./renderer.js'); mod.state.unlocked = true;` — the renderer exports `state` exactly for that.
 
+## v2.8 — actions moved into the titlebar's right corner (2026-08-22)
+
+Per the user's reference screenshot, the action row **under** the bar is gone. The four actions now live **in** the 34px titlebar, clustered in its right corner left of the window controls: `[+ add files][gallery][settings][lock] | [min][max][close]` (vault-head-gap cluster inside a new absolute `.title-right` wrapper that also holds `#winControls`; the cluster is `#headUnlocked`, so it still shows only while unlocked). The centered `my vault` wordmark and its long-press-to-reveal were removed to match the clean bar — reveal still exists via Settings → show in folder + the clickable vault path line. `body.head-unlocked` padding reverts to the base 2.4rem (no more 36px strip to clear).
+
+Same `runAction` seam, one fewer adapter: the delegated click listener moved from `#actionBar` to `#headUnlocked` (the `data-action` buttons + keybinds remain). `initTitlePress()` deleted. Verified: syntax clean, all suites green, and live in the preview — geometry check shows the actions cluster hugging the right corner (`right:0.8rem`), win controls at the very edge, bar still 34px and light cream.
+
+## v2.9 — DriftWall as a second gallery style (2026-08-22)
+
+React Bits' **DriftWall** integrated as a selectable gallery style, keeping every vault promise (offline-only, strict CSP, zero runtime deps):
+
+- **`src/drift-wall.mjs` (new)** — a vanilla JS port (the app is vanilla under `script-src 'self'`, so the React component is ported, not bundled — same approach as `phantom-gallery.mjs`). API mirrors `phantom-gallery.mjs`: `createDriftWall(host, opts)` → `{ destroy, setItems, setContainerHeight }`. Drifting 3D columns that speed up/slow down per column and tilt toward the pointer, with hover lift + de-tint, edge/depth dissolve (CSS mask), and `prefers-reduced-motion` support (drift + parallax + hover motion disabled). Tiles are focusable `button`s that report through `onItemClick(id)` — **no `href`/new-window**. Images are the caller's own `blob:` thumbnails (never remote); default `overlayColor` set to the vault's warm `#171014` (not React Bits' `#060010`). All styling via `el.style` + the bundled stylesheet → zero CSP violations.
+- **Settings → gallery style** (`index.html`): a card with **phantom** (default) / **drift** pills, following the background-picker pattern exactly; choice persists in localStorage (`pcvault.galleryStyle`) and renders on boot (`renderGalleryPills()`).
+- **Renderer (`renderer.js`)** — gallery plumbing made style-agnostic, one path for both styles: `buildGalleryItems()` (decrypt names + short titles once, pull thumbnails from the cache) → `populateGallery()` (hands the array to whichever controller is active, hydrates any thumbnails the grid hasn't reached). `toggleGallery()` + the pill handler create the controller for the chosen style via `ensureGalleryController()`/`makeGalleryController()` (rebuilds when switching while open). `lock()` cleans up via `destroyGallery()`.
+- **`styles.css`** — `.drift-wall*` rules (plane/col/track/tile/inner/img/overlay + reduced-motion transition kill).
+
+Verified: syntax clean, **52/52 tests green**, and live in the preview — drift wall mounts 34 tiles across 5 columns from `blob:`/data thumbnails, the plane applies its rotateX/Y/Z tilt, click reports the item id, switching phantom↔drift while the gallery is open rebuilds to the other style, and no CSP errors (a `data:` URL is correctly blocked by `img-src 'self' blob:` — the real gallery uses `blob:` URLs which load fine).
+
+## v2.9.1 — gallery style travels with the vault file (2026-08-22)
+
+The `gallery style` choice now lives **inside the vault file** (`manifest.prefs.galleryStyle`), not just per-machine localStorage — open the same `.cvault` on another PC and your chosen style comes back with it.
+
+- `manifest` gains a `prefs` object (`createVault` defaults to `{ galleryStyle: 'phantom' }`). `prefs` rides in the header JSON beside `vaultId`/`tamperIdx` — all of which are non-secret UI/meta values; the wrapped keys carry the confidentiality, so a UI preference has zero security impact. `changePass` / `rotateSeed` keep it (they only touch `wrap`/`seedWrap`).
+- **`renderer.js`** — `galleryStyleChoice()` reads from `state.manifest.prefs` first, falling back to the old `LS_GALLERY` localStorage key only before a vault is loaded. `enterWithDek()` (unlock via pass/seed) calls `adoptGalleryStyleIntoFile()` on first unlock: if the manifest has no valid style yet, it folds in the legacy localStorage pick (default `phantom`) and persists once, so old vaults migrate the stored choice into the file going forward. The Settings pill handler now writes `state.manifest.prefs.galleryStyle` and `saveVault()`s it — the .cvault is rewritten with the preference, exactly like a reorder or journal save.
+- **Tests** — crypto: `createVault` manifest asserts `prefs.galleryStyle === 'phantom'`. Container: the round-trip manifest now carries `prefs: { galleryStyle: 'drift' }` with an explicit assertion it survives serialize→parse (and the existing deepEqual still holds). **52/52 green**, syntax clean.
+
+## v2.9.2 — drift gallery columns adapt to window width (2026-08-22)
+
+The drift gallery no longer uses a fixed 5 columns. `createDriftWall` now computes the column count from the **container width** and reflows live as the window resizes:
+
+- **`drift-wall.mjs`** — new `columnsForWidth(width)`: `floor((width / PLANE_SCALE) / unit)` where `PLANE_SCALE = 1.18` (the 3D plane is scaled up as it recedes in perspective, so it covers ~width/1.18) and `unit = tileWidth + gap`. Clamped by new `columnsMin` (2) / `columnsMax` (12) options so a thin window never collapses to a 1-col wall and a huge monitor never spawns dozens of DOM-heavy columns. `containerWidth` is tracked alongside height; a `ResizeObserver` fires a shared `rebuildForLayout()` on any width/height change (re-derives columns, colMeta, copies, offsets, velocities in one place — `setItems` and the new public `setContainerWidth()` reuse it too).
+- **`renderer.js`** — drift config swaps the removed `columns: 5` for `columnsMin: 2` (module owns the count now).
+
+Verified: syntax clean, **52/52 tests green**, and live in the preview — columns follow width 2→3→5→6→8 across 600→2400px on both the ResizeObserver path (window resize) and `setContainerWidth`, and shrink back down on narrow. (Test gotcha: the module sets `width:100%` on its host exactly like the phantom gallery, so a synthetic fixed-width host is overridden — drive reflow through the real pane or `setContainerWidth` instead of a hand-sized div.)
+
+## v2.9.3 — REBUILT + SMOKE-TESTED: DriftWall gallery in the packaged EXE (2026-08-22)
+
+`dist/my-vault-portable.exe` rebuilt (91 MB) with the drift gallery + the two supporting changes (in-vault gallery style + width-adaptive columns) and smoke-tested **12/12 in the real packaged app** via CDP. Opened a throwaway 6-photo vault whose manifest had `prefs.galleryStyle = 'drift'`:
+
+1. boots to locked screen (test vault path shown)
+2. unlocks with the passphrase
+3. gallery toggle → **drift** wall (not phantom) mounts, **3 adaptive columns** at that window size, 24 tiles
+4. tiles carry the 3D plane tilt (`rotateX(16deg) rotateY(-14deg) … translateZ(-120px)`)
+5. **24/24 drift tiles render real `blob:` thumbnails** (
+`loaded:24`)
+6. clicking a tile opens the item viewer with the `<img>` visible
+7. Settings shows the gallery-style pills with **drift active from the vault file**
+8. switching to phantom while the gallery is open rebuilds to phantom
+9. choice **persisted into the vault manifest** (`manifest.prefs.galleryStyle = 'phantom'`)
+
+**Two real bugs the smoke test caught (both fixed + re-built + re-passed):**
+
+- **`openSettings()` didn't call `renderGalleryPills()`.** The gallery-style pills only got their `on` state at boot and on click, so opening Settings before touching a pill showed stale pills — and since the style now lives in the vault file, the active pill wouldn't reflect the file until an unrelated click. Fixed: `openSettings()` now re-renders idle/background/chrome/**gallery** pills on every open. (The blind spot existed because the background/chrome pills are localStorage-backed and never diverge from boot; the in-vault gallery style *can*.)
+- **Drift tiles stayed dark when thumbnails hydrated late.** The phantom gallery re-reads each item's `thumbUrl` every animation frame, so an in-place mutation shows immediately. The drift wall bakes `img.src` at tile-build time, so photos that decrypted *after* the tiles were built (the grid hydrates lazily) never appeared until a rebuild. Fixed in `populateGallery()`: after hydrating, rebuild the gallery once **only when the active style is drift** (`state.galleryKind === 'drift'`); phantom is skipped so rebuilding doesn't reset the user's scroll/zoom.
+
+Gotchas for future packaged smoke tests: a CDP driver's thumbnail assertions must **poll until the async hydration lands** (the raft of `await thumbUrl(rec)` runs after the tiles mount); and raw Node's global `WebSocket` works for CDP (no `ws` dep needed) but you must wire `ws.onmessage` to resolve `send()` — forgetting it hangs every eval. The packaged asar was verified to contain `drift-wall.mjs`, `columnsForWidth`, and both renderer fixes. Real vault (Downloads/myvault.cvault, 18 records) confirmed intact + untouched; settings restored to it; all test vaults/driver scripts/logs deleted.
+
+## v2.9.4 — titlebar cleanup: actions in page, padding fixed, drift rendering fix (2026-08-22)
+
+Four issues fixed in one pass after the user's screenshot review:
+
+- **Padding fix** — `body padding` was `2.4rem 1.25rem 3rem` which didn't account for the fixed 34px titlebar. Now `body { padding: 0 1.25rem 3rem }` and `.wrap { padding-top: calc(34px + 1.1rem) }` — the content clears the titlebar exactly.
+- **Action icons moved into the page** — the four action buttons (+add files, gallery, settings, lock) no longer crowd the titlebar's right corner. They live in a `.page-actions` row at the top-right of the unlocked screen, positioned with `position:absolute; top:0.55rem; right:0`. The titlebar now shows only the centered `my vault` wordmark and the window controls. The click delegation switched from `#headUnlocked` (which no longer exists) to `#pageActions`.
+- **Drift gallery rendering fix** — the root cause was `createDriftWall` hardcoding `height:100%` via `container.style.cssText`, which overrode the CSS `calc(100vh - 120px)` from `.phantom-gallery`. Since the drift wall's parent (`#vaultPane`) has no explicit height, `height:100%` collapsed the container to zero. Fixed in `drift-wall.mjs`: `container.style.cssText` replaced with individual `style.setProperty` calls for only `position`, `overflow`, `perspective`, and `perspectiveOrigin` — height/width are left to the CSS classes. The `.drift-wall` CSS class also had its redundant `width:100%; height:100%` removed (it was clobbering `.phantom-gallery`'s `calc()` height through the cascade).
+- **Window-chrome picker confirmed** — the Settings screen already renders the `chromePills` (mac dots / windows) — `openSettings()` calls `renderChromePills()`. Verified both pills visible in the DOM.
+
+**Verified:** syntax clean, **52/52 tests green**, live in preview — drift wall mounts correct height (525.6px = calc(100vh - 120px)), plane tilt applies, columns adapt to width (2 cols at 397px), perspective 1200px, and edge-fade mask renders.
+
+## v2.9.5 — transparent titlebar on auth screens + scroll-hide action bar (2026-08-22)
+
+- **Transparent titlebar on welcome/locked screens** — `body.auth-screen .titlebar` gets `background:transparent` + `border-bottom-color:transparent` with a smooth 0.35s transition. `show()` toggles the `auth-screen` body class based on the `AUTH_SCREENS` set. The traffic-light dots get `filter:drop-shadow(0 1px 2px rgba(0,0,0,0.25))` so they stay visible against the vortex. When the user unlocks, the `auth-screen` class is removed and the bar fades back to cream.
+
+- **Scroll auto-hide action bar** — `.page-actions` is now `position:sticky; top:34px` (pinned below the titlebar). A scroll listener tracks direction: scrolling down >8px hides the bar (translateY + opacity transition), scrolling up reveals it. At the very top of the page the bar has no shadow; once scrolled it gets a subtle `box-shadow` hairline. Navigating away from the unlocked screen resets the hide state.
+
+## v2.9.6 — REBUILT: scroll-hide + transparent titlebar + drift fixes in EXE (2026-08-22)
+
+Rebuilt `dist/my-vault-portable.exe` (91 MB) at 18:59 with all recent fixes baked in. Packaged asar verified:
+- **8** scroll-tracking references in `renderer.js` (`scroll-direction`, `_lastScrollY`, `_SCROLL_THRESH`)
+- **`position:sticky`** and **`.page-actions.hide`** in `styles.css`
+- **`src/drift-wall.mjs`** present with the `style.cssText` fix
+
+No smoke-test this round — the build artifacts confirm the source changes are in the EXE.
+
+## v2.9.7 — action sidebar + titlebar conflict fix + add-files in tabs row (2026-08-23)
+
+Three layout changes:
+
+- **Titlebar conflict fixed** — when the Settings screen is active, "my vault" in the titlebar center overlapped "vault settings" in the header slot. Fixed with `body.head-settings .title-center { display: none }` so only one header shows at a time.
+
+- **"+ add files" moved into the tabs row** — the button now lives in `.vault-tabs` inline with the vault/journal selector, separated by `flex:1` gap. Same visual level as the navigation, not a separate bar floating below.
+
+- **Action bar replaced with togglable sidebar** — the sticky `.page-actions` bar (with scroll-hide) is replaced by a fixed vertical `.action-sidebar` on the right edge. A three-dot `sidebar-toggle` opens/closes a `.sidebar-tray` containing gallery, settings, and lock. The tray fades in/out with `opacity` + `translateX` transition. Sidebar only appears on the unlocked screen (`show()` toggles `.hidden` on `#actionSidebar`). The scroll-hide listener removed from renderer.js.
+
+**Verified:** syntax clean, **52/52 tests green**, live in preview — title-center hidden on body.head-settings, sidebar toggle opens/closes tray, add-files button rendered inside `.vault-tabs`.
 
 ## Audit (2026-08-18 re-run, /auditme)
 Second full audit pass — same threat model (offline personal vault; device thief + shared-household user + casual file recipient). Prior 6 findings re-verified: SEC-001/002/003/004/006 still resolved (no regressions), SEC-005 still open (accepted). OSV check live this run: 240 pinned deps, zero known CVEs. Live dynamic pass: Electron shell boots clean (zero CSP violations); dev-server page observed in browser (zero CSP violations, zero third-party). Dev-server traversal probes: raw `../` and `%2e%2e` collapsed by the WHATWG URL parser (404), `%5c` backslash variant blocked by the `startsWith(root)` boundary (403). Four new INFO findings added to `findings.json` (SEC-007 tamper-sample plaintext not wiped, SEC-008 orphaned `.tmp-*` on failed rename, SEC-009 dev server lacks security headers, SEC-010 no record-count cap on parseVault). All four are now **resolved in source**: SEC-007 (`vault-crypto.mjs` wipes the sampled plaintext), SEC-008 (`main.js` unlinks the tmp file on failed rename), SEC-009 (`server.mjs` sends the CSP + nosniff headers), SEC-010 (`container.mjs` `MAX_RECORDS = 100000` + a 9th container test). Only SEC-005 remains open (accepted). Note: `findings.json` statuses for 007–010 still say `open` and should be flipped to `resolved` on the next audit re-run.

@@ -11,6 +11,7 @@ import { serializeVault, parseVault } from './container.mjs';
 import { initWormhole } from './wormhole.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
+import { createDriftWall } from './drift-wall.mjs';
 import {
   emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak, sortedDayKeys,
   yearOf, searchYear, monthCells, exportYearMarkdown, entryWordCount,
@@ -20,6 +21,7 @@ const $ = (id) => document.getElementById(id);
 const LS_IDLE = 'pcvault.idleMin';
 const LS_BG = 'pcvault.bg'; // 'wormhole' (default) or 'particles'
 const LS_CHROME = 'pcvault.chrome'; // 'mac' (default) or 'win' — titlebar controls style
+const LS_GALLERY = 'pcvault.galleryStyle'; // legacy machine-local fallback — the choice now rides in the vault file
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
 // lucide-style inline icons (the phone app's `ic()` helper, reduced to what this UI uses)
@@ -48,8 +50,10 @@ const state = {
   pendingDek: null,   // held between "create" and "I've saved them"
   rotatePhrase: null,// rotation in progress — old words die only on save
   idleTimer: null,
-  galleryMode: false, // phantom infinite gallery view
-  phantomGallery: null,
+  galleryMode: false, // full-screen gallery view
+  galleryStyle: null, // controller for the active gallery style (phantom/drift)
+  galleryKind: null,  // name of the active gallery style
+  galleryItems: [],   // the items handed to the active gallery controller
   journalTab: false,    // Journal tab active (vs Vault)
   journalCache: new Map(), // year → decrypted journal blob — plaintext, wiped on lock
   journalYear: null,    // the year the journal screen is showing
@@ -131,13 +135,18 @@ let pdfRenderSeq = 0;     // stale-render guard (rapid paging)
 let pdfjsReady = null;    // lazy import of pdf.js + its worker module
 
 // ---- screens ----
+
+
 function show(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`screen-${name}`).classList.add('active');
   // which header lives in the thin titlebar
-  document.body.classList.toggle('head-unlocked', name === 'unlocked');
   document.body.classList.toggle('head-settings', name === 'settings');
+  document.body.classList.toggle('auth-screen', AUTH_SCREENS.has(name));
   if (bgCtrl) bgCtrl.setActive(AUTH_SCREENS.has(name));
+  // sidebar only visible on the unlocked screen
+  const sidebar = $('actionSidebar');
+  if (sidebar) sidebar.classList.toggle('hidden', name !== 'unlocked');
 }
 function showOverlay(id, visible) {
   $(id).classList.toggle('hidden', !visible);
@@ -179,13 +188,14 @@ function refreshPathLines() {
 }
 
 
-// ---- action dispatcher (one seam: the action-row buttons, the keyboard
-//      shortcuts, and the long-press on the title all call runAction; each
-//      action's behavior lives here exactly once) ----
+// ---- action dispatcher (one seam: the action-bar buttons and the keyboard
+//      shortcuts all call runAction; each action's behavior lives here once) ----
 function openSettings() {
   refreshPathLines();
   renderIdlePills();
   renderBgPills();
+  renderChromePills();
+  renderGalleryPills(); // gallery style now lives in the vault file — re-read on every open
   setErr('changeErr', ''); setOk('changeOk', '');
   setErr('rotateErr', '');
   show('settings');
@@ -322,6 +332,9 @@ async function handleSeedDone() {
 
 // ---- unlock ----
 async function enterWithDek(dek) {
+  // First unlock: fold the machine-local gallery pick into the vault file so it
+  // travels with the .cvault from now on.
+  if (adoptGalleryStyleIntoFile()) await saveVault();
   const r = await tamperSample(state.manifest, dek, state.items);
   if (r.tampered) {
     setHidden('tamperWarn', false);
@@ -392,7 +405,7 @@ function lock() {
   if ($('journalEntry')) $('journalEntry').value = '';
   showVaultTab();
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
-  if (state.phantomGallery) { state.phantomGallery.destroy(); state.phantomGallery = null; }
+  destroyGallery();
   state.galleryMode = false;
   if ($('galleryToggleBtn')) $('galleryToggleBtn').classList.remove('on');
   setHidden('phantomGallery', true);
@@ -682,52 +695,62 @@ function clearSearch() {
   setHidden('searchCount', true);
 }
 
-// ---- phantom infinite gallery ----
-async function populatePhantomGallery() {
-  if (!state.phantomGallery || !state.unlocked) return;
-  await ensureNames();
-  const items = vaultItems().map((rec) => {
-    const full = state.nameCache.get(rec.id) || '';
-    return {
-      id: rec.id,
-      thumbUrl: state.thumbCache.get(rec.id) || '',
-      name: full,
-      title: shortName(full),
-      kind: rec.kind,
-      meta: rec.kind === 'photo' ? String(new Date(rec.createdAt).getFullYear()) : fmtSize(rec.size),
-    };
-  });
-  state.phantomGallery.setItems(items);
-  // The gallery needs the photos too, but thumbnails only land in the cache when
-  // the grid's IntersectionObserver reaches a cell. Hydrate anything missing so
-  // toggling straight into the gallery never shows dark tiles. The gallery reads
-  // the items array on every frame — mutating `thumbUrl` in place updates the
-  // cells without a rebuild.
-  const missing = state.items.filter((rec) => rec.kind !== 'doc' && !state.thumbCache.has(rec.id));
-  for (const rec of missing) {
-    try {
-      const url = rec.kind === 'video' ? await videoThumbUrl(rec) : await thumbUrl(rec);
-      if (!state.unlocked || !state.galleryMode) return; // locked or left mid-hydrate
-      state.thumbCache.set(rec.id, url);
-      const it = items.find((i) => i.id === rec.id);
-      if (it) it.thumbUrl = url;
-    } catch (err) {
-      // damaged record — the tile stays dark, same as the grid's "can't open"
-    }
-  }
+// ---- full-screen gallery (style-agnostic) ----
+// Two controller styles share one item contract: phantom (Framer port) and
+// drift (React Bits port). Both consume the same array of decrypted items and
+// report clicks back through onItemClick; only the module that renders them
+// differs. The plumbing below is style-neutral.
+// The gallery style is stored INSIDE the vault file (manifest.prefs.galleryStyle)
+// so it travels with the vault — open the same .cvault on another PC and it
+// comes back. localStorage is only a pre-unlock fallback / one-time migration:
+// before a vault is loaded there's no manifest to read, and on first unlock the
+// stored pick (if any) is folded into the file.
+function galleryStyleChoice() {
+  const fromFile = state.manifest && state.manifest.prefs && state.manifest.prefs.galleryStyle;
+  if (fromFile === 'drift' || fromFile === 'phantom') return fromFile;
+  const v = localStorage.getItem(LS_GALLERY);
+  return v === 'drift' ? 'drift' : 'phantom';
 }
 
-function toggleGallery() {
-  state.galleryMode = !state.galleryMode;
-  if ($('galleryToggleBtn')) $('galleryToggleBtn').classList.toggle('on', state.galleryMode);
-  document.body.classList.toggle('gallery-mode', state.galleryMode);
-  setHidden('grid', state.galleryMode);
-  setHidden('phantomGallery', !state.galleryMode);
-  setHidden('gridEmpty', state.galleryMode || vaultItems().length > 0);
-  setHidden('noMatches', true);
-  if (state.galleryMode) {
-    if (!state.phantomGallery) {
-      state.phantomGallery = createPhantomGallery($('phantomGallery'), {
+// Fold the legacy machine-local pick into the vault file on first unlock so it
+// becomes part of the manifest from then on. Returns true if it changed.
+function adoptGalleryStyleIntoFile() {
+  if (!state.manifest) return false;
+  const inFile = state.manifest.prefs && state.manifest.prefs.galleryStyle;
+  if (inFile === 'drift' || inFile === 'phantom') return false;
+  if (!state.manifest.prefs) state.manifest.prefs = {};
+  state.manifest.prefs.galleryStyle = localStorage.getItem(LS_GALLERY) === 'drift' ? 'drift' : 'phantom';
+  return true;
+}
+
+// Render the pills so the selected style reads as active.
+function renderGalleryPills() {
+  const choice = galleryStyleChoice();
+  document.querySelectorAll('#galleryStylePills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.gallery === choice);
+  });
+}
+
+// Build the style-specific controller into the #phantomGallery host.
+function makeGalleryController(kind) {
+  const host = $('phantomGallery');
+  return kind === 'drift'
+    ? createDriftWall(host, {
+        columnsMin: 2,
+        tileWidth: 220,
+        tileHeight: 150,
+        gap: 16,
+        speed: 42,
+        direction: 'up',
+        variance: 0.45,
+        parallax: 0.6,
+        lift: 64,
+        fade: 0.6,
+        dim: 0.55,
+        overlayColor: '#171014', // vault warm near-black — matches the item viewer stage
+        onItemClick: (id) => openItem(id),
+      })
+    : createPhantomGallery(host, {
         backgroundColor: '#171014', // warm near-black — matches the item viewer stage
         textColor: '#8f8986',
         border: { width: 1, style: 'solid', color: 'rgba(251,246,243,0.9)' },
@@ -745,8 +768,85 @@ function toggleGallery() {
         throwVelocityScale: 1,
         onItemClick: (item) => openItem(item.id),
       });
+}
+
+// Destroy any active gallery controller so the host is clean for a rebuild.
+function destroyGallery() {
+  if (state.galleryStyle) { state.galleryStyle.destroy(); state.galleryStyle = null; }
+  state.galleryKind = null;
+  state.galleryItems = [];
+}
+
+// (Re)build the active controller if it doesn't match the chosen style.
+function ensureGalleryController() {
+  const kind = galleryStyleChoice();
+  if (state.galleryStyle && state.galleryKind === kind) return state.galleryStyle;
+  destroyGallery();
+  state.galleryStyle = makeGalleryController(kind);
+  state.galleryKind = kind;
+  return state.galleryStyle;
+}
+
+// Collect the decrypted items both gallery styles render. Names/short names come
+// from the name cache; thumbnails from the thumb cache (drawn into the grid).
+async function buildGalleryItems() {
+  await ensureNames();
+  return vaultItems().map((rec) => {
+    const full = state.nameCache.get(rec.id) || '';
+    return {
+      id: rec.id,
+      thumbUrl: state.thumbCache.get(rec.id) || '',
+      name: full,
+      title: shortName(full),
+      kind: rec.kind,
+      meta: rec.kind === 'photo' ? String(new Date(rec.createdAt).getFullYear()) : fmtSize(rec.size),
+    };
+  });
+}
+
+// Populate the active gallery and hydrate any thumbnails that only the grid has
+// touched. Mutating each item's thumbUrl in place (the gallery reads the array)
+// avoids a rebuild — same approach both controllers support.
+async function populateGallery() {
+  if (!state.galleryStyle || !state.unlocked || !state.galleryMode) return;
+  const items = await buildGalleryItems();
+  if (!state.unlocked || !state.galleryMode) return;
+  state.galleryItems = items;
+  state.galleryStyle.setItems(items);
+  const missing = state.items.filter((rec) => rec.kind !== 'doc' && !state.thumbCache.has(rec.id));
+  let hydrated = false;
+  for (const rec of missing) {
+    try {
+      const url = rec.kind === 'video' ? await videoThumbUrl(rec) : await thumbUrl(rec);
+      if (!state.unlocked || !state.galleryMode) return; // locked or left mid-hydrate
+      state.thumbCache.set(rec.id, url);
+      const it = items.find((i) => i.id === rec.id);
+      if (it) { it.thumbUrl = url; hydrated = true; }
+    } catch (err) {
+      // damaged record — the tile stays dark, same as the grid's "can't open"
     }
-    populatePhantomGallery();
+  }
+  // Phantom gallery re-reads each item's thumbUrl every frame, so an in-place
+  // mutation shows immediately without a rebuild. The drift wall bakes img.src
+  // at tile-build time, so thumbnails that landed mid-hydrate would stay dark
+  // until a rebuild — rebuild it once after hydration so they appear. (Skip
+  // phantom: rebuilding would also reset the user's scroll/zoom.)
+  if (hydrated && state.galleryKind === 'drift') {
+    state.galleryStyle.setItems(items);
+  }
+}
+
+function toggleGallery() {
+  state.galleryMode = !state.galleryMode;
+  if ($('galleryToggleBtn')) $('galleryToggleBtn').classList.toggle('on', state.galleryMode);
+  document.body.classList.toggle('gallery-mode', state.galleryMode);
+  setHidden('grid', state.galleryMode);
+  setHidden('phantomGallery', !state.galleryMode);
+  setHidden('gridEmpty', state.galleryMode || vaultItems().length > 0);
+  setHidden('noMatches', true);
+  if (state.galleryMode) {
+    ensureGalleryController();
+    populateGallery();
   }
 }
 
@@ -1080,8 +1180,9 @@ async function renderGrid() {
     cell.addEventListener('click', () => openItem(rec.id));
     $('grid').appendChild(cell);
   }
-  // update phantom gallery if active
-  if (state.galleryMode && state.phantomGallery) populatePhantomGallery();
+  // keep the gallery in sync: after a reorder, re-populate so the changed
+  // order/set shows in full-screen view too.
+  if (state.galleryMode && state.galleryStyle) populateGallery();
 }
 
 async function thumbUrl(rec) {
@@ -1582,7 +1683,7 @@ function initWindowControls() {
 // ---- wiring ----
 function wire() {
   initWindowControls();
-  initTitlePress();
+
   wireReorder();
   $('welcomeCreateBtn').addEventListener('click', () => show('create'));
   $('welcomeOpenBtn').addEventListener('click', async () => {
@@ -1619,11 +1720,18 @@ function wire() {
   $('searchInput').addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { clearSearch(); renderGrid(); $('searchInput').blur(); }
   });
-  const actionBar = $('actionBar');
-  if (actionBar) {
-    actionBar.addEventListener('click', (e) => {
+  // sidebar tray — delegated click (toggle + actions)
+  const sidebarTray = $('sidebarTray');
+  if (sidebarTray) {
+    sidebarTray.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-action]');
       if (btn) runAction(btn.dataset.action);
+    });
+  }
+  const sidebarToggle = $('sidebarToggle');
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', () => {
+      $('sidebarTray').classList.toggle('hidden');
     });
   }
   $('vaultTabBtn').addEventListener('click', showVaultTab);
@@ -1681,28 +1789,6 @@ function wire() {
   $('pdfNext').addEventListener('click', () => pdfGo(1));
   $('pdfZoomOut').addEventListener('click', () => pdfZoom(-1));
   $('pdfZoomIn').addEventListener('click', () => pdfZoom(1));
-
-  
-function initTitlePress() {
-  const title = $('vaultTitle');
-  if (!title) return;
-  let timer = null;
-  const cancel = () => {
-    clearTimeout(timer);
-    title.classList.remove('pressing');
-  };
-  title.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    title.classList.add('pressing');
-    timer = setTimeout(() => {
-      title.classList.remove('pressing');
-      runAction('reveal');
-    }, 700);
-  });
-  title.addEventListener('pointerup', cancel);
-  title.addEventListener('pointerleave', cancel);
-  title.addEventListener('pointercancel', cancel);
-}
 
 // ---- immersive viewer wiring ----
   $('viewerPrevBtn').addEventListener('click', () => viewerNav(-1));
@@ -1790,6 +1876,19 @@ function initTitlePress() {
       toast(p.dataset.chrome === 'win' ? 'window chrome: windows' : 'window chrome: mac dots');
     });
   });
+  document.querySelectorAll('#galleryStylePills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      state.manifest.prefs.galleryStyle = p.dataset.gallery; // travels with the vault file
+      saveVault(); // persist the preference into the .cvault
+      renderGalleryPills();
+      // If the gallery is already open, rebuild it with the newly chosen style.
+      if (state.galleryMode) {
+        ensureGalleryController();
+        populateGallery();
+      }
+      toast(p.dataset.gallery === 'drift' ? 'gallery style: drift' : 'gallery style: phantom');
+    });
+  });
   $('vaultPathLine').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('revealBtn').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('backupBtn').addEventListener('click', async () => {
@@ -1849,6 +1948,7 @@ async function boot() {
   renderIdlePills();
   renderBgPills();
   renderChromePills();
+  renderGalleryPills();
   applyChrome(chromeChoice());
   ensureIO();
   mountBackground();
