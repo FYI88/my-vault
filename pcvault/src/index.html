@@ -32,7 +32,7 @@
     
   </div>
   <div class="title-center">
-    <h1 class="vault-wordmark-bar" id="barWordmark">my vault</h1>
+    <h1 class="vault-wordmark-bar brand-wordmark" id="barWordmark">my vault</h1>
   </div>
   <div class="title-right" id="titleRight">
     <div class="win-controls" id="winControls">
@@ -56,7 +56,7 @@
   <!-- welcome -->
   <section id="screen-welcome" class="screen screen-center">
     <div class="vault-screen">
-      <h1 class="vault-wordmark">my vault</h1>
+      <h1 class="vault-wordmark brand-wordmark">my vault</h1>
       <p class="vault-sub">offline · encrypted · one file<br>your photos, videos and documents live in one encrypted file. nothing ever leaves this pc.</p>
       <div class="vault-form">
         <button id="welcomeCreateBtn" class="add-btn vault-btn">create a vault</button>
@@ -68,7 +68,7 @@
   <!-- create -->
   <section id="screen-create" class="screen screen-center">
     <div class="vault-screen">
-      <h1 class="vault-wordmark">my vault</h1>
+      <h1 class="vault-wordmark brand-wordmark">my vault</h1>
       <p class="vault-sub">choose a passphrase you'll remember</p>
       <form id="createForm" class="vault-form" autocomplete="off">
         <input type="password" id="createPass" class="vault-input" data-meter="createMeter" placeholder="passphrase" autocomplete="new-password" required>
@@ -95,7 +95,7 @@
   <!-- locked -->
   <section id="screen-locked" class="screen screen-center">
     <div class="vault-screen">
-      <h1 class="vault-wordmark">my vault</h1>
+      <h1 class="vault-wordmark brand-wordmark">my vault</h1>
       <div class="vault-tamper hidden" id="tamperWarn">
         the vault couldn't be verified, so it stays locked and nothing was opened. if you have a backup copy, put it back.
       </div>
@@ -325,6 +325,15 @@
         <button class="vault-pill" data-min="1">1 min</button>
         <button class="vault-pill" data-min="5">5 min</button>
         <button class="vault-pill" data-min="15">15 min</button>
+      </div>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">theme</h3>
+      <p class="vault-sub">the look of the whole vault.</p>
+      <div class="vault-pills" id="themePills">
+        <button class="vault-pill" data-theme="cream">cream</button>
+        <button class="vault-pill" data-theme="mono">mono</button>
       </div>
     </div>
 

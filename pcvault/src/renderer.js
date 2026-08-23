@@ -21,6 +21,7 @@ const $ = (id) => document.getElementById(id);
 const LS_IDLE = 'pcvault.idleMin';
 const LS_BG = 'pcvault.bg'; // 'wormhole' (default) or 'particles'
 const LS_CHROME = 'pcvault.chrome'; // 'mac' (default) or 'win' — titlebar controls style
+const LS_THEME = 'pcvault.theme'; // 'cream' (default) or 'mono' — the whole-app look
 const LS_GALLERY = 'pcvault.galleryStyle'; // legacy machine-local fallback — the choice now rides in the vault file
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
@@ -193,6 +194,7 @@ function refreshPathLines() {
 function openSettings() {
   refreshPathLines();
   renderIdlePills();
+  renderThemePills();
   renderBgPills();
   renderChromePills();
   renderGalleryPills(); // gallery style now lives in the vault file — re-read on every open
@@ -1602,6 +1604,22 @@ function renderBgPills() {
   });
 }
 
+// ---- theme picker (cream vs mono — abstract minimal black & white) ----
+function themeChoice() {
+  return localStorage.getItem(LS_THEME) === 'mono' ? 'mono' : 'cream';
+}
+
+function applyTheme(theme) {
+  document.body.classList.toggle('theme-mono', theme === 'mono');
+}
+
+function renderThemePills() {
+  const choice = themeChoice();
+  document.querySelectorAll('#themePills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.theme === choice);
+  });
+}
+
 // ---- window-chrome picker (mac traffic lights vs compact windows controls) ----
 function chromeChoice() {
   return localStorage.getItem(LS_CHROME) === 'win' ? 'win' : 'mac';
@@ -1860,6 +1878,14 @@ function wire() {
       toast(p.dataset.min === '0' ? 'auto-lock off' : `auto-lock: ${p.dataset.min} min`);
     });
   });
+  document.querySelectorAll('#themePills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      localStorage.setItem(LS_THEME, p.dataset.theme);
+      applyTheme(p.dataset.theme);
+      renderThemePills();
+      toast(p.dataset.theme === 'mono' ? 'theme: mono' : 'theme: cream');
+    });
+  });
   document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
     p.addEventListener('click', () => {
       localStorage.setItem(LS_BG, p.dataset.bg);
@@ -1946,9 +1972,11 @@ function wire() {
 async function boot() {
   wire();
   renderIdlePills();
+  renderThemePills();
   renderBgPills();
   renderChromePills();
   renderGalleryPills();
+  applyTheme(themeChoice());
   applyChrome(chromeChoice());
   ensureIO();
   mountBackground();

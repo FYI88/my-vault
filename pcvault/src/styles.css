@@ -25,6 +25,116 @@
   --bg:var(--cream);
   --transition:0.25s ease;
 }
+
+/* ----- theme: mono (abstract minimalist, black ink on white — mostly white,
+   with black and every shade of grey as accents) -----
+   The cream theme is the default adapter behind the :root variables; this block
+   is a second adapter — body.theme-mono swaps every variable for a monochrome
+   scale. Hardcoded warm rgba()s that can't use variables are overridden below
+   per-element. */
+body.theme-mono{
+  --cream:#fafafa;
+  --card:#ffffff;
+  --rose:#d4d4d4;
+  --rose-dark:#111111;
+  --mauve:#b3b3b3;
+  --mauve-dark:#2b2b2b;
+  --sage:#c9c9c9;
+  --sage-dark:#555555;
+  --gold:#dddddd;
+  --gold-dark:#666666;
+  --text:#161616;
+  --text-soft:#757575;
+  --border:#dcdcdc;
+  --shadow:0 2px 14px rgba(0,0,0,0.08);
+  --bg:#fafafa;
+}
+body.theme-mono .titlebar{
+  background:#ffffff; border-bottom-color:rgba(0,0,0,0.1);
+}
+/* The supplied VAULT.png is a custom fragmented wordmark, not a font.
+   Keep the semantic text in the DOM, then show a tight offline crop only on
+   the three actual brand labels in mono. Recovery headings stay typography. */
+body.theme-mono .brand-wordmark{
+  display:block;
+  color:transparent;
+  background-color:var(--bg);
+  background-image:url('./vault-wordmark.png');
+  background-repeat:no-repeat;
+  background-size:218% auto;
+  background-position:54% 50%;
+  background-blend-mode:multiply;
+  text-shadow:none;
+  letter-spacing:0;
+  font-style:normal;
+  font-size:0;
+  line-height:1;
+  aspect-ratio:624 / 115;
+  min-height:0;
+}
+body.theme-mono .brand-wordmark.vault-wordmark{
+  width:min(18rem, 78vw);
+}
+body.theme-mono .brand-wordmark.vault-wordmark-bar{
+  width:5.3rem;
+}
+body.theme-mono .title-center{
+  display:flex;
+  align-items:center;
+  gap:0.3rem;
+}
+body.theme-mono .title-center::before{
+  content:'';
+  display:block;
+  width:0.85rem;
+  height:0.85rem;
+  flex:none;
+  background:url('./vault-mark.svg') center / contain no-repeat;
+}
+body.theme-mono .vault-screen:has(.brand-wordmark)::before{
+  content:'';
+  display:block;
+  width:2.15rem;
+  height:2.15rem;
+  margin:0 auto 0.1rem;
+  background:url('./vault-mark.svg') center / contain no-repeat;
+  opacity:0.9;
+}
+body.theme-mono .traffic-lights{ filter:grayscale(1) brightness(0.72); }
+body.theme-mono .win-ctl:hover{ background:rgba(0,0,0,0.08); }
+body.theme-mono .win-ctl:active{ background:rgba(0,0,0,0.14); }
+body.theme-mono .icon-btn:hover,
+body.theme-mono .icon-btn:focus-visible{ background:rgba(0,0,0,0.07); }
+body.theme-mono .vault-photo-cell:hover .cell-media{
+  box-shadow:0 0 0 2px var(--rose-dark), 0 6px 18px rgba(0,0,0,0.16);
+}
+body.theme-mono .vault-photo-cell[data-kind="doc"] .cell-media{ background:rgba(43,43,43,0.06); }
+body.theme-mono .vault-meter i.w{ background:var(--rose-dark); }
+body.theme-mono .cal-day:hover{ background:rgba(0,0,0,0.07); }
+body.theme-mono .cal-day.match{ background:rgba(0,0,0,0.1); }
+body.theme-mono .journal-entry-row:hover{ background:rgba(0,0,0,0.04); }
+body.theme-mono .item-stage{ background:#0c0c0c; }
+body.theme-mono .item-stage .pdf-scroll,
+body.theme-mono .viewer-stage .pdf-scroll{ background:#e4e4e4; }
+body.theme-mono .item-overlay{ background:#0c0c0c; }
+body.theme-mono .viewer-top{ background:linear-gradient(rgba(12,12,12,0.82), rgba(12,12,12,0)); }
+body.theme-mono .viewer-bottom{ background:linear-gradient(rgba(12,12,12,0), rgba(12,12,12,0.82)); }
+body.theme-mono .viewer-play{ background:rgba(12,12,12,0.55); }
+body.theme-mono .hud-btn:hover,
+body.theme-mono .hud-chip:hover{ background:rgba(255,255,255,0.16); border-color:rgba(255,255,255,0.4); }
+body.theme-mono .drift-wall__inner{ background:#0c0c0c; }
+body.theme-mono .drift-wall__overlay{ background:#0c0c0c; }
+body.theme-mono .drift-wall__tile img{ filter:grayscale(0.35) saturate(0.5); }
+body.theme-mono .drift-wall__tile.is-active img,
+body.theme-mono .drift-wall__tile:focus-visible img{ filter:grayscale(0); }
+/* the living auth background becomes black-on-white abstract chaos — the
+   colorful vortex inverts to ink strokes on the white page */
+body.theme-mono #authBg{ filter:grayscale(1) invert(1) contrast(1.05); opacity:0.85; }
+body.theme-mono .vault-sec-title,
+body.theme-mono .vault-tabs .vault-tab,
+body.theme-mono .vault-fileline{ letter-spacing:0.08em; }
+body.theme-mono ::-webkit-scrollbar-thumb{ background:#b5b5b5; }
+body.theme-mono ::-webkit-scrollbar-thumb:hover{ background:#8c8c8c; }
 *{box-sizing:border-box;margin:0;padding:0;}
 :focus-visible{ outline:2px solid var(--mauve-dark); outline-offset:2px; }
 :focus:not(:focus-visible){ outline:none; }

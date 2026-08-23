@@ -1,13 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <style>
-    @font-face {
-      font-family: 'Cormorant Garamond';
-      font-weight: 600;
-      src: url('../src/fonts/co3bmX5slCNuHLi8bLeY9MK7whWMhyjYqXtK.woff2') format('woff2');
-    }
-  </style>
-  <rect width="256" height="256" rx="56" fill="#7a5f74"/>
-  <text x="128" y="162" text-anchor="middle"
-        font-family="'Cormorant Garamond', serif" font-weight="600"
-        font-size="96" letter-spacing="-1" fill="#fbf6f3">Vault</text>
+  <rect width="256" height="256" rx="48" fill="#fff"/>
+  <circle cx="98" cy="128" r="68" fill="#fff" stroke="#101010" stroke-width="10"/>
+  <circle cx="158" cy="128" r="68" fill="#101010"/>
+  <path d="M98 70a58 58 0 0 0 0 116" fill="none" stroke="#fff" stroke-width="4" opacity=".9"/>
 </svg>

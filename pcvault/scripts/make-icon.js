@@ -41,25 +41,27 @@ function writeIco(entries, outPath) {
 }
 
 app.whenReady().then(async () => {
-  // One offscreen window, one capture at 256, downscale for the rest — avoids
-  // repeated SVG loads and gives uniform rendering across sizes.
+  // Paint the SVG in a regular Chromium window before capture. Hidden/offscreen
+  // capture can fail with UnknownVizError on some Windows GPU configurations.
   const win = new BrowserWindow({
     width: 256,
     height: 256,
     useContentSize: true,
     show: false,
-    backgroundColor: '#fbf6f3', // cream — matches the SVG canvas
-    webPreferences: { offscreen: true, backgroundThrottling: false },
+    backgroundColor: '#ffffff',
+    webPreferences: { backgroundThrottling: false },
   });
   await win.loadFile(SVG);
-  await new Promise((r) => setTimeout(r, 300)); // let Chromium paint the frame
-  const full = await win.webContents.capturePage();
+  win.show();
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const full = await win.webContents.capturePage({ x: 0, y: 0, width: 256, height: 256 });
   win.destroy();
 
   const entries = [];
   for (const size of SIZES) {
     const png = full.resize({ width: size, height: size }).toPNG();
     fs.writeFileSync(path.join(OUT, `icon-${size}.png`), png);
+    if (size === 32) fs.copyFileSync(path.join(OUT, 'icon-32.png'), path.join(ROOT, 'src', 'favicon.png'));
     entries.push({ size, png });
     console.log(`icon-${size}.png — ${png.length} bytes`);
   }

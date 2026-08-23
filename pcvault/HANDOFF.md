@@ -353,6 +353,46 @@ Three layout changes:
 
 **Verified:** syntax clean, **52/52 tests green**, live in preview — title-center hidden on body.head-settings, sidebar toggle opens/closes tray, add-files button rendered inside `.vault-tabs`.
 
+## v2.9.8 — mono theme (abstract minimalist: black ink on white) added alongside cream (2026-08-23)
+
+Second theme, added without touching the default — **light, not dark**: mostly white (~80%) with black and every shade of grey as accents, straight off the black-on-white fragmented wordmark + monochrome poster references. The cream palette is the default adapter behind the `:root` variables; `body.theme-mono` is a second adapter that swaps every variable for a monochrome scale (`--bg:#fafafa`, `--card:#ffffff`, `--text:#161616`, `--rose-dark:#111111`, `--mauve-dark:#2b2b2b`, etc.).
+
+- **Settings → theme** — new pill row (`#themePills`): cream / mono, persisted in `localStorage` (`pcvault.theme`) like the background + chrome pickers. `themeChoice()` / `applyTheme()` / `renderThemePills()` follow the exact bg/chrome pattern; boot + `openSettings()` render the pills.
+- **Everything monochrome** — the hardcoded warm rgba()s that can't use variables get `body.theme-mono` overrides: titlebar goes white, traffic lights are `grayscale(1) brightness(0.72)` (grey dots), hover tints become black-alpha, the item viewer stage and drift-wall tiles stay near-black (photos pop on it), PDF scroll areas go light grey, and the living auth background (`#authBg`) gets `grayscale(1) invert(1)` so the colorful vortex renders as **black ink strokes on the white page** — the same abstract-chaos feel as the references, inverted to match the light base.
+- The cream theme is byte-for-byte untouched; switching back restores it exactly (verified in preview).
+
+## v2.9.9 — mono wordmark + overlapping-circle mark (2026-08-23)
+
+The light mono theme now carries the supplied visual identity references without changing the cream theme:
+
+- **Fragmented VAULT wordmark** — `src/vault-wordmark.png` is the supplied `VAULT.png` stored in the offline bundle. It is shown as a tight crop on the three semantic `my vault` brand labels only (welcome, locked/create and the titlebar). The DOM text remains present for accessibility; `your recovery words` keeps normal typography.
+- **Geometric mark** — `src/vault-mark.svg` is an original, transparent SVG inspired by the second reference: a thin outlined circle crossing a solid black circle. Mono shows it above the main brand wordmark and beside the titlebar wordmark. The favicon now points to this local SVG.
+- **Build source updated** — `build/icon.svg` uses the same outlined-left/solid-right mark on a white square for the Windows app icon pipeline.
+- **Temporary reference cleanup** — the copied icon-inspiration file was removed from `src/`; no inspiration images are shipped in the vault bundle.
+
+**Verified:** 3 test files pass, preview shows the complete fragmented wordmark + one mark on the light mono welcome screen, and the cream theme selectors remain unchanged. The cached `build/icon.ico` was not regenerated because neither checkout has a usable Electron binary (`npx electron scripts/make-icon.js` stops at the missing optional Electron binding); regenerate it with the existing `scripts/make-icon.js` once Electron is restored, then rebuild the portable EXE.
+
+## v2.9.10 - portable EXE rebuilt with mono branding (2026-08-23)
+
+Rebuilt the current Electron source into `dist/my-vault-portable.exe` with `npm run dist` after the mono wordmark and geometric mark changes.
+
+- **Artifact:** `dist/my-vault-portable.exe`, 94,918,460 bytes, built 2026-08-23 07:55.
+- **Packaged contents verified:** the extracted `resources/app.asar` contains `src/vault-mark.svg`, `src/vault-wordmark.png`, the current `src/index.html`, `src/styles.css`, `src/renderer.js`, and the current gallery modules.
+- **Tests:** 18 crypto, 9 container and 25 journal checks pass: 52 total.
+- **Real EXE smoke test:** the portable launcher extracted the runtime, started the inner `My Vault.exe`, created a responsive window titled `my vault`, and answered on the Electron CDP endpoint. The test processes were closed afterward.
+- **Icon note:** the build uses the existing cached `build/icon.ico`. The new `build/icon.svg` source is present, but regenerating the ICO still requires restoring the missing Electron runtime binding for `scripts/make-icon.js`.
+
+## v2.9.11 - new white-background app icon (2026-08-23)
+
+Replaced the previous cached app icon with a refined monochrome mark based on the supplied overlapping-circle reference.
+
+- **Icon design:** a crisp outlined circle crossing a solid near-black circle, centered on a clean white rounded square. The proportions were tightened for recognition at Windows shell sizes, with a consistent 10px outline and generous optical margins.
+- **Offline assets:** updated `build/icon.svg` for the Windows source and `src/vault-mark.svg` for the in-app mark. The supplied inspiration image was used only as a reference and is not shipped.
+- **Generated icon:** regenerated `build/icon.ico` through the local Electron capture pipeline with six PNG-backed sizes: 16, 32, 48, 64, 128 and 256px. `src/favicon.png` is now the matching 32px raster and `src/index.html` points to it.
+- **Pipeline hardening:** `scripts/make-icon.js` now paints the SVG in a regular Chromium window before capture. This avoids the `UnknownVizError` encountered by the old hidden/offscreen capture path on this machine while remaining fully offline.
+- **Build:** rebuilt `dist/my-vault-portable.exe` with `npm run dist`; artifact size is 94,920,645 bytes, built 2026-08-23 08:29.
+- **Verification:** ICO header has six PNG entries, the EXE's associated icon extracts as a 32x32 white-backed raster, all 52 tests pass, and the unpacked packaged `My Vault.exe` launched with a responsive `my vault` window and CDP HTTP 200. Test processes were closed afterward.
+
 ## Audit (2026-08-18 re-run, /auditme)
 Second full audit pass — same threat model (offline personal vault; device thief + shared-household user + casual file recipient). Prior 6 findings re-verified: SEC-001/002/003/004/006 still resolved (no regressions), SEC-005 still open (accepted). OSV check live this run: 240 pinned deps, zero known CVEs. Live dynamic pass: Electron shell boots clean (zero CSP violations); dev-server page observed in browser (zero CSP violations, zero third-party). Dev-server traversal probes: raw `../` and `%2e%2e` collapsed by the WHATWG URL parser (404), `%5c` backslash variant blocked by the `startsWith(root)` boundary (403). Four new INFO findings added to `findings.json` (SEC-007 tamper-sample plaintext not wiped, SEC-008 orphaned `.tmp-*` on failed rename, SEC-009 dev server lacks security headers, SEC-010 no record-count cap on parseVault). All four are now **resolved in source**: SEC-007 (`vault-crypto.mjs` wipes the sampled plaintext), SEC-008 (`main.js` unlinks the tmp file on failed rename), SEC-009 (`server.mjs` sends the CSP + nosniff headers), SEC-010 (`container.mjs` `MAX_RECORDS = 100000` + a 9th container test). Only SEC-005 remains open (accepted). Note: `findings.json` statuses for 007–010 still say `open` and should be flipped to `resolved` on the next audit re-run.
 
