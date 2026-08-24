@@ -58,25 +58,25 @@ body.theme-mono .titlebar{
 body.theme-mono .brand-wordmark{
   display:block;
   color:transparent;
-  background-color:var(--bg);
-  background-image:url('./vault-wordmark.png');
+  background-color:transparent;
+  background-image:url('./vault-mark.png');
   background-repeat:no-repeat;
-  background-size:218% auto;
-  background-position:54% 50%;
-  background-blend-mode:multiply;
+  background-size:contain;
+  background-position:center;
   text-shadow:none;
   letter-spacing:0;
   font-style:normal;
   font-size:0;
   line-height:1;
-  aspect-ratio:624 / 115;
-  min-height:0;
+  min-height:1.2rem;
 }
 body.theme-mono .brand-wordmark.vault-wordmark{
   width:min(18rem, 78vw);
+  height:min(3.95rem, 17vw);
 }
 body.theme-mono .brand-wordmark.vault-wordmark-bar{
-  width:5.3rem;
+  width:7rem;
+  height:1.55rem;
 }
 body.theme-mono .title-center{
   display:flex;
@@ -133,8 +133,9 @@ body.theme-mono #authBg{ filter:grayscale(1) invert(1) contrast(1.05); opacity:0
 body.theme-mono .vault-sec-title,
 body.theme-mono .vault-tabs .vault-tab,
 body.theme-mono .vault-fileline{ letter-spacing:0.08em; }
-body.theme-mono ::-webkit-scrollbar-thumb{ background:#b5b5b5; }
-body.theme-mono ::-webkit-scrollbar-thumb:hover{ background:#8c8c8c; }
+body.theme-mono ::-webkit-scrollbar-thumb{ background:#2b2b2b; }
+body.theme-mono ::-webkit-scrollbar-thumb:hover{ background:#111; }
+body.theme-mono{ scrollbar-color:#2b2b2b transparent; }
 /* ----- mono typography: geometric monospace (GC Beluga Mono) replaces the
    cream theme's serif pairing — DM Serif Display + Cormorant Garamond. */
 body.theme-mono{ font-family:'GC Beluga Mono',monospace; font-size:14px; }
@@ -211,6 +212,27 @@ body.auth-screen .titlebar .vault-head h1,
 body.auth-screen .tl,
 body.auth-screen .win-ctl{ color:var(--rose-dark); }
 body.auth-screen .traffic-lights{ filter:drop-shadow(0 0 3px rgba(251,246,243,0.5)); }
+
+/* unlocked vault: transparent bar at rest, frosted glass on scroll */
+body.unlocked .titlebar{
+  background:transparent;
+  border-bottom-color:transparent;
+}
+body.unlocked .titlebar .vault-wordmark-bar,
+body.unlocked .titlebar .vault-head h1{ color:var(--rose-dark); }
+body.unlocked .traffic-lights{ filter:drop-shadow(0 0 3px rgba(251,246,243,0.5)); }
+body.unlocked.scrolled .titlebar{
+  background:rgba(242,234,229,0.75);
+  border-bottom-color:rgba(74,63,66,0.06);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+/* mono glass is white with the geometric mark visible */
+body.theme-mono.unlocked .titlebar{ background:transparent; border-bottom-color:transparent; }
+body.theme-mono.unlocked.scrolled .titlebar{
+  background:rgba(255,255,255,0.78);
+  border-bottom-color:rgba(0,0,0,0.06);
+}
 .traffic-lights{ display:flex; gap:8px; align-items:center; -webkit-app-region:no-drag; position:absolute; left:0.8rem; }
 .tl{
   width:12px; height:12px; border-radius:50%; border:none; padding:0; cursor:pointer;

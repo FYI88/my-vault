@@ -148,6 +148,11 @@ function show(name) {
   // sidebar only visible on the unlocked screen
   const sidebar = $('actionSidebar');
   if (sidebar) sidebar.classList.toggle('hidden', name !== 'unlocked');
+  // unlocked vault gets a transparent-then-glass titlebar on scroll
+  document.body.classList.toggle('unlocked', name === 'unlocked');
+  if (name !== 'unlocked') document.body.classList.remove('scrolled');
+  // reset scroll so the unlocked content doesn't sit under the transparent titlebar
+  if (name === 'unlocked') window.scrollTo(0, 0);
 }
 function showOverlay(id, visible) {
   $(id).classList.toggle('hidden', !visible);
@@ -1966,6 +1971,19 @@ function wire() {
 
   ['pointermove', 'keydown', 'click', 'wheel'].forEach((ev) =>
     window.addEventListener(ev, resetIdle, { passive: true }));
+
+  // titlebar becomes frosted glass when scrolling the unlocked vault down
+  let _scrollTicking = false;
+  const SCROLL_GLASS = 8; // px threshold before the bar turns opaque
+  window.addEventListener('scroll', () => {
+    if (!_scrollTicking) {
+      requestAnimationFrame(() => {
+        document.body.classList.toggle('scrolled', window.scrollY > SCROLL_GLASS);
+        _scrollTicking = false;
+      });
+      _scrollTicking = true;
+    }
+  }, { passive: true });
 }
 
 // ---- boot ----

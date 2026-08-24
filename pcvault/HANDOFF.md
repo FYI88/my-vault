@@ -406,6 +406,28 @@ The mono theme now uses **GC Beluga Mono**, a geometric monospace from Glyphonic
 
 **Verified:** 52/52 tests green, preview shows GC Beluga Mono on all non-code text elements in mono, font-family restores cleanly to Cormorant Garamond in cream.
 
+## v2.9.13 — transparent → frosted glass titlebar on unlocked vault (2026-08-23)
+
+The unlocked vault titlebar now mirrors the auth screens: transparent at rest, frosted glass when scrolling.
+
+- **body.unlocked** — the `show()` function in `renderer.js` now toggles `body.unlocked` alongside the existing `auth-screen` for `AUTH_SCREENS`. The `scrolled` class is removed when leaving the unlocked screen.
+- **Scroll listener** — a `requestAnimationFrame`-throttled scroll listener toggles `body.scrolled` when `scrollY > 8px`. Tied to the `wire()` scope, always active.
+- **CSS** — `.unlocked .titlebar` is transparent (background + border). `.unlocked.scrolled .titlebar` is `rgba(242,234,229,0.75)` (cream frosted glass) / `rgba(255,255,255,0.78)` (mono white glass), both with `backdrop-filter: blur(14px)`. The transition is the existing 0.35s ease on `.titlebar`.
+- **Mono glass** — `body.theme-mono.unlocked.scrolled .titlebar` swaps to a white frosted glass so the geometric mark stays visible.
+
+**Verified:** 52/52 tests green, preview cycle confirmed — default opaque, unlocked transparent, scrolled frosted with blur, mono white glass.
+
+## v2.9.14 — upscaled transparent wordmark replaces old cropped one (2026-08-23)
+
+Replaced `vault-wordmark.png` (624×115 cropped strip) with the user-supplied upscaled transparent PNG (5436×5436 RGBA).
+
+- **Asset swap** — `src/vault-mark.png` now serves double-duty as both the wordmark (welcome/locked screens + titlebar) and the favicon. The old `vault-wordmark.png` is deleted.
+- **CSS** — `.brand-wordmark` now uses `background-size:contain` with explicit heights (`3.3rem` for the screen, `0.98rem` for the titlebar) since the new image is square instead of a wide strip. Background set to `transparent` so the PNG alpha channel bleeds through.
+- **Circle mark** — the small overlapping-circle SVG beside the titlebar wordmark is unchanged.
+- **Rebuilt EXE** — `dist/my-vault-portable.exe` (94,920,076 bytes), new PNG confirmed inside `app.asar`, smoke-tested launch with "My Vault" window title.
+
+**Verified:** 52/52 tests green, packaged asar contains `/src/vault-mark.png` (no `vault-wordmark.png`), real app launched and closed cleanly.
+
 ## Audit (2026-08-18 re-run, /auditme)
 Second full audit pass — same threat model (offline personal vault; device thief + shared-household user + casual file recipient). Prior 6 findings re-verified: SEC-001/002/003/004/006 still resolved (no regressions), SEC-005 still open (accepted). OSV check live this run: 240 pinned deps, zero known CVEs. Live dynamic pass: Electron shell boots clean (zero CSP violations); dev-server page observed in browser (zero CSP violations, zero third-party). Dev-server traversal probes: raw `../` and `%2e%2e` collapsed by the WHATWG URL parser (404), `%5c` backslash variant blocked by the `startsWith(root)` boundary (403). Four new INFO findings added to `findings.json` (SEC-007 tamper-sample plaintext not wiped, SEC-008 orphaned `.tmp-*` on failed rename, SEC-009 dev server lacks security headers, SEC-010 no record-count cap on parseVault). All four are now **resolved in source**: SEC-007 (`vault-crypto.mjs` wipes the sampled plaintext), SEC-008 (`main.js` unlinks the tmp file on failed rename), SEC-009 (`server.mjs` sends the CSP + nosniff headers), SEC-010 (`container.mjs` `MAX_RECORDS = 100000` + a 9th container test). Only SEC-005 remains open (accepted). Note: `findings.json` statuses for 007–010 still say `open` and should be flipped to `resolved` on the next audit re-run.
 
