@@ -172,5 +172,9 @@ All 10 security audit findings from August 2026 are **fully resolved**:
 
 ## License
 
-Built with **WebCrypto**, **Electron**, and **Tauri**.  
-*Private repository — for personal use.*
+This project is released under the **PolyForm Noncommercial License 1.0.0**.
+
+- Personal use, learning, forking, and noncommercial sharing are allowed.
+- Commercial use is not allowed without separate permission from the maintainer.
+
+See `LICENSE` for full terms.
