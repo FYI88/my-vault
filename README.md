@@ -17,6 +17,8 @@ One encrypted file holds everything — photos, videos, documents, PDFs, and enc
 ![Electron](https://img.shields.io/badge/Electron-43.0-47848f?style=for-the-badge&logo=electron&logoColor=white)
 ![Security](https://img.shields.io/badge/Security-AES--256--GCM-107c41?style=for-the-badge&logo=shield&logoColor=white)
 ![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial-1f6feb?style=for-the-badge)
+![Build Status](https://img.shields.io/github/actions/workflow/status/FYI88/my-vault/ci.yml?branch=master&style=for-the-badge)
+![Stars](https://img.shields.io/github/stars/FYI88/my-vault?style=for-the-badge)
 
 </div>
 
@@ -26,6 +28,12 @@ One encrypted file holds everything — photos, videos, documents, PDFs, and enc
 
 ![My Vault lock screen](docs/images/lock-screen.png)
 
+## Who Is This For
+
+- People who want a private, offline place for photos, videos, and documents.
+- Users who prefer zero-knowledge encryption and no cloud footprint.
+- Friends and family you trust to run a local build or a signed release.
+
 ## Quick Start
 
 ```bash
@@ -33,6 +41,16 @@ git clone https://github.com/FYI88/my-vault.git
 cd my-vault/pcvault
 npm ci && npm start
 ```
+
+---
+
+## Key Features (TL;DR)
+
+- Zero-knowledge vault: single encrypted container for media and journals.
+- Local-first desktop app: Electron + optional lightweight Tauri build.
+- Strong crypto defaults: PBKDF2 (600k), AES-256-GCM, BIP-39 recovery.
+- UX features: media viewer, masonry grid, encrypted journal, phonant 3D gallery.
+- Safety-first development: CONTRIBUTING and SECURITY policies in repo.
 
 ---
 
@@ -49,7 +67,6 @@ npm ci && npm start
 | **Dual Desktop Shells** | Native support for both **Electron 43** (portable EXE) and **Tauri v2** (Rust backend with 5.4 MB EXE & 29 MB RAM footprint). |
 | **Masonry Grid & Search** | Responsive column layout (2–5 columns), drag-and-drop file import, drag reordering, and instant zero-disk filename search. |
 | **Auto-Lock & Hardening** | Inactivity auto-lock (1 / 5 / 15 min), manual lock shortcut, background lock on minimize/close, and sample tamper checks on unlock. |
-
 ---
 
 ## Security Architecture
