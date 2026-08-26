@@ -11,14 +11,12 @@ One encrypted file holds everything — photos, videos, documents, PDFs, and enc
 
 <br/>
 
-![Version](https://img.shields.io/badge/Version-2.0.0-3b2d35?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Work%20in%20Progress-3b2d35?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078d4?style=for-the-badge&logo=windows&logoColor=white)
 ![Tauri](https://img.shields.io/badge/Tauri-v2%20(Rust)-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
 ![Electron](https://img.shields.io/badge/Electron-43.0-47848f?style=for-the-badge&logo=electron&logoColor=white)
 ![Security](https://img.shields.io/badge/Security-AES--256--GCM-107c41?style=for-the-badge&logo=shield&logoColor=white)
 ![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial-1f6feb?style=for-the-badge)
-![Build Status](https://img.shields.io/github/actions/workflow/status/FYI88/my-vault/ci.yml?branch=master&style=for-the-badge)
-![Stars](https://img.shields.io/github/stars/FYI88/my-vault?style=for-the-badge)
 
 </div>
 
@@ -32,7 +30,7 @@ One encrypted file holds everything — photos, videos, documents, PDFs, and enc
 
 - People who want a private, offline place for photos, videos, and documents.
 - Users who prefer zero-knowledge encryption and no cloud footprint.
-- Friends and family you trust to run a local build or a signed release.
+- Friends and family you trust to run a local build.
 
 ## Quick Start
 
@@ -49,7 +47,7 @@ npm ci && npm start
 - Zero-knowledge vault: single encrypted container for media and journals.
 - Local-first desktop app: Electron + optional lightweight Tauri build.
 - Strong crypto defaults: PBKDF2 (600k), AES-256-GCM, BIP-39 recovery.
-- UX features: media viewer, masonry grid, encrypted journal, phonant 3D gallery.
+- UX features: media viewer, masonry grid, encrypted journal, Phantom 3D gallery.
 - Safety-first development: CONTRIBUTING and SECURITY policies in repo.
 
 ---
