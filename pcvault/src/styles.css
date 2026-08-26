@@ -129,13 +129,30 @@ body.theme-mono .drift-wall__tile.is-active img,
 body.theme-mono .drift-wall__tile:focus-visible img{ filter:grayscale(0); }
 /* the living auth background becomes black-on-white abstract chaos — the
    colorful vortex inverts to ink strokes on the white page */
-body.theme-mono #authBg{ filter:grayscale(1) invert(1) contrast(1.05); opacity:0.85; }
+body.theme-mono #authBg,
+body.theme-mono #authBgMedia{ filter:grayscale(1) invert(1) contrast(1.05); opacity:0.85; }
 body.theme-mono .vault-sec-title,
 body.theme-mono .vault-tabs .vault-tab,
 body.theme-mono .vault-fileline{ letter-spacing:0.08em; }
-body.theme-mono ::-webkit-scrollbar-thumb{ background:#2b2b2b; }
-body.theme-mono ::-webkit-scrollbar-thumb:hover{ background:#111; }
-body.theme-mono{ scrollbar-color:#2b2b2b transparent; }
+/* The page's own side scrollbar lives on body, not on a descendant — a bare
+   `body.theme-mono ::-webkit-scrollbar-thumb` (descendant combinator) never
+   matches it, so it stayed `--mauve`. Use a direct selector for the document
+   scrollbar AND keep the descendant form for any inner scroll containers. */
+/* mono runs a slimmer scrollbar than cream for a more minimalist feel —
+   cream keeps the stock 10px track, mono drops to 6px with a 1px gutter. */
+body.theme-mono::-webkit-scrollbar{ width:6px; height:6px; }
+body.theme-mono::-webkit-scrollbar-thumb{ background:#000; border-color:#000; border-width:1px; }
+body.theme-mono::-webkit-scrollbar-thumb:hover{ background:#000; border-color:#000; }
+/* The viewport scrollbar may attach to <html> instead of <body> — style the
+   root element too, or the page's edge stays --mauve pink in mono. */
+html.theme-mono::-webkit-scrollbar{ width:6px; height:6px; }
+html.theme-mono::-webkit-scrollbar-thumb{ background:#000; border-color:#000; border-width:1px; }
+html.theme-mono::-webkit-scrollbar-thumb:hover{ background:#000; border-color:#000; }
+html.theme-mono{ scrollbar-width:thin; scrollbar-color:#000 transparent; }
+body.theme-mono ::-webkit-scrollbar{ width:6px; height:6px; }
+body.theme-mono ::-webkit-scrollbar-thumb{ background:#000; border-color:#000; border-width:1px; }
+body.theme-mono ::-webkit-scrollbar-thumb:hover{ background:#000; border-color:#000; }
+body.theme-mono{ scrollbar-width:thin; scrollbar-color:#000 transparent; }
 /* ----- mono typography: geometric monospace (GC Beluga Mono) replaces the
    cream theme's serif pairing — DM Serif Display + Cormorant Garamond. */
 body.theme-mono{ font-family:'GC Beluga Mono',monospace; font-size:14px; }
@@ -313,6 +330,11 @@ button, input, textarea, select, .add-btn, .icon-btn, .hud-btn, .hud-chip, .vaul
   position:fixed; inset:0; z-index:0; width:100%; height:100%;
   pointer-events:none; display:block;
 }
+#authBgMedia{
+  position:fixed; inset:0; z-index:0; width:100%; height:100%;
+  object-fit:cover; pointer-events:none; display:block;
+  background:var(--bg);
+}
 
 /* ----- screens ----- */
 .screen{ display:none; }
@@ -350,6 +372,10 @@ textarea.vault-input{ resize:vertical; text-align:left; line-height:1.5; }
 
 .vault-btn{ width:100%; margin-top:0.2rem; }
 .vault-btn:disabled{ opacity:0.55; }
+.vault-bg-custom{ display:flex; gap:0.5rem; margin-top:0.6rem; }
+.vault-btn-small{ width:auto; padding:0.32rem 0.8rem; font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
+.vault-btn-ghost{ background:transparent; color:var(--mauve-dark); border:1px solid var(--border); }
+body.theme-mono .vault-btn-small{ font-family:'GC Beluga Mono',monospace; }
 
 .vault-error{
   color:var(--rose-dark); font-family:'JetBrains Mono',monospace; font-size:0.68rem;
@@ -581,11 +607,17 @@ textarea.vault-input{ resize:vertical; text-align:left; line-height:1.5; }
 }
 #toast.show{ opacity:1; transform:translate(-50%,0); }
 
-/* gallery mode is full-bleed: no page padding, no max-width, no card — the
-   grid IS the page (that's what "integrated" means). The header/search keep
-   their spots; the gallery stretches edge-to-edge below them. */
-body.gallery-mode{ padding:0; }
-body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
+/* gallery mode is full-bleed: the gallery becomes a fixed stage covering the
+   whole window (under the transparent titlebar, so the window controls stay
+   live) — no page chrome peeks around it, the dark stage IS the screen (the
+   way the demo looks). Exit via the floating pill, Esc, or G. */
+body.gallery-mode{ padding:0; overflow:hidden; background:#171014; }
+body.gallery-mode .wrap{ max-width:none; padding:0; }
+body.gallery-mode .vault-tabs,
+body.gallery-mode .action-sidebar,
+body.gallery-mode #vaultPathLine,
+body.gallery-mode #searchRow,
+body.gallery-mode #searchCount{ display:none; }
 
 /* ----- phantom infinite gallery ----- */
 .phantom-gallery{
@@ -596,11 +628,73 @@ body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
   user-select:none; -webkit-user-select:none;
 }
 .gallery-mode .phantom-gallery{
-  margin:0.4rem 0 0; height:calc(100vh - 176px);
+  position:fixed; inset:0; z-index:160;
+  margin:0; height:auto;
 }
 #galleryToggleBtn.on{ color:var(--rose-dark); background:rgba(196,123,131,0.15); }
 
-/* ----- drift wall gallery (React Bits DriftWall, ported) ----- */
+/* in immersive gallery mode the top bar hides — it reappears at full opacity
+   when the mouse reaches the top edge (the strip stays hit-testable so the
+   hover + the window controls inside it still work). */
+body.gallery-mode .titlebar{
+  opacity:0 !important;
+  pointer-events:auto;
+  height:46px; /* a slightly taller hit strip than the 34px bar */
+  background:rgba(20,20,22,0.55) !important;
+  border-bottom-color:rgba(255,255,255,0.08) !important;
+  transition:opacity 0.22s ease, background 0.22s ease;
+}
+body.gallery-mode .titlebar:hover,
+body.gallery-mode .titlebar:focus-within{
+  opacity:1 !important;
+  background:rgba(20,20,22,0.92) !important;
+}
+body.gallery-mode .titlebar *{ pointer-events:auto; }
+
+/* phantom wall grid x:y + scale controls (shown when phantom v4 is the style) */
+.pg-grid-settings{
+  margin-top:0.8rem;
+  display:flex; flex-direction:column; gap:0.55rem;
+  padding-top:0.7rem; border-top:1px solid var(--border);
+}
+.pg-setting-row{
+  display:flex; align-items:center; gap:0.5rem;
+  font-family:'JetBrains Mono',monospace; font-size:0.68rem;
+}
+.pg-setting-label{
+  width:5.2rem; flex:none; color:var(--text-soft);
+  letter-spacing:0.04em;
+}
+.pg-grid-num{
+  width:3.2rem;
+  background:var(--card); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); font-family:'JetBrains Mono',monospace; font-size:0.7rem;
+  padding:0.32rem 0.4rem; text-align:center;
+}
+.pg-grid-num:focus{ outline:1px solid var(--rose-dark); }
+.pg-setting-x{ color:var(--text-soft); }
+.pg-scale{
+  flex:1; min-width:0; accent-color:var(--rose-dark);
+}
+.pg-scale-val{
+  flex:none; width:3rem; text-align:right;
+  color:var(--text-soft); font-family:'JetBrains Mono',monospace;
+}
+
+/* floating exit pill in immersive gallery mode (Esc closes too) */
+.gallery-exit{
+  position:fixed; right:1rem; bottom:1.1rem; z-index:900;
+  display:flex; align-items:center; gap:0.45rem;
+  background:rgba(22,22,26,0.72); border:1px solid rgba(255,255,255,0.09);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  color:#d8d2da; font-family:'JetBrains Mono',monospace; font-size:0.7rem;
+  padding:0.55rem 0.95rem; border-radius:999px; cursor:pointer;
+  box-shadow:0 8px 24px rgba(0,0,0,0.35);
+}
+.gallery-exit:hover{ background:rgba(255,255,255,0.1); }
+.gallery-exit svg{ width:14px; height:14px; }
+
+/* ----- phantom block gallery ----- */
 .drift-wall{
   /* height/width come from .phantom-gallery / gallery-mode (host #phantomGallery).
      Don't set them here — the CSS cascade would clobber the correct calc() heights. */
@@ -953,7 +1047,8 @@ body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
   text-transform:uppercase; letter-spacing:0.05em; color:var(--text-soft);
   min-width:4.6rem;
 }
-.journal-entry-mood{ flex:none; font-size:0.85rem; line-height:1; }
+.journal-entry-mood{ flex:none; display:inline-flex; align-items:center; justify-content:center; }
+.journal-entry-mood .ic{ width:1rem; height:1rem; color:var(--mauve-dark); }
 .journal-entry-preview{
   flex:1; min-width:0; font-family:'Cormorant Garamond',serif; font-size:0.98rem;
   color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -969,9 +1064,11 @@ body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
 .journal-mood-row{ display:flex; gap:0.3rem; flex-wrap:wrap; margin-bottom:0.6rem; }
 .journal-mood{
   background:var(--bg); border:1px solid var(--border); border-radius:999px;
-  font-size:1rem; line-height:1; padding:0.3rem 0.55rem; cursor:pointer;
+  font-size:1rem; line-height:1; padding:0.3rem; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
   transition:all var(--transition); filter:grayscale(0.7) opacity(0.6);
 }
+.journal-mood .ic{ width:1.05rem; height:1.05rem; }
 .journal-mood:hover{ border-color:var(--mauve-dark); }
 .journal-mood.on{
   border-color:var(--rose-dark); filter:none; opacity:1;
@@ -985,3 +1082,18 @@ body.gallery-mode .wrap{ max-width:none; padding:1.1rem 1.25rem 0; }
 .journal-entry:focus{ border-color:var(--mauve-dark); }
 .journal-save-row{ margin-top:0.6rem; display:flex; justify-content:flex-end; }
 .journal-onthisday{ margin-top:0.8rem; }
+
+/* ----- font picker (settings → font) -----
+   Optional whole-app font override, layered on top of whichever theme is
+   active. Only bundled offline fonts are offered. 'default' removes the class
+   and each theme speaks in its own pairing again. !important is deliberate:
+   the themes set font-family on dozens of specific selectors and this user
+   choice must win over all of them. */
+body.font-cormorant,
+body.font-cormorant *{ font-family:'Cormorant Garamond',serif !important; }
+body.font-dm-serif,
+body.font-dm-serif *{ font-family:'DM Serif Display',serif !important; }
+body.font-jetbrains,
+body.font-jetbrains *{ font-family:'JetBrains Mono',monospace !important; }
+body.font-gc-beluga,
+body.font-gc-beluga *{ font-family:'GC Beluga Mono',monospace !important; }

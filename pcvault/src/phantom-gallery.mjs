@@ -112,7 +112,14 @@ export function createPhantomGallery(container, opts = {}) {
   // width:100% but NOT height:100% — the caller's stylesheet owns the height.
   // Forcing height:100% clobbers .phantom-gallery's fixed height and collapses
   // the container to 0px when the parent has no intrinsic height.
-  container.style.cssText = `width:100%;background:${C.backgroundColor};position:relative;overflow:hidden;touch-action:none;cursor:grab;user-select:none;perspective:1000px;transform-style:preserve-3d;`;
+  container.style.cssText = `width:100%;background:${C.backgroundColor};overflow:hidden;touch-action:none;cursor:grab;user-select:none;perspective:1000px;transform-style:preserve-3d;`;
+  // The host's class owns position: .phantom-gallery is `relative` by default
+  // and flips to `fixed` full-bleed in gallery mode — never force it inline
+  // (inline beats the stylesheet's gallery-mode fixed).
+  container.style.removeProperty('position');
+  if (getComputedStyle(container).position === 'static') {
+    container.style.position = 'relative';
+  }
   const gridEl = document.createElement('div');
   gridEl.style.cssText = 'position:absolute;width:100%;height:100%;transform-style:preserve-3d;';
   container.appendChild(gridEl);

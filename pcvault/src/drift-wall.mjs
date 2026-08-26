@@ -133,7 +133,13 @@ export function createDriftWall(container, opts = {}) {
   // .gallery-mode .phantom-gallery) control height/width so the wall fills the
   // viewport correctly. Hardcoding height:100% would collapse the container when
   // the parent has no explicit height.
-  container.style.position = 'relative';
+  // The host owns its position: .phantom-gallery is `relative` by default and
+  // flips to `fixed` full-bleed in gallery-mode — never force it inline (inline
+  // beats the stylesheet).
+  container.style.removeProperty('position');
+  if (getComputedStyle(container).position === 'static') {
+    container.style.position = 'relative';
+  }
   container.style.overflow = 'hidden';
   container.style.perspective = `${C.perspective}px`;
   container.style.perspectiveOrigin = '50% 50%';

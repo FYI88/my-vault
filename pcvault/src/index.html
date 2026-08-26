@@ -153,6 +153,10 @@
       <p class="vault-fileline hidden" id="searchCount"></p>
       <div class="vault-photo-grid" id="grid"></div>
       <div id="phantomGallery" class="phantom-gallery hidden"></div>
+      <button id="galleryExitBtn" class="gallery-exit hidden" aria-label="exit gallery view" title="exit gallery (Esc)">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>exit gallery</span>
+      </button>
       <div class="vault-empty hidden" id="gridEmpty">
         <p>nothing here yet</p>
         <p class="vault-sub">add files above, or drop them anywhere on this window. photos, videos and documents all belong here.</p>
@@ -188,12 +192,12 @@
       <section class="journal-card journal-composer">
         <p class="journal-day" id="journalDayLabel"></p>
         <div class="journal-mood-row" id="journalMoodRow">
-          <button class="journal-mood" data-mood="🌱" title="growing">🌱</button>
-          <button class="journal-mood" data-mood="🌸" title="blooming">🌸</button>
-          <button class="journal-mood" data-mood="☀️" title="sunny">☀️</button>
-          <button class="journal-mood" data-mood="🌧️" title="rainy">🌧️</button>
-          <button class="journal-mood" data-mood="🍂" title="quiet">🍂</button>
-          <button class="journal-mood" data-mood="❤️" title="loving">❤️</button>
+          <button class="journal-mood" data-mood="growing" title="growing" aria-label="growing"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/></svg></button>
+          <button class="journal-mood" data-mood="blooming" title="blooming" aria-label="blooming"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5z"/></svg></button>
+          <button class="journal-mood" data-mood="sunny" title="sunny" aria-label="sunny"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+          <button class="journal-mood" data-mood="rainy" title="rainy" aria-label="rainy"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><line x1="16" y1="14" x2="16" y2="20"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="8" y1="14" x2="8" y2="20"/></svg></button>
+          <button class="journal-mood" data-mood="quiet" title="quiet" aria-label="quiet"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg></button>
+          <button class="journal-mood" data-mood="loving" title="loving" aria-label="loving"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
         </div>
         <textarea id="journalEntry" class="journal-entry" rows="4" placeholder="what happened today?"></textarea>
         <div class="journal-save-row">
@@ -338,11 +342,29 @@
     </div>
 
     <div class="vault-sec-card">
+      <h3 class="vault-sec-title">font</h3>
+      <p class="vault-sub">choose the voice of the vault. this stays on this computer.</p>
+      <div class="vault-pills" id="fontPills">
+        <button class="vault-pill" data-font="default">theme default</button>
+        <button class="vault-pill" data-font="cormorant">cormorant</button>
+        <button class="vault-pill" data-font="dm-serif">dm serif</button>
+        <button class="vault-pill" data-font="jetbrains">jetbrains</button>
+        <button class="vault-pill" data-font="gc-beluga">gc beluga</button>
+      </div>
+    </div>
+
+    <div class="vault-sec-card">
       <h3 class="vault-sec-title">background</h3>
       <p class="vault-sub">the living backdrop on the lock screen.</p>
       <div class="vault-pills" id="bgPills">
         <button class="vault-pill" data-bg="wormhole">wormhole</button>
         <button class="vault-pill" data-bg="particles">particles</button>
+        <button class="vault-pill" data-bg="image">image</button>
+        <button class="vault-pill" data-bg="video">video</button>
+      </div>
+      <div class="vault-bg-custom" id="bgCustom" hidden>
+        <button class="vault-btn vault-btn-small" id="bgChoose">choose a file…</button>
+        <button class="vault-btn vault-btn-ghost vault-btn-small" id="bgClear" hidden>remove</button>
       </div>
     </div>
 
@@ -351,7 +373,21 @@
       <p class="vault-sub">how unlocked files look in full-screen gallery view.</p>
       <div class="vault-pills" id="galleryStylePills">
         <button class="vault-pill" data-gallery="phantom">phantom</button>
+        <button class="vault-pill" data-gallery="phantom-v2">phantom v4</button>
         <button class="vault-pill" data-gallery="drift">drift</button>
+      </div>
+      <div class="pg-grid-settings hidden" id="pgGridSettings">
+        <div class="pg-setting-row">
+          <span class="pg-setting-label">grid</span>
+          <input id="pgColsInput" class="pg-grid-num" type="number" min="1" max="16" step="1" value="5" aria-label="grid columns" title="columns">
+          <span class="pg-setting-x">×</span>
+          <input id="pgRowsInput" class="pg-grid-num" type="number" min="0" max="30" step="1" value="" placeholder="auto" aria-label="grid rows" title="rows (0 = auto)">
+        </div>
+        <div class="pg-setting-row">
+          <span class="pg-setting-label">grid scale</span>
+          <input id="pgScaleInput" class="pg-scale" type="range" min="50" max="250" step="5" value="100" title="tile size">
+          <span class="pg-scale-val" id="pgScaleVal">100%</span>
+        </div>
       </div>
     </div>
 

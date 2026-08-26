@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld('vaultAPI', {
   getLastPath: () => ipcRenderer.invoke('vault:getLastPath'),
   forgetPath: () => ipcRenderer.invoke('vault:forgetPath'),
 
+  // Custom lock-screen background (image/video).
+  pickBackground: () => ipcRenderer.invoke('vault:pickBackground'),
+  clearBackground: () => ipcRenderer.invoke('vault:clearBackground'),
+  getBackground: () => ipcRenderer.invoke('vault:getBackground'),
+
   // Frameless window controls (the page draws its own traffic lights).
   windowControls: {
     minimize: () => ipcRenderer.send('win:minimize'),

@@ -431,6 +431,109 @@ Replaced `vault-wordmark.png` (624×115 cropped strip) with the user-supplied up
 ## Audit (2026-08-18 re-run, /auditme)
 Second full audit pass — same threat model (offline personal vault; device thief + shared-household user + casual file recipient). Prior 6 findings re-verified: SEC-001/002/003/004/006 still resolved (no regressions), SEC-005 still open (accepted). OSV check live this run: 240 pinned deps, zero known CVEs. Live dynamic pass: Electron shell boots clean (zero CSP violations); dev-server page observed in browser (zero CSP violations, zero third-party). Dev-server traversal probes: raw `../` and `%2e%2e` collapsed by the WHATWG URL parser (404), `%5c` backslash variant blocked by the `startsWith(root)` boundary (403). Four new INFO findings added to `findings.json` (SEC-007 tamper-sample plaintext not wiped, SEC-008 orphaned `.tmp-*` on failed rename, SEC-009 dev server lacks security headers, SEC-010 no record-count cap on parseVault). All four are now **resolved in source**: SEC-007 (`vault-crypto.mjs` wipes the sampled plaintext), SEC-008 (`main.js` unlinks the tmp file on failed rename), SEC-009 (`server.mjs` sends the CSP + nosniff headers), SEC-010 (`container.mjs` `MAX_RECORDS = 100000` + a 9th container test). Only SEC-005 remains open (accepted). Note: `findings.json` statuses for 007–010 still say `open` and should be flipped to `resolved` on the next audit re-run.
 
+## v2.9.14 — custom lock-screen background (image or video) (2026-08-24)
+Settings → background now offers **image** and **video** alongside wormhole/particles. Picking one opens a native file dialog (images: png/jpg/webp/gif/bmp/svg; videos: mp4/webm/mov/mkv/avi); the chosen file is **copied into `userData/background/`** (main process) so the vault stays self-contained even if the original moves — only that copy's bytes are ever handed to the renderer, as a blob URL (CSP already allows `img-src blob:`/`media-src blob:`). The renderer never touches the file system. Choice persisted in localStorage (`pcvault.bg` = wormhole | particles | image | video), matching the other pills. In mono theme the media background gets the same grayscale/invert treatment as the canvas. A "remove" button resets to wormhole and deletes the copy (vault:clearBackground). The packaged EXE was smoke-tested via CDP with a seeded image: `<img>` mounted with a blob src, canvas hidden, choose/remove row shown — then cleaned up.
+
+## v2.9.15 — PhantomInfiniteGallery v2 as a third gallery style (2026-08-24)
+
+Per user request ("add this for the grid too as an option phantom-infinite-gallery-v2 in documents"), the supplied `Documents/phantom-infinite-gallery-v2.html` demo is now a selectable gallery style alongside phantom and drift.
+
+- **`src/phantom-gallery-v2.mjs` (new)** — a faithful vanilla port of the demo (infinite draggable wall on a 3D curve, hold-to-zoom, inertia throw, cursor parallax, blur-ghost hover, and the zoom HUD − / % / + / Reset). Same controller contract as the other galleries: `createPhantomGalleryV2(host, opts)` → `{ destroy, setItems }`, items `{ id, thumbUrl, title, meta, name }` (tiles show the caller's **own blob: thumbnails**, not the demo's generative art), `onItemClick` opens items. All styling via CSSOM — no inline style attributes, no eval, no remote URLs (strict-CSP-safe).
+- **Camera math ported 1:1** — `mulberry32` wrap, cursor-anchored zoom, `friction 0.945` momentum, `parallax*`, `curveMaxAngle 14°` / `curveDepth 70`, seamless wrap modulo the base grid. The base grid is `cols × rows` (rows = ceil(items/cols), capped at 40) replicated 3×3 so a large vault still shows everything but never spawns tens of thousands of tiles.
+- **Adapted to the vault** — the wall wrapper is full-size (not the demo's 0×0) so it's a real hit-test surface, matching phantom-gallery's verified-in-app `elementFromPoint` click resolution. Late-hydrating thumbnails are picked up per-frame (in-place mutation, no rebuild — the drift-wall dark-tile bug doesn't apply).
+- **Wiring (`renderer.js` / `index.html`)** — a third pill **phantom v2** in Settings → gallery style, `galleryStyleChoice()` / `adoptGalleryStyleIntoFile()` accept `'phantom-v2'` (rides in `manifest.prefs.galleryStyle` like the others), `makeGalleryController()` builds it on `#phantomGallery` (`ground: #171014` to match the stage; accent stays the demo's `#9fd3ff`), toast label map. `vault-crypto.mjs` default stays `'phantom'`.
+
+**Verified:** syntax clean, **52/52 tests green**, and live in the preview webview — 180 tiles for 18 items (5×4 base × 9 replicas) with `rotateY(14deg)` curve transforms, real `blob:` thumbnails on visible tiles (zero CSP violations; only `data:` URLs are correctly blocked, same as the other galleries), captions (short title + year/size), HUD zoom +/Reset and the hold-to-zoom gesture, drag moves the camera, late hydration shows without a rebuild, and `destroy()` clears the host. Note: click-to-open can't be exercised in the preview webview (Chromium 130 doesn't hit-test 3D-rotated elements via `elementFromPoint` — the existing phantom gallery fails identically there) but uses the same pattern that's smoke-tested working in the packaged EXE.
+
+**REBUILT + verified in the packaged EXE (2026-08-24, 94.8 MB):** `npm run dist` clean; `app.asar` contains `src/phantom-gallery-v2.mjs`, the updated `src/renderer.js` and `src/index.html` (phantom v2 pill). No runtime smoke-test this round (the click path needs the packaged app's Chromium; the preview verified everything else).
+
+## v2.9.16 — phantom gallery replaced with the v4 "Infinite Gallery Wall" (2026-08-24)
+
+Per user request ("replace the phantom grid with the v4 version in Documents"), the **phantom v2** gallery style is now a faithful port of `Documents/phantom-infinite-gallery-v4.html`. The v2/v4 style keeps the same `phantom-v2` pref value, so vaults that already saved it keep working — only the visuals and labels changed.
+
+- **`src/phantom-gallery-v2.mjs` (rewritten)** — the wall now includes the **v4 SVG divider grid**: one faint stroke line runs through every gutter (right + below each cell), replicated 3×3 like the tiles. `projectPoint()` replicates both CSS effects that a plain SVG line doesn't get for free — the transform-origin residual shift `halfW·(1−scale)` and the `perspective` divide `P/(P−z)` — so the grid stays **pixel-locked to the tile gutters at any zoom/pan**. Horizontal gutters are sampled at 6 points so they get the same real curve the tiles get; vertical gutters (fixed worldX) stay straight. Lines are `1px` `stroke-width` with `vector-effect: non-scaling-stroke`, laid under the wall in a pointer-events-none SVG.
+- **Tile transform upgraded to the v4 form** — `translate3d(sx − halfW·scale, sy − halfH·scale, z) rotateY(angle) scale(scale · (P−z)/P)`: the extra `(P−z)/P` size-compensation term keeps edge tiles constant-size on the curve instead of shrinking under the perspective divide. `curveDepth` raised 70 → 90, `gap` 34 → 20 to match the demo.
+- **Renderer wiring unchanged** — only the module body, the pill label ("phantom v2" → **"phantom v4"**), the toast label, and the comment changed. `galleryStyleChoice()` / `adoptGalleryStyleIntoFile()` / `makeGalleryController()` still key off `'phantom-v2'`.
+
+**Verified:** 52/52 tests green (18 crypto + 9 container + 25 journal). Live in the preview webview — mounted the wall with 8 blob-thumb items: **90 tiles + 180 divider paths** for the 2×5 base grid, curve transforms (`rotateY(14deg) scale(0.947)` at the edges), captions + HUD (100% → 121% → 82% via +/−, Reset back), 1200px drag pans the camera with the grid glued to the tiles, `setItems` re-sizes, `destroy()` leaves zero DOM. Zero CSP violations, zero module errors (only the pre-existing welcome-screen background recursion noise).
+
+**REBUILT (2026-08-24, 94.8 MB):** `npm run dist` clean; `app.asar` (232 entries) contains `src/phantom-gallery-v2.mjs`, `src/renderer.js`, `src/index.html`. No runtime smoke-test of the click path (same preview-webview limitation as before — `elementFromPoint` doesn't hit-test 3D-rotated elements in Chromium 130; the pattern is unchanged from the v2 round and remains clickable in the packaged EXE).
+
+## v2.9.17 — gallery goes fullscreen immersive (no more "video box") + fade-in + prompt-master (2026-08-24)
+
+Per user report ("it looks like a video being played… white and then edges and corners with the gallery phantom thing"), the phantom v4 wall no longer looks like a floating dark video box on the light page — it now fills the whole window, and the mount flicker + harsh SVG gutters were fixed.
+
+- **Fullscreen stage** — `body.gallery-mode` now hides the tabs/search/file-line/action-sidebar (`.wrap` padding zeroed, page background `#171014`, `overflow:hidden`), and `#phantomGallery` becomes `position:fixed; inset:0; z-index:160` — under the transparent 34px titlebar (z-200) so the window controls stay live and the dark stage bleeds through. Exit via the new floating **exit gallery** pill (bottom-right, z-900, frosted), **Esc**, or **G** (renderer): `toggleGallery()` shows/hides the pill, Esc wired.
+- **Position guard in all three gallery modules** — phantom-gallery.mjs / phantom-gallery-v2.mjs / drift-wall.mjs previously forced `container.style.position='relative'` inline, which **overrode** the stylesheet's gallery-mode `fixed` and silently kept them as light boxes. Each now does `removeProperty('position')` + fall back to relative only when computed is `static`. Verified in preview: all three mount `fixed` in gallery mode.
+- **No white "buffering" flash** — v2 (`phantom-gallery-v2.mjs`) now fades the wall in: opacity 0 (set with transition disabled + forced reflow so it doesn't animate from the previous frame's 1), then 1 once a real thumb lands or after 700ms (doc tiles).
+- **Grid lines softened** — divider-grid stroke `rgba(255,255,255,0.09)` → `0.05` so the v4 SVG gutters read as a faint texture, not stuck-on corners/edges.
+- **HUD nudged** below the 34px titlebar (`top:48px`) in fullscreen.
+
+**Verified:** 52/52 tests green, syntax clean; live in the preview — phantom/drift/v2 all stay `fixed` full-bleed in gallery mode (measured computed style), page chrome hidden, titlebar + traffic lights still clickable, pill at bottom-right, wall fades in (0 → 1 with no flicker-out), drag/zoom/HUD wrap intact, `destroy()` leaves zero DOM. Screenshots confirm the immersive look.
+
+**prompt-master installed (2026-08-24):** cloned `nidhinjs/prompt-master` into `~/.claude/skills/prompt-master` (SKILL.md v1.8.0 + references/) — a Claude skill for writing precise prompts for any AI tool. Activates only when asked to write/improve a prompt; no app side effects.
+
+**REBUILT (2026-08-24, 94.8 MB):** `npm run dist` clean; asar contains the updated modules + HTML/CSS.
+
+## v2.9.18 — phantom gallery updated to the v5 wall (cards, straight grid lines) (2026-08-24)
+
+Per user request ("update the code of the phantom gallery with this new version phantom-infinite-gallery-v5"), `src/phantom-gallery-v2.mjs` is now a port of `Documents/phantom-infinite-gallery-v5.html`. The prior v2.9.17 immersive fullscreen + hidden-on-hover titlebar + no-HUD work is preserved.
+
+- **Card tiles** — `TILE_W 200 × TILE_H 230` (was 210×150): the image area is now a **rounded (6px) square** with the caption as a flex row **below** it (not overlaid). Hover scales the card 1.02 and zooms the photo 1.06 (blur ghost 0.85).
+- **Straight divider lines** — `projectPoint()` keeps the transform-origin residual shift + perspective divide so the gutters stay pixel-locked, but `pathFor()` now draws **two-point segments** (project each endpoint, one `M… L…`) instead of the v4 bow-sampling — tiles are flat planes that rotate, so a straight gutter line is the correct same interpretation.
+- **No zoom HUD** — the v5 demo ships WITHOUT −/%/+/Reset; the renderer's `showHud:false` is now the module default (hold-to-zoom, drag + inertia, parallax intact). The floating **exit gallery** pill + Esc remain the ways out. (`showHud` / `accent` options are gone from the module.)
+- The demo's "Edit gallery" **CMS panel is not ported** — in the demo it edits generated art held in localStorage; in the vault the items are encrypted files edited through the vault UI.
+
+**Verified:** 52/52 tests green; preview shows rounded card tiles with captions below (`PHOTO 3 · 2022`), 180 straight two-point gutter paths glued to the gutters, hover card/photo zoom, wall fade-in, no HUD buttons, titlebar hidden at rest + full-opacity on hover of the top strip, host stays `fixed` full-bleed, `destroy()` clean.
+
+**REBUILT + LOCKED-FILE FIX (2026-08-24, 94.8 MB):** the portable build had been hanging on "output file locked for writing (maybe virus scanner)" — the real cause was a **stale running `my-vault-portable.exe` (PID 5220) holding the output path**; closing it + removing the stale EXE let `npm run dist` finish in seconds. asar (232 entries) confirmed to contain the updated modules + CSS/HTML. `package.json` left untouched (no sign overrides; the envar `CSC_IDENTITY_AUTO_DISCOVERY=false` was only a test).
+
+## v2.9.19 — phantom wall grid x:y + scale settings (2026-08-24)
+
+Per user request ("add a x:y and grid scale picker in settings of the grid wall or this phantom gallery"), the phantom v4 (v5 wall) gallery now has settings:
+
+- **Settings UI** — under the gallery-style pills (shown only when **phantom v4** is the active style): a **grid** row with two number inputs (`columns 1–16 × rows 0–30`, rows empty = auto = fill by item count) and a **grid scale** slider (50–250%, tile + gap sizes, default 100%).
+- **Prefs travel with the vault** — `manifest.prefs.pgCols / pgRows / pgScale`, same pattern as `galleryStyle`; applied on unlock and to an open gallery live (rebuild on change), persisted debounced (300ms) via `saveVault()`.
+- **Module** — `createPhantomGalleryV2` gained `cols / fixedRows / tileScale`; base-cell cap 400 (×9 replicas) so a huge manual grid can't spawn tens of thousands of tiles; rows/cols clamped (16×30 max, product ≤ 400). `TILE_W/H` + gap scale with `tileScale` (min 40/46px).
+
+**Verified:** 52/52 tests green; module with `cols:6, fixedRows:3, tileScale:1.4` → 162 tiles (300px×322px) + 324 two-point divider paths, settings block hidden for phantom/drift and revealed for phantom-v4, inputs populate from prefs, `destroy()` clean.
+
+**REBUILT (2026-08-24, 94.8 MB):** portable build finished in seconds (stale running instance was the past lock).
+
+## v2.9.20 — drag-and-drop import fixed (works anywhere on the window) (2026-08-24)
+
+Per user report ("i cant seem to drag and drop pics or videos or anything"), file import by drag-and-drop is fixed:
+
+- **Root cause:** the UI promises "drop them anywhere on this window", but file drops were only handled on `#grid` and `#phantomGallery`. Dropping on the padding, header, sidebar or journal pane fell through to Electron, which **navigated the window to the file** (blank/white, nothing imported) — and the grid's own file `drop` handler never called `preventDefault`.
+- **Fix (`renderer.js`):** a window-level `dragover` + `drop` pair now accepts file drops **everywhere** when unlocked — `preventDefault()` (so the window never navigates) + `dropEffect:'copy'`, importing via `handleFiles`. Per-element handlers (grid / gallery host) route through the same guarded `handleImportDrop(e)`, with an `e.__vaultImportHandled` flag so one drop can never import twice (grid listener + bubbling window listener). Non-file internal reorder drags are untouched (`hasFiles` gate).
+- **Boot recursion fixed too:** `mountBackground()` → `mountCustomBackground()` → `mountBackground()` looped forever (stack-overflow RangeError on every boot in the browser preview, and a wedge risk when a custom bg was chosen without the bridge). `mountBackground` now only branches to the custom path when `window.vaultAPI.getBackground` exists; otherwise it falls through to the animated background. Preview boot console is now completely clean.
+
+**Verified:** 52/52 tests green; preview synthetic drops (real `File` objects via `DataTransfer`): window drop + grid drop + dragover all set `defaultPrevented:true`, internal reorder drags unaffected, single-import flag per event; boot console shows zero exceptions (the long-standing RangeError is gone).
+
+**REBUILT (2026-08-24, 94.8 MB):** also closed two user-open `my-vault-portable.exe` instances that were locking the output path (the recurring "file locked" cause). asar (232 entries) contains the updated renderer.
+
+## v2.9.21 — mono side scrollbar black + journal moods become line icons (2026-08-25)
+
+Two polish fixes:
+
+- **Mono scrollbar.** The page's right-edge scrollbar stayed the mauve tint in the mono theme. Cause: `body.theme-mono ::-webkit-scrollbar-thumb` used a *descendant* combinator, so it matched scrollbars of elements inside body but not the **document's own scrollbar** (which lives on body, not a child of it). Added the direct `body.theme-mono::-webkit-scrollbar-thumb{background:#000;border-color:#000}` selector (kept the descendant form for inner scroll containers) — the side scrollbar is now **black** in mono while cream keeps its mauve tint. Verified live: computed thumb is `rgb(0,0,0)`.
+- **Journal moods: emoji → crisp line icons.** The six mood buttons (🌱🌸☀️🌧️🍂❤️) are now lucide-style inline SVG line icons (sprout / flower / sun / cloud-rain / leaf / heart) matching the app's icon language. Moods are stored as **semantic keys** (`growing / blooming / sunny / rainy / quiet / loving`) instead of emoji; `LEGACY_MOOD` maps the old emoji strings to the same key so pre-existing entries keep their mood. The entry list renders each mood as the same icon (with the key as a tooltip), and picker buttons size/center the SVG.
+
+**Verified:** 52/52 tests green; preview — document scrollbar thumb computes `rgb(0,0,0)` in mono, mood row has 6 buttons each holding one SVG (no emoji text) at ~18px, console clean (only the expected browser `vaultAPI`-missing warning).
+
+**REBUILT (2026-08-25, 94.8 MB).**
+
+## v2.9.22 — mono scrollbar fix (root/HTML) + font picker in theme settings (2026-08-26)
+
+Two theme-settings changes:
+
+- **Mono side scrollbar truly black.** The v2.9.21 fix styled `body.theme-mono` and its descendants, but Chromium can attach the viewport scrollbar to `<html>` rather than `<body>`, so the right edge could still show the mauve tint. `applyTheme()` now mirrors the `theme-mono` class onto `document.documentElement`, and CSS adds `html.theme-mono::-webkit-scrollbar*` rules (6px, black thumb, 1px gutter) covering the root scrollbar directly.
+- **Font picker (Settings → font).** A new setting under the theme card lets you override the whole-app typeface — `theme default / cormorant / dm serif / jetbrains / gc beluga` — using only the fonts already bundled offline (no downloads). Choice persists in localStorage (`pcvault.font`) and applies live via `applyFont(font)`, which toggles a `font-<choice>` class on `<body>`; CSS drives each with `!important` on `body[X], body[X] *` so the picker wins over every per-element font declaration from either theme.
+
+**Verified:** 52/52 tests green; live preview M-bM-^@M-^T with `theme-mono` mirrored on `<html>`, the viewport scrollbar thumb computes `rgb(0,0,0)` at 6px (was mauve pink at 10px); applying `font-cormorant` gives `"Cormorant Garamond", serif` and `font-jetbrains` gives `"JetBrains Mono", monospace`; console clean (only the expected browser `vaultAPI`-missing warning).
+
+**REBUILT (2026-08-26, 94.8 MB).**
+
 ## Known limits / next
 - **No notes** — photos only in v1 (the record schema + crypto already support notes; the phone's `vaultAddNote` is trivially portable).
 - **No HEIC** — Chromium can't decode it; those files are skipped with a toast. Convert HEIC → JPEG first.

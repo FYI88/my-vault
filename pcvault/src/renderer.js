@@ -11,6 +11,7 @@ import { serializeVault, parseVault } from './container.mjs';
 import { initWormhole } from './wormhole.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
+import { createPhantomGalleryV2 } from './phantom-gallery-v2.mjs';
 import { createDriftWall } from './drift-wall.mjs';
 import {
   emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak, sortedDayKeys,
@@ -22,6 +23,7 @@ const LS_IDLE = 'pcvault.idleMin';
 const LS_BG = 'pcvault.bg'; // 'wormhole' (default) or 'particles'
 const LS_CHROME = 'pcvault.chrome'; // 'mac' (default) or 'win' — titlebar controls style
 const LS_THEME = 'pcvault.theme'; // 'cream' (default) or 'mono' — the whole-app look
+const LS_FONT = 'pcvault.font'; // optional local font override; 'default' follows the theme
 const LS_GALLERY = 'pcvault.galleryStyle'; // legacy machine-local fallback — the choice now rides in the vault file
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
@@ -52,7 +54,7 @@ const state = {
   rotatePhrase: null,// rotation in progress — old words die only on save
   idleTimer: null,
   galleryMode: false, // full-screen gallery view
-  galleryStyle: null, // controller for the active gallery style (phantom/drift)
+  galleryStyle: null, // controller for the active gallery style (phantom/phantom-v2/drift)
   galleryKind: null,  // name of the active gallery style
   galleryItems: [],   // the items handed to the active gallery controller
   journalTab: false,    // Journal tab active (vs Vault)
@@ -200,6 +202,7 @@ function openSettings() {
   refreshPathLines();
   renderIdlePills();
   renderThemePills();
+  renderFontPills();
   renderBgPills();
   renderChromePills();
   renderGalleryPills(); // gallery style now lives in the vault file — re-read on every open
@@ -416,6 +419,7 @@ function lock() {
   state.galleryMode = false;
   if ($('galleryToggleBtn')) $('galleryToggleBtn').classList.remove('on');
   setHidden('phantomGallery', true);
+  if ($('galleryExitBtn')) setHidden('galleryExitBtn', true);
   showOverlay('itemOverlay', false);
   $('itemImg').removeAttribute('src');
   setHidden('itemImg', true);
@@ -609,6 +613,37 @@ function hasFiles(e) {
   return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
 }
 
+// ---- file imports by drag-and-drop, EVERYWHERE on the window ----
+// The UI promises "drop them anywhere on this window", but before this the
+// drop was only handled on #grid and #phantomGallery — dropping on the
+// padding, header, sidebar or journal pane let the drop fall through to
+// Electron, which NAVIGATES the window to the file (blank/white, nothing
+// imported). A window-level dragover+drop pair now owns file imports: it
+// accepts the drop on any unlocked screen and imports the files, and the
+// per-element handlers (grid / gallery host) call into the same guarded path
+// so a single drop can never import twice (the __vaultImportHandled flag).
+function handleImportDrop(e) {
+  if (e.__vaultImportHandled) return;
+  if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+  if (!hasFiles(e)) return;
+  e.__vaultImportHandled = true;
+  // ALWAYS stop the navigation (even locked): a file drop must never turn the
+  // window into a blank file:// page. Import only happens when unlocked.
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  if (state.unlocked) handleFiles([...e.dataTransfer.files]);
+}
+
+function wireWindowDrop() {
+  window.addEventListener('dragover', (e) => {
+    if (hasFiles(e)) {
+      e.preventDefault(); // accept the drop everywhere (blocks Electron file navigation)
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    }
+  });
+  window.addEventListener('drop', handleImportDrop);
+}
+
 function wireReorder() {
   const grid = $('grid');
   grid.addEventListener('dragstart', (e) => {
@@ -703,10 +738,12 @@ function clearSearch() {
 }
 
 // ---- full-screen gallery (style-agnostic) ----
-// Two controller styles share one item contract: phantom (Framer port) and
-// drift (React Bits port). Both consume the same array of decrypted items and
-// report clicks back through onItemClick; only the module that renders them
-// differs. The plumbing below is style-neutral.
+// Three controller styles share one item contract: phantom (Framer port),
+// phantom-v2 (the PhantomInfiniteGallery v4 demo port — the "Infinite Gallery
+// Wall" with the pixel-locked SVG divider grid) and drift (React Bits
+// port). All consume the same array of decrypted items and report clicks back
+// through onItemClick; only the module that renders them differs. The plumbing
+// below is style-neutral.
 // The gallery style is stored INSIDE the vault file (manifest.prefs.galleryStyle)
 // so it travels with the vault — open the same .cvault on another PC and it
 // comes back. localStorage is only a pre-unlock fallback / one-time migration:
@@ -714,9 +751,9 @@ function clearSearch() {
 // stored pick (if any) is folded into the file.
 function galleryStyleChoice() {
   const fromFile = state.manifest && state.manifest.prefs && state.manifest.prefs.galleryStyle;
-  if (fromFile === 'drift' || fromFile === 'phantom') return fromFile;
+  if (fromFile === 'drift' || fromFile === 'phantom' || fromFile === 'phantom-v2') return fromFile;
   const v = localStorage.getItem(LS_GALLERY);
-  return v === 'drift' ? 'drift' : 'phantom';
+  return v === 'drift' ? 'drift' : v === 'phantom-v2' ? 'phantom-v2' : 'phantom';
 }
 
 // Fold the legacy machine-local pick into the vault file on first unlock so it
@@ -724,25 +761,58 @@ function galleryStyleChoice() {
 function adoptGalleryStyleIntoFile() {
   if (!state.manifest) return false;
   const inFile = state.manifest.prefs && state.manifest.prefs.galleryStyle;
-  if (inFile === 'drift' || inFile === 'phantom') return false;
+  if (inFile === 'drift' || inFile === 'phantom' || inFile === 'phantom-v2') return false;
   if (!state.manifest.prefs) state.manifest.prefs = {};
-  state.manifest.prefs.galleryStyle = localStorage.getItem(LS_GALLERY) === 'drift' ? 'drift' : 'phantom';
+  const legacy = localStorage.getItem(LS_GALLERY);
+  state.manifest.prefs.galleryStyle = legacy === 'drift' ? 'drift' : legacy === 'phantom-v2' ? 'phantom-v2' : 'phantom';
   return true;
 }
 
-// Render the pills so the selected style reads as active.
+// Phantom wall grid prefs — ride in the vault file (manifest.prefs) like the
+// style itself, so they travel with the vault. pgCols/pgRows size the base
+// grid (x:y), pgScale multiplies tile sizes (50–250%). Rows 0 = auto.
+function pgGridPrefs() {
+  const p = (state.manifest && state.manifest.prefs) || {};
+  const cols = parseInt(p.pgCols, 10);
+  const rows = parseInt(p.pgRows, 10);
+  const scale = parseFloat(p.pgScale);
+  return {
+    cols: Number.isFinite(cols) ? Math.max(1, Math.min(16, cols)) : 5,
+    rows: Number.isFinite(rows) ? Math.max(0, Math.min(30, rows)) : 0,
+    scale: Number.isFinite(scale) ? Math.max(0.5, Math.min(2.5, scale)) : 1,
+  };
+}
+
+// Render the pills so the selected style reads as active; the phantom-only
+// grid x:y + scale controls show only when the phantom wall is the choice.
 function renderGalleryPills() {
   const choice = galleryStyleChoice();
   document.querySelectorAll('#galleryStylePills .vault-pill').forEach((p) => {
     p.classList.toggle('on', p.dataset.gallery === choice);
   });
+  const cfg = document.getElementById('pgGridSettings');
+  if (cfg) cfg.classList.toggle('hidden', choice !== 'phantom-v2');
+  renderPgGridSettingsInputs();
+}
+
+// Sync the input controls with the current prefs.
+function renderPgGridSettingsInputs() {
+  const g = pgGridPrefs();
+  const c = document.getElementById('pgColsInput');
+  const r = document.getElementById('pgRowsInput');
+  const s = document.getElementById('pgScaleInput');
+  const sv = document.getElementById('pgScaleVal');
+  if (c) c.value = String(g.cols);
+  if (r) r.value = g.rows > 0 ? String(g.rows) : ''; // empty = auto
+  if (s) s.value = String(Math.round(g.scale * 100));
+  if (sv) sv.textContent = Math.round(g.scale * 100) + '%';
 }
 
 // Build the style-specific controller into the #phantomGallery host.
 function makeGalleryController(kind) {
   const host = $('phantomGallery');
-  return kind === 'drift'
-    ? createDriftWall(host, {
+  if (kind === 'drift') {
+    return createDriftWall(host, {
         columnsMin: 2,
         tileWidth: 220,
         tileHeight: 150,
@@ -756,8 +826,21 @@ function makeGalleryController(kind) {
         dim: 0.55,
         overlayColor: '#171014', // vault warm near-black — matches the item viewer stage
         onItemClick: (id) => openItem(id),
-      })
-    : createPhantomGallery(host, {
+      });
+  }
+  if (kind === 'phantom-v2') {
+    const g = pgGridPrefs(); // user-set grid x:y + scale (manifest.prefs, travels with the vault)
+    return createPhantomGalleryV2(host, {
+        ground: '#171014', // warm near-black — matches the item viewer stage
+        cols: g.cols,
+        fixedRows: g.rows,
+        tileScale: g.scale,
+        // no HUD: the v5 wall ships without zoom pills — the interactions are
+        // hold-to-zoom, drag with inertia, cursor parallax (per user request)
+        onItemClick: (item) => openItem(item.id),
+      });
+  }
+  return createPhantomGallery(host, {
         backgroundColor: '#171014', // warm near-black — matches the item viewer stage
         textColor: '#8f8986',
         border: { width: 1, style: 'solid', color: 'rgba(251,246,243,0.9)' },
@@ -851,6 +934,7 @@ function toggleGallery() {
   setHidden('phantomGallery', !state.galleryMode);
   setHidden('gridEmpty', state.galleryMode || vaultItems().length > 0);
   setHidden('noMatches', true);
+  if ($('galleryExitBtn')) setHidden('galleryExitBtn', !state.galleryMode);
   if (state.galleryMode) {
     ensureGalleryController();
     populateGallery();
@@ -931,9 +1015,31 @@ async function handleJournalExport() {
   toast(`exported ${year}.md`);
 }
 
+// Journal moods are stored as semantic keys ("growing", "sunny", ...). Older
+// vaults saved the plant-planet emoji ("🌱", "☀️", ...) instead — LEGACY_MOOD
+// maps those to the same key so an old entry keeps its mood. Everything renders
+// as a crisp line icon (no raw emoji) to match the rest of the UI.
+const JOURNAL_MOODS = ['growing', 'blooming', 'sunny', 'rainy', 'quiet', 'loving'];
+const LEGACY_MOOD = { '🌱': 'growing', '🌸': 'blooming', '☀️': 'sunny', '🌧️': 'rainy', '🍂': 'quiet', '❤️': 'loving' };
+const MOOD_ICON_PATH = {
+  growing: '<path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/>',
+  blooming: '<circle cx="12" cy="12" r="3"/><path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5z"/>',
+  sunny: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  rainy: '<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><line x1="16" y1="14" x2="16" y2="20"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="8" y1="14" x2="8" y2="20"/>',
+  quiet: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
+  loving: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+};
+function moodKey(mood) {
+  return JOURNAL_MOODS.includes(mood) ? mood : (LEGACY_MOOD[mood] || '');
+}
+function moodIcon(mood) {
+  const p = MOOD_ICON_PATH[moodKey(mood) || ''];
+  return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (p || '') + '</svg>';
+}
 function setMoodSelection(mood) {
+  const key = moodKey(mood);
   document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
-    b.classList.toggle('on', b.dataset.mood === mood);
+    b.classList.toggle('on', key !== '' && b.dataset.mood === key);
   });
 }
 
@@ -1027,7 +1133,8 @@ function renderEntryList(blob, matches) {
     date.textContent = shortDay(key);
     const mood = document.createElement('span');
     mood.className = 'journal-entry-mood';
-    mood.textContent = e.mood || '';
+    mood.title = moodKey(e.mood || '');
+    mood.innerHTML = e.mood ? moodIcon(e.mood) : '';
     const preview = document.createElement('span');
     preview.className = 'journal-entry-preview';
     preview.textContent = text.split('\n')[0] || '(no text)';
@@ -1597,16 +1704,74 @@ function renderIdlePills() {
   });
 }
 
-// ---- background picker (wormhole vs particles) ----
+// ---- background picker (wormhole vs particles vs custom image/video) ----
 function bgChoice() {
-  return localStorage.getItem(LS_BG) === 'particles' ? 'particles' : 'wormhole';
+  const v = localStorage.getItem(LS_BG);
+  return v === 'particles' || v === 'image' || v === 'video' ? v : 'wormhole';
+}
+
+function bgCustom() {
+  return localStorage.getItem(LS_BG) === 'image' || localStorage.getItem(LS_BG) === 'video';
 }
 
 function renderBgPills() {
   const choice = bgChoice();
+  const custom = bgCustom();
   document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
     p.classList.toggle('on', p.dataset.bg === choice);
   });
+  const row = $('bgCustom');
+  if (row) row.hidden = !custom;
+  // "remove" is only useful once a custom file is actually stored
+  const clearBtn = $('bgClear');
+  if (clearBtn) clearBtn.hidden = !custom;
+}
+
+// Render the custom image/video background. Async: the bytes come from main
+// (the renderer never touches the file system). Falls back to wormhole when
+// no file is set or the bridge is missing (browser preview).
+let bgMedia = null;    // <img> or <video> element for the custom background
+let bgBlobUrl = null;  // revoke on teardown
+
+function teardownBgMedia() {
+  if (bgBlobUrl) { URL.revokeObjectURL(bgBlobUrl); bgBlobUrl = null; }
+  if (bgMedia) { bgMedia.remove(); bgMedia = null; }
+  const canvas = $('authBg');
+  if (canvas) canvas.style.display = 'block';
+}
+
+async function mountCustomBackground() {
+  if (!window.vaultAPI || !window.vaultAPI.getBackground) {
+    mountBackground(); // bridge missing → fall back to animated
+    return;
+  }
+  const info = await window.vaultAPI.getBackground();
+  const canvas = $('authBg');
+  if (!info || !info.bytes || !canvas) {
+    if (bgCustom()) localStorage.setItem(LS_BG, 'wormhole'); // stale choice → reset
+    teardownBgMedia();
+    mountBackground();
+    renderBgPills();
+    return;
+  }
+  teardownBgMedia();
+  canvas.style.display = 'none';
+  const blob = new Blob([info.bytes], { type: info.kind === 'video' ? 'video/mp4' : 'image/*' });
+  bgBlobUrl = URL.createObjectURL(blob);
+  bgMedia = document.createElement(info.kind === 'video' ? 'video' : 'img');
+  bgMedia.src = bgBlobUrl;
+  if (info.kind === 'video') {
+    bgMedia.muted = true;
+    bgMedia.loop = true;
+    bgMedia.autoplay = true;
+    bgMedia.playsInline = true;
+  }
+  bgMedia.setAttribute('aria-hidden', 'true');
+  bgMedia.id = 'authBgMedia';
+  canvas.after(bgMedia);
+  // keep the same placement + interaction rules as the canvas
+  bgMedia.style.cssText = 'position:fixed; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; pointer-events:none;';
+  if (info.kind === 'video') bgMedia.play().catch(() => {});
 }
 
 // ---- theme picker (cream vs mono — abstract minimal black & white) ----
@@ -1615,13 +1780,34 @@ function themeChoice() {
 }
 
 function applyTheme(theme) {
-  document.body.classList.toggle('theme-mono', theme === 'mono');
+  const mono = theme === 'mono';
+  // Mirror the theme on html too: Chromium may attach the viewport scrollbar
+  // to html rather than body, so styling body alone leaves that edge mauve.
+  document.body.classList.toggle('theme-mono', mono);
+  document.documentElement.classList.toggle('theme-mono', mono);
 }
 
 function renderThemePills() {
   const choice = themeChoice();
   document.querySelectorAll('#themePills .vault-pill').forEach((p) => {
     p.classList.toggle('on', p.dataset.theme === choice);
+  });
+}
+
+const FONT_CHOICES = new Set(['default', 'cormorant', 'dm-serif', 'jetbrains', 'gc-beluga']);
+function fontChoice() {
+  const saved = localStorage.getItem(LS_FONT);
+  return FONT_CHOICES.has(saved) ? saved : 'default';
+}
+function applyFont(font) {
+  const choice = FONT_CHOICES.has(font) ? font : 'default';
+  document.body.classList.remove(...[...FONT_CHOICES].map((name) => `font-${name}`));
+  document.body.classList.add(`font-${choice}`);
+}
+function renderFontPills() {
+  const choice = fontChoice();
+  document.querySelectorAll('#fontPills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.font === choice);
   });
 }
 
@@ -1645,9 +1831,20 @@ function renderChromePills() {
 // changes or on boot. Reuses the same canvas; the previous controller is
 // destroyed first (particles has no destroy — optional chaining handles it).
 function mountBackground() {
+  teardownBgMedia();
+  // Custom media needs the desktop bridge (bytes come from main). Without it,
+  // calling mountCustomBackground() → mountBackground() looped forever and
+  // blew the stack (RangeError on boot in the browser preview, and any custom
+  // bg choice could wedge boot). Guard: only branch when the bridge exists;
+  // otherwise fall through to the animated background.
+  if (bgCustom() && window.vaultAPI && window.vaultAPI.getBackground) {
+    mountCustomBackground();
+    return;
+  }
   if (bgCtrl) bgCtrl.destroy?.();
   const canvas = $('authBg');
   if (!canvas) { bgCtrl = null; return; }
+  canvas.style.display = 'block';
   bgCtrl = bgChoice() === 'particles'
     ? initParticles(canvas)
     : initWormhole(canvas);
@@ -1708,6 +1905,7 @@ function wire() {
   initWindowControls();
 
   wireReorder();
+  wireWindowDrop(); // file drops land anywhere on the window, not just the grid
   $('welcomeCreateBtn').addEventListener('click', () => show('create'));
   $('welcomeOpenBtn').addEventListener('click', async () => {
     if (!window.vaultAPI) return; // browser preview without the desktop bridge
@@ -1793,16 +1991,15 @@ function wire() {
   const grid = $('grid');
   ['dragover', 'dragenter'].forEach((ev) => grid.addEventListener(ev, (e) => { e.preventDefault(); grid.classList.add('over'); }));
   ['dragleave', 'drop'].forEach((ev) => grid.addEventListener(ev, (e) => { e.preventDefault(); grid.classList.remove('over'); }));
-  grid.addEventListener('drop', (e) => {
-    if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]);
-  });
+  grid.addEventListener('drop', (e) => { handleImportDrop(e); });
   // same drag-to-import on the phantom gallery container
   const gal = $('phantomGallery');
   gal.addEventListener('dragover', (e) => { e.preventDefault(); });
   gal.addEventListener('drop', (e) => {
     e.preventDefault();
-    if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]);
+    handleImportDrop(e);
   });
+  if ($('galleryExitBtn')) $('galleryExitBtn').addEventListener('click', () => toggleGallery());
 
   $('settingsBackBtn').addEventListener('click', () => show('unlocked'));
   $('itemBackBtn').addEventListener('click', closeItemOverlay);
@@ -1891,13 +2088,52 @@ function wire() {
       toast(p.dataset.theme === 'mono' ? 'theme: mono' : 'theme: cream');
     });
   });
-  document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
+  document.querySelectorAll('#fontPills .vault-pill').forEach((p) => {
     p.addEventListener('click', () => {
-      localStorage.setItem(LS_BG, p.dataset.bg);
+      localStorage.setItem(LS_FONT, p.dataset.font);
+      applyFont(p.dataset.font);
+      renderFontPills();
+      const labels = {
+        default: 'font: theme default', cormorant: 'font: cormorant',
+        'dm-serif': 'font: dm serif', jetbrains: 'font: jetbrains',
+        'gc-beluga': 'font: gc beluga',
+      };
+      toast(labels[p.dataset.font] || 'font changed');
+    });
+  });
+  document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
+    p.addEventListener('click', async () => {
+      const kind = p.dataset.bg;
+      if (kind === 'image' || kind === 'video') {
+        if (!window.vaultAPI || !window.vaultAPI.pickBackground) {
+          toast('pick an image or video background in the app');
+          return;
+        }
+        const picked = await window.vaultAPI.pickBackground();
+        if (!picked) return; // canceled — keep the previous choice
+        localStorage.setItem(LS_BG, picked);
+      } else {
+        localStorage.setItem(LS_BG, kind);
+      }
       renderBgPills();
       mountBackground();
-      toast(p.dataset.bg === 'particles' ? 'background: particles' : 'background: wormhole');
+      const b = localStorage.getItem(LS_BG);
+      const label = b === 'particles' ? 'background: particles'
+        : b === 'image' ? 'background: image'
+        : b === 'video' ? 'background: video'
+        : 'background: wormhole';
+      toast(label);
     });
+  });
+  $('bgChoose').addEventListener('click', () => {
+    document.querySelector('#bgPills .vault-pill[data-bg="image"]').click();
+  });
+  $('bgClear').addEventListener('click', async () => {
+    if (window.vaultAPI && window.vaultAPI.clearBackground) await window.vaultAPI.clearBackground();
+    localStorage.setItem(LS_BG, 'wormhole');
+    renderBgPills();
+    mountBackground();
+    toast('background: wormhole');
   });
   document.querySelectorAll('#chromePills .vault-pill').forEach((p) => {
     p.addEventListener('click', () => {
@@ -1917,8 +2153,39 @@ function wire() {
         ensureGalleryController();
         populateGallery();
       }
-      toast(p.dataset.gallery === 'drift' ? 'gallery style: drift' : 'gallery style: phantom');
+      const GALLERY_LABELS = { phantom: 'phantom', 'phantom-v2': 'phantom v4', drift: 'drift' };
+      toast('gallery style: ' + (GALLERY_LABELS[p.dataset.gallery] || p.dataset.gallery));
     });
+  });
+
+  // phantom wall grid x:y + scale — apply live to an open gallery, persist debounced
+  let pgSaveTimer = 0;
+  function applyPgGridChange() {
+    const c = parseInt(document.getElementById('pgColsInput').value, 10);
+    const r = parseInt(document.getElementById('pgRowsInput').value, 10);
+    const s = parseFloat(document.getElementById('pgScaleInput').value) / 100;
+    if (!state.manifest) state.manifest = { prefs: {} };
+    if (!state.manifest.prefs) state.manifest.prefs = {};
+    state.manifest.prefs.pgCols = Number.isFinite(c) ? Math.max(1, Math.min(16, c)) : 5;
+    state.manifest.prefs.pgRows = Number.isFinite(r) ? Math.max(0, Math.min(30, r)) : 0;
+    state.manifest.prefs.pgScale = Number.isFinite(s) ? Math.max(0.5, Math.min(2.5, s)) : 1;
+    renderPgGridSettingsInputs(); // normalize what the user typed
+    clearTimeout(pgSaveTimer);
+    pgSaveTimer = setTimeout(() => { try { saveVault(); } catch (e) { /* preview has no vault */ } }, 300);
+    // live-apply to an open gallery wall
+    if (state.galleryMode && galleryStyleChoice() === 'phantom-v2') {
+      destroyGallery();
+      ensureGalleryController();
+      populateGallery();
+    }
+    const p = pgGridPrefs();
+    toast('phantom grid: ' + p.cols + ' × ' + (p.rows || 'auto') + ' · ' + Math.round(p.scale * 100) + '%');
+  }
+  const $g = (id) => document.getElementById(id);
+  ['input', 'change'].forEach((ev) => {
+    $g('pgColsInput').addEventListener(ev, applyPgGridChange);
+    $g('pgRowsInput').addEventListener(ev, applyPgGridChange);
+    $g('pgScaleInput').addEventListener(ev, applyPgGridChange);
   });
   $('vaultPathLine').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('revealBtn').addEventListener('click', () => window.vaultAPI.reveal(state.path));
@@ -1963,6 +2230,12 @@ function wire() {
       if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
       return;
     }
+    // immersive gallery: Esc exits (the floating exit pill works too)
+    if (state.galleryMode && e.key === 'Escape') {
+      e.preventDefault();
+      toggleGallery();
+      return;
+    }
     if (e.key === 'g' || e.key === 'G') {
       e.preventDefault();
       toggleGallery();
@@ -1991,10 +2264,12 @@ async function boot() {
   wire();
   renderIdlePills();
   renderThemePills();
+  renderFontPills();
   renderBgPills();
   renderChromePills();
   renderGalleryPills();
   applyTheme(themeChoice());
+  applyFont(fontChoice());
   applyChrome(chromeChoice());
   ensureIO();
   mountBackground();
