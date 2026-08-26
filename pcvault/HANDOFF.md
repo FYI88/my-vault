@@ -1,5 +1,7 @@
 # My Vault — offline encrypted photo vault for PC
 
+> **SECURITY AUDIT — 2026-08-26.** Full strix 1.5.3 agent scan (semgrep + gitleaks + ast-grep SAST, plus authz / injection / web-input / dependency / runtime agents) ran against the whole codebase and found **zero vulnerabilities** — `findings.sarif` 0 results. SAST tools pre-baked into a custom sandbox image (`strix-sandbox-tools:1.3.0`, built from `~/.strix/Dockerfile.sandbox` — Kali's apt can't install semgrep/etc.). Combined with the Aug 18–21 audit (0 critical), **all 10 SEC findings are resolved in current source** (SEC-005 stays a documented design tradeoff: videos/docs keep metadata by design).
+>
 > **SAVE POINT — built 2026-08-18.** A working portable EXE exists: `pcvault/dist/my-vault-portable.exe` (90 MB, unsigned — SmartScreen will warn, "more info → run anyway"). Run from source with `npm start`; test with `npm test`.
 >
 > **REBUILT 2026-08-19.** `node_modules` + `dist` were dropped when the project was re-imported. Restored with a portable Node 22.23.2 (win-x64) in `../.tools/node-v22.23.2-win-x64` (this machine has no system Node), `npm ci` (284 pkgs, 0 vulns), all tests green, EXE rebuilt to **86 MB**. SEC-007/008/009/010 are now resolved in source (see Audit).

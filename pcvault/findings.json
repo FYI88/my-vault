@@ -10,6 +10,7 @@
       "osv_findings": "tools/osv-check.py — 240 pinned dependencies checked, no known vulnerabilities found (live API reachable this run)",
       "grep_engine": "python re (run-greps.py)",
       "grep_truncated": false,
+      "strix_2026_08_26": "strix 1.5.3 full agent scan (semgrep + gitleaks + ast-grep SAST, plus authz/injection/web-input/dependency/runtime agents) — 0 findings (semgrep 0, gitleaks 0, ast-grep 3,561 structural matches triaged; all agents completed). Run: strix_runs/pcvault_127b. SAST tools pre-baked into custom sandbox image (strix-sandbox-tools:1.3.0) because Kali's apt cannot install them.",
       "dynamic": "dev server (server.mjs) observed live via preview browser: zero CSP violations, zero third-party requests, zero mixed content; Electron shell boot probe: boot ok, zero renderer errors. Dev-server response headers inspected via curl -I: no CSP/frame-ancestors/nosniff (see SEC-009). Traversal probes fired against live server: raw ../ and %2e%2e collapsed by WHATWG URL parser (404), backslash %5c variant tripped the startsWith boundary (403)"
     }
   },
@@ -129,7 +130,8 @@
       "why_works": "The sampled plaintext is zeroed the moment the authenticity check passes, so no decrypted photo bytes linger after unlock.",
       "poc": "None — memory-hygiene gap only, no attacker control.",
       "verified": "static-only",
-      "status": "open",
+      "status": "resolved",
+      "resolution": "vaultWipeRaw(plain) added right after the sampled photo decrypt in tamperSample (src/vault-crypto.mjs) — the sampled plaintext is zeroed immediately instead of lingering until GC. Verified in current source.",
       "chain": null
     },
     {
@@ -145,7 +147,8 @@
       "why_works": "A failed save leaves no copy of the vault behind — only the intact original remains.",
       "poc": "None — requires a failing rename (lock/disk-full), and the orphan is encrypted.",
       "verified": "static-only",
-      "status": "open",
+      "status": "resolved",
+      "resolution": "writeFileAtomic now wraps the rename in try/catch and unlinks the .tmp-* file on failure before rethrowing (main.js). Verified in current source.",
       "chain": null
     },
     {
@@ -161,7 +164,8 @@
       "why_works": "The browser-served copy then matches the Electron shell's framing and sniffing protections.",
       "poc": "Observed live: curl -I http://127.0.0.1:8779/ → only content-type returned. No frame-ancestors on any response.",
       "verified": "live-browser",
-      "status": "open",
+      "status": "resolved",
+      "resolution": "server.mjs now sends SECURITY_HEADERS (full hardened CSP incl. frame-ancestors 'none' + X-Content-Type-Options: nosniff) on every dev response. Verified in current source.",
       "chain": null
     },
     {
@@ -177,7 +181,8 @@
       "why_works": "A bound converts a hostile-file memory spike into a clean rejection.",
       "poc": "None built — static reasoning only; a generated 200k-record file would demonstrate the spike.",
       "verified": "static-only",
-      "status": "open",
+      "status": "resolved",
+      "resolution": "parseVault now enforces MAX_RECORDS = 100000 and returns null (clean rejection) once the cap is hit (src/container.mjs), covered by the container test suite. Verified in current source.",
       "chain": null
     },
     {
