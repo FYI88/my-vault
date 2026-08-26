@@ -2,7 +2,9 @@
 
 # My Vault
 
-**Zero-knowledge, offline encrypted photo & document vault with an interactive living journal and dual Electron + Tauri desktop shells.**
+**Offline zero-knowledge encrypted vault for photos, videos, documents, and journal entries.**
+
+**Windows desktop app (Electron + Tauri), built for private local-first storage.**
 
 One encrypted file holds everything — photos, videos, documents, PDFs, and encrypted journals.  
 *Nothing ever leaves your PC. No cloud. No network. Just you and your vault.*
@@ -14,8 +16,23 @@ One encrypted file holds everything — photos, videos, documents, PDFs, and enc
 ![Tauri](https://img.shields.io/badge/Tauri-v2%20(Rust)-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
 ![Electron](https://img.shields.io/badge/Electron-43.0-47848f?style=for-the-badge&logo=electron&logoColor=white)
 ![Security](https://img.shields.io/badge/Security-AES--256--GCM-107c41?style=for-the-badge&logo=shield&logoColor=white)
+![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial-1f6feb?style=for-the-badge)
 
 </div>
+
+---
+
+## App Preview
+
+![My Vault lock screen](docs/images/lock-screen.png)
+
+## Quick Start
+
+```bash
+git clone https://github.com/FYI88/my-vault.git
+cd my-vault/pcvault
+npm ci && npm start
+```
 
 ---
 
