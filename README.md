@@ -52,6 +52,15 @@ npm ci && npm start
 
 ---
 
+## Planned Features
+
+- Optional **Windows Hello quick unlock (session-only)** with configurable window
+  (`10 / 20 / 30 min`) after one root passphrase unlock.
+
+See `FUTURE_USES.md` for the roadmap note and security model.
+
+---
+
 ## System Capabilities
 
 | Feature Module | Technical Specification |
