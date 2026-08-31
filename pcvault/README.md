@@ -108,6 +108,9 @@ npm run dist
 npx tauri build
 ```
 
+> **Android build:** install & feature guide in
+> [`../docs/ANDROID.md`](../docs/ANDROID.md).
+
 ### 5. Test Suite Verification
 ```bash
 npm test

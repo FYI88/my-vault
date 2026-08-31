@@ -42,5 +42,14 @@
     exists: (p) => invoke('exists', { p }),
     getLastPath: () => invoke('get_last_path'),
     forgetPath: () => invoke('forget_path'),
+    // Custom lock-screen background (image/video) — same contract as Electron.
+    pickBackground: () => invoke('pick_background'),
+    clearBackground: () => invoke('clear_background'),
+    getBackground: async () => {
+      const r = await invoke('get_background');
+      if (!r) return null;
+      // bytes cross IPC as base64; decode back to a Uint8Array for the Blob
+      return { kind: r.kind, name: r.name, bytes: b64ToBytes(r.bytes) };
+    },
   };
 })();

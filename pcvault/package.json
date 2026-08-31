@@ -11,7 +11,8 @@
     "start": "electron .",
     "dev": "node server.mjs",
     "test": "node test/crypto.test.mjs && node test/container.test.mjs && node test/journal.test.mjs",
-    "dist": "electron-builder --win portable"
+    "dist": "electron-builder --win portable",
+    "tauri": "tauri"
   },
   "build": {
     "appId": "com.pcvault.app",
