@@ -173,6 +173,16 @@ function refreshPathLines() {
   $('settingsPathLine').textContent = state.path || '';
 }
 
+function activeScreenName() {
+  const active = document.querySelector('.screen.active');
+  return active ? active.id.replace('screen-', '') : '';
+}
+
+function isTextEditingTarget(target) {
+  const tag = ((target && target.tagName) || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || (target && target.isContentEditable);
+}
+
 // ---- vault file ----
 async function saveVault() {
   if (!state.path || !state.manifest) return;
@@ -681,27 +691,11 @@ function toggleGallery() {
   if (state.galleryMode) {
     if (!state.phantomGallery) {
       state.phantomGallery = createPhantomGallery($('phantomGallery'), {
-<<<<<<< HEAD
         backgroundColor: '#fbf6f3', // the vault cream — the page's own color
         cellSize: 240,
         gap: 20,
         parallaxStrength: 0.06,
         parallaxEase: 0.12,
-=======
-        backgroundColor: '#171014',
-        textColor: '#808080',
-        border: { width: 1, style: 'solid', color: '#e9dcd8', showTop: false, showBottom: true, showLeft: true, showRight: true },
-        hoverColor: 'rgba(196,123,131,0.35)',
-        cellSize: 220,
-        gap: 12,
-        cellPadding: 10,
-        arcAmount: 0.5,
-        arcMaxAngleDeg: 24,
-        arcAxis: 'horizontal',
-        edgeFade: 0.2,
-        parallaxStrength: 0.08,
-        parallaxWhileDragging: false,
->>>>>>> origin/master
         throwFriction: 0.92,
         throwVelocityScale: 1,
         onItemClick: (item) => openItem(item.id),
@@ -1339,6 +1333,34 @@ function renderIdlePills() {
   });
 }
 
+function openSettingsScreen() {
+  refreshPathLines();
+  renderIdlePills();
+  renderBgPills();
+  setErr('changeErr', '');
+  setOk('changeOk', '');
+  setErr('rotateErr', '');
+  show('settings');
+}
+
+function setSettingsCardCollapsed(card, collapsed) {
+  card.classList.toggle('collapsed', collapsed);
+  const toggle = card.querySelector('.vault-sec-toggle');
+  if (toggle) toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+}
+
+function wireSettingsCards() {
+  const cards = [...document.querySelectorAll('#screen-settings .vault-sec-card')];
+  cards.forEach((card, idx) => {
+    setSettingsCardCollapsed(card, idx !== 0);
+    const toggle = card.querySelector('.vault-sec-toggle');
+    if (!toggle) return;
+    toggle.addEventListener('click', () => {
+      setSettingsCardCollapsed(card, !card.classList.contains('collapsed'));
+    });
+  });
+}
+
 // ---- background picker (wormhole vs particles) ----
 function bgChoice() {
   return localStorage.getItem(LS_BG) === 'particles' ? 'particles' : 'wormhole';
@@ -1378,6 +1400,7 @@ function updateMeter(input) {
 // ---- wiring ----
 function wire() {
   wireReorder();
+  wireSettingsCards();
   $('welcomeCreateBtn').addEventListener('click', () => show('create'));
   $('welcomeOpenBtn').addEventListener('click', async () => {
     if (!window.vaultAPI) return; // browser preview without the desktop bridge
@@ -1461,14 +1484,7 @@ function wire() {
     if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]);
   });
 
-  $('settingsBtn').addEventListener('click', () => {
-    refreshPathLines();
-    renderIdlePills();
-    renderBgPills();
-    setErr('changeErr', ''); setOk('changeOk', '');
-    setErr('rotateErr', '');
-    show('settings');
-  });
+  $('settingsBtn').addEventListener('click', openSettingsScreen);
   $('settingsBackBtn').addEventListener('click', () => show('unlocked'));
   $('lockBtn').addEventListener('click', lock);
   $('itemBackBtn').addEventListener('click', closeItemOverlay);
@@ -1576,11 +1592,42 @@ function wire() {
     inp.addEventListener('input', () => updateMeter(inp));
   });
 
-  // keyboard shortcuts: Esc/←/→/F drive the viewer; G toggles the gallery view
+  // keyboard shortcuts
   window.addEventListener('keydown', (e) => {
+    const key = (e.key || '').toLowerCase();
+    const hasCmd = e.ctrlKey || e.metaKey;
+
+    // lock hotkey is global while unlocked: it should work even while typing.
+    if (state.unlocked && hasCmd && !e.altKey && !e.shiftKey && key === 'l') {
+      e.preventDefault();
+      lock();
+      toast('locked');
+      return;
+    }
+
+    // Esc should back out of transient locked-screen UI too.
+    if (!state.unlocked && e.key === 'Escape') {
+      if (!$('seedRecoveryForm').classList.contains('hidden')) {
+        setHidden('seedRecoveryForm', true);
+        setHidden('seedRecoveryLink', false);
+        setErr('seedRecoveryErr', '');
+      } else if (activeScreenName() === 'create') {
+        show('welcome');
+      }
+      return;
+    }
+
     if (!state.unlocked) return;
-    const tag = (e.target.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+
+    if (hasCmd && !e.altKey && e.key === 'Tab' && !viewerOpen()) {
+      e.preventDefault();
+      if (activeScreenName() === 'settings') show('unlocked');
+      if (state.journalTab) showVaultTab(); else showJournalTab();
+      return;
+    }
+
+    if (isTextEditingTarget(e.target)) return;
+
     if (viewerOpen()) {
       if (e.key === 'Escape') {
         if (!document.fullscreenElement) closeItemOverlay();
@@ -1592,6 +1639,35 @@ function wire() {
       if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
       return;
     }
+
+    if (e.key === 'Escape') {
+      if (activeScreenName() === 'settings') { show('unlocked'); return; }
+      if (state.journalTab) { showVaultTab(); return; }
+      if (state.galleryMode) { toggleGallery(); return; }
+      if (state.searchQuery) { clearSearch(); renderGrid(); return; }
+    }
+
+    if (hasCmd && !e.altKey && !e.shiftKey && key === 'f') {
+      e.preventDefault();
+      const input = state.journalTab ? $('journalSearchInput') : $('searchInput');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+      return;
+    }
+
+    if (hasCmd && !e.altKey && !e.shiftKey && e.key === ',') {
+      e.preventDefault();
+      openSettingsScreen();
+      return;
+    }
+
+    if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+      toast('shortcuts: Ctrl/Cmd+L lock, Ctrl/Cmd+F search, Ctrl/Cmd+, settings, Ctrl/Cmd+Tab switch tabs, G gallery, Esc back');
+      return;
+    }
+
     if (e.key === 'g' || e.key === 'G') {
       e.preventDefault();
       toggleGallery();

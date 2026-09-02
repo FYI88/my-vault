@@ -239,58 +239,83 @@
     </div>
 
     <div class="vault-sec-card">
-      <h3 class="vault-sec-title">change passphrase</h3>
-      <p class="vault-sub">enter your recovery words to confirm you can still get back in.</p>
-      <form id="changeForm" class="vault-form" autocomplete="off">
-        <input type="password" id="changeCur" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
-        <input type="password" id="changeNew" class="vault-input" data-meter="changeMeter" placeholder="new passphrase" autocomplete="new-password" required>
-        <div class="vault-meter" id="changeMeter"><i></i><i></i><i></i><i></i></div>
-        <input type="password" id="changeNew2" class="vault-input" placeholder="repeat the new one" autocomplete="new-password" required>
-        <textarea id="changeSeed" rows="2" class="vault-input vault-seed-input" placeholder="your recovery words" required></textarea>
-        <p class="vault-error" id="changeErr"></p>
-        <p class="vault-ok" id="changeOk"></p>
-        <button type="submit" class="add-btn vault-btn">change passphrase</button>
-      </form>
-    </div>
-
-    <div class="vault-sec-card">
-      <h3 class="vault-sec-title">new recovery words</h3>
-      <p class="vault-sub">make a fresh set of recovery words. the old ones stop working once you save the new ones.</p>
-      <form id="rotateForm" class="vault-form" autocomplete="off">
-        <input type="password" id="rotatePass" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
-        <p class="vault-error" id="rotateErr"></p>
-        <button type="submit" class="add-btn vault-btn">make new words</button>
-      </form>
-    </div>
-
-    <div class="vault-sec-card">
-      <h3 class="vault-sec-title">auto-lock</h3>
-      <p class="vault-sub">the vault locks itself after you walk away.</p>
-      <div class="vault-pills" id="idlePills">
-        <button class="vault-pill" data-min="0">off</button>
-        <button class="vault-pill" data-min="1">1 min</button>
-        <button class="vault-pill" data-min="5">5 min</button>
-        <button class="vault-pill" data-min="15">15 min</button>
+      <button type="button" class="vault-sec-toggle" aria-expanded="true">
+        <h3 class="vault-sec-title">change passphrase</h3>
+        <span class="vault-sec-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="vault-sec-body">
+        <p class="vault-sub">enter your recovery words to confirm you can still get back in.</p>
+        <form id="changeForm" class="vault-form" autocomplete="off">
+          <input type="password" id="changeCur" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
+          <input type="password" id="changeNew" class="vault-input" data-meter="changeMeter" placeholder="new passphrase" autocomplete="new-password" required>
+          <div class="vault-meter" id="changeMeter"><i></i><i></i><i></i><i></i></div>
+          <input type="password" id="changeNew2" class="vault-input" placeholder="repeat the new one" autocomplete="new-password" required>
+          <textarea id="changeSeed" rows="2" class="vault-input vault-seed-input" placeholder="your recovery words" required></textarea>
+          <p class="vault-error" id="changeErr"></p>
+          <p class="vault-ok" id="changeOk"></p>
+          <button type="submit" class="add-btn vault-btn">change passphrase</button>
+        </form>
       </div>
     </div>
 
     <div class="vault-sec-card">
-      <h3 class="vault-sec-title">background</h3>
-      <p class="vault-sub">the living backdrop on the lock screen.</p>
-      <div class="vault-pills" id="bgPills">
-        <button class="vault-pill" data-bg="wormhole">wormhole</button>
-        <button class="vault-pill" data-bg="particles">particles</button>
+      <button type="button" class="vault-sec-toggle" aria-expanded="false">
+        <h3 class="vault-sec-title">new recovery words</h3>
+        <span class="vault-sec-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="vault-sec-body">
+        <p class="vault-sub">make a fresh set of recovery words. the old ones stop working once you save the new ones.</p>
+        <form id="rotateForm" class="vault-form" autocomplete="off">
+          <input type="password" id="rotatePass" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
+          <p class="vault-error" id="rotateErr"></p>
+          <button type="submit" class="add-btn vault-btn">make new words</button>
+        </form>
       </div>
     </div>
 
     <div class="vault-sec-card">
-      <h3 class="vault-sec-title">your vault file</h3>
-      <p class="vault-fileline" id="settingsPathLine"></p>
-      <div class="vault-btn-row">
-        <button id="revealBtn" class="add-btn ghost">show in folder</button>
-        <button id="backupBtn" class="add-btn">back up a copy…</button>
+      <button type="button" class="vault-sec-toggle" aria-expanded="false">
+        <h3 class="vault-sec-title">auto-lock</h3>
+        <span class="vault-sec-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="vault-sec-body">
+        <p class="vault-sub">the vault locks itself after you walk away.</p>
+        <div class="vault-pills" id="idlePills">
+          <button class="vault-pill" data-min="0">off</button>
+          <button class="vault-pill" data-min="1">1 min</button>
+          <button class="vault-pill" data-min="5">5 min</button>
+          <button class="vault-pill" data-min="15">15 min</button>
+        </div>
       </div>
-      <p class="vault-ok" id="backupOk"></p>
+    </div>
+
+    <div class="vault-sec-card">
+      <button type="button" class="vault-sec-toggle" aria-expanded="false">
+        <h3 class="vault-sec-title">background</h3>
+        <span class="vault-sec-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="vault-sec-body">
+        <p class="vault-sub">the living backdrop on the lock screen.</p>
+        <div class="vault-pills" id="bgPills">
+          <button class="vault-pill" data-bg="wormhole">wormhole</button>
+          <button class="vault-pill" data-bg="particles">particles</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="vault-sec-card">
+      <button type="button" class="vault-sec-toggle" aria-expanded="false">
+        <h3 class="vault-sec-title">your vault file</h3>
+        <span class="vault-sec-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="vault-sec-body">
+        <p class="vault-fileline" id="settingsPathLine"></p>
+        <div class="vault-btn-row">
+          <button id="revealBtn" class="add-btn ghost">show in folder</button>
+          <button id="backupBtn" class="add-btn">back up a copy…</button>
+        </div>
+        <p class="vault-ok" id="backupOk"></p>
+      </div>
     </div>
   </section>
 

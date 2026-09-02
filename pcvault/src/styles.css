@@ -833,6 +833,46 @@ textarea.vault-input {
   box-shadow: var(--shadow);
 }
 
+.vault-sec-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.vault-sec-caret {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+
+.vault-sec-body {
+  overflow: hidden;
+  max-height: 1000px;
+  opacity: 1;
+  margin-top: 0.4rem;
+  transition: max-height 0.24s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+
+.vault-sec-card.collapsed .vault-sec-body {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+}
+
+.vault-sec-card.collapsed .vault-sec-caret {
+  transform: rotate(-90deg);
+}
+
 .vault-sec-title {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.62rem;
@@ -1123,7 +1163,7 @@ body.gallery-mode .wrap {
   transition: opacity 0.35s ease;
 }
 
-<<<<<<< HEAD .viewer-top {
+.viewer-top {
   top: 0;
   justify-content: space-between;
   background: linear-gradient(rgba(23, 16, 20, 0.72), rgba(23, 16, 20, 0));
@@ -1377,7 +1417,6 @@ body.gallery-mode .wrap {
   margin-top: 0.2rem;
 }
 
-=======
 
 /* ----- journal (living garden) ----- */
 .vault-tabs {
@@ -1575,5 +1614,3 @@ body.gallery-mode .wrap {
 .journal-onthisday {
   margin-top: 0.8rem;
 }
-
->>>>>>>origin/master

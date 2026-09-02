@@ -24,6 +24,7 @@ function mimeFor(p) {
   if (ext === '.css') return 'text/css';
   if (ext === '.js' || ext === '.mjs') return 'text/javascript';
   if (ext === '.png') return 'image/png';
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
   if (ext === '.svg') return 'image/svg+xml';
   if (ext === '.woff2') return 'font/woff2';
   if (ext === '.json') return 'application/json';
@@ -43,17 +44,13 @@ function createWindow() {
     minWidth: 420,
     minHeight: 600,
     icon: fs.existsSync(APP_ICON) ? APP_ICON : undefined,
-    backgroundColor: '#fbf6f3', // --cream — no flash of a different tone behind the page
+    backgroundColor: '#09090b', // obsidian dark theme
     title: 'My Vault',
     autoHideMenuBar: true,
-    // Hidden native title bar + color-matched overlay: the close/maximize/minimize
-    // buttons stay NATIVE (drawn by Windows) but sit on a cream band instead of
-    // the OS dark-mode black bar. The .win-drag strip in styles.css makes the band
-    // draggable (double-click maximizes, standard drag behavior).
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#f2eae5',      // slightly darker than --cream (#fbf6f3) — reads as chrome, not a seam
-      symbolColor: '#4a3f42', // --text
+      color: '#121215',      // dark obsidian chrome
+      symbolColor: '#f4f4f5', // white icons
       height: 40,
     },
     webPreferences: {
