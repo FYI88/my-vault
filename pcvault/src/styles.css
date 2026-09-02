@@ -147,6 +147,11 @@ body {
   pointer-events: none;
   display: block;
 }
+#authBgMedia{
+  position:fixed; inset:0; z-index:0; width:100%; height:100%;
+  object-fit:cover; pointer-events:none; display:block;
+  background:var(--bg);
+}
 
 /* ----- screens ----- */
 .screen {
@@ -1014,6 +1019,18 @@ textarea.vault-input {
   transform: translate(-50%, 0);
 }
 
+/* gallery mode is full-bleed: the gallery becomes a fixed stage covering the
+   whole window (under the transparent titlebar, so the window controls stay
+   live) — no page chrome peeks around it, the dark stage IS the screen (the
+   way the demo looks). Exit via the floating pill, Esc, or G. */
+body.gallery-mode{ padding:0; overflow:hidden; background:#171014; }
+body.gallery-mode .wrap{ max-width:none; padding:0; }
+body.gallery-mode .vault-tabs,
+body.gallery-mode .action-sidebar,
+body.gallery-mode #vaultPathLine,
+body.gallery-mode #searchRow,
+body.gallery-mode #searchCount{ display:none; }
+
 /* ----- phantom infinite gallery ----- */
 /* gallery mode is full-bleed: no page padding, no max-width, no card — the
    grid IS the page (that's what "integrated" means). The header/search keep
@@ -1046,6 +1063,139 @@ body.gallery-mode .wrap {
 #galleryToggleBtn.on {
   color: var(--rose-dark);
   background: rgba(196, 123, 131, 0.15);
+}
+
+/* in immersive gallery mode the top bar hides — it reappears at full opacity
+   when the mouse reaches the top edge (the strip stays hit-testable so the
+   hover + the window controls inside it still work). */
+body.gallery-mode .titlebar{
+  opacity:0 !important;
+  pointer-events:auto;
+  height:46px; /* a slightly taller hit strip than the 34px bar */
+  background:rgba(20,20,22,0.55) !important;
+  border-bottom-color:rgba(255,255,255,0.08) !important;
+  transition:opacity 0.22s ease, background 0.22s ease;
+}
+body.gallery-mode .titlebar:hover,
+body.gallery-mode .titlebar:focus-within{
+  opacity:1 !important;
+  background:rgba(20,20,22,0.92) !important;
+}
+body.gallery-mode .titlebar *{ pointer-events:auto; }
+
+/* phantom wall grid x:y + scale controls (shown when phantom v4 is the style) */
+.pg-grid-settings{
+  margin-top:0.8rem;
+  display:flex; flex-direction:column; gap:0.55rem;
+  padding-top:0.7rem; border-top:1px solid var(--border);
+}
+.pg-setting-row{
+  display:flex; align-items:center; gap:0.5rem;
+  font-family:'JetBrains Mono',monospace; font-size:0.68rem;
+}
+.pg-setting-label{
+  width:5.2rem; flex:none; color:var(--text-soft);
+  letter-spacing:0.04em;
+}
+.pg-grid-num{
+  width:3.2rem;
+  background:var(--card); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); font-family:'JetBrains Mono',monospace; font-size:0.7rem;
+  padding:0.32rem 0.4rem; text-align:center;
+}
+.pg-grid-num:focus{ outline:1px solid var(--rose-dark); }
+.pg-setting-x{ color:var(--text-soft); }
+.pg-scale{
+  flex:1; min-width:0; accent-color:var(--rose-dark);
+}
+.pg-scale-val{
+  flex:none; width:3rem; text-align:right;
+  color:var(--text-soft); font-family:'JetBrains Mono',monospace;
+}
+
+/* floating exit pill in immersive gallery mode (Esc closes too) */
+.gallery-exit{
+  position:fixed; right:1rem; bottom:1.1rem; z-index:900;
+  display:flex; align-items:center; gap:0.45rem;
+  background:rgba(22,22,26,0.72); border:1px solid rgba(255,255,255,0.09);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  color:#d8d2da; font-family:'JetBrains Mono',monospace; font-size:0.7rem;
+  padding:0.55rem 0.95rem; border-radius:999px; cursor:pointer;
+  box-shadow:0 8px 24px rgba(0,0,0,0.35);
+}
+.gallery-exit:hover{ background:rgba(255,255,255,0.1); }
+.gallery-exit svg{ width:14px; height:14px; }
+
+/* ----- phantom block gallery ----- */
+.drift-wall{
+  /* height/width come from .phantom-gallery / gallery-mode (host #phantomGallery).
+     Don't set them here — the CSS cascade would clobber the correct calc() heights. */
+  position:relative; overflow:hidden;
+  -webkit-mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 var(--dw-edge), transparent 100%),
+    linear-gradient(to top, #000 var(--dw-edge), transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 var(--dw-edge), transparent 100%),
+    linear-gradient(to top, #000 var(--dw-edge), transparent 100%);
+  mask-composite: intersect;
+}
+.drift-wall__plane{
+  position:absolute; top:50%; left:50%;
+  display:flex; flex-direction:row;
+  transform-style:preserve-3d; cursor:pointer;
+  transform-origin:50% 50%; will-change:transform;
+}
+.drift-wall__col{
+  position:relative;
+  width:calc(var(--dw-tile-w, 200px) + var(--dw-gap, 18px));
+  transform-style:preserve-3d;
+}
+.drift-wall__track{
+  display:flex; flex-direction:column;
+  will-change:transform; transform-style:preserve-3d;
+}
+.drift-wall__tile{
+  position:relative; display:block; border:none; padding:0; background:none;
+  width:100%; height:calc(var(--dw-tile-h, 132px) + var(--dw-gap, 18px));
+  flex:0 0 auto; outline:none; transform-style:preserve-3d; cursor:pointer;
+}
+.drift-wall__inner{
+  position:absolute; inset:calc(var(--dw-gap, 18px) / 2);
+  display:block; border-radius:var(--dw-radius, 14px); overflow:hidden;
+  background:#171014; opacity:var(--dw-dim, 0.55);
+  transform:translateZ(0); pointer-events:none;
+  box-shadow:0 6px 22px -10px rgba(0,0,0,0.6);
+  transition:transform 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.42s cubic-bezier(0.22,1,0.36,1), box-shadow 0.42s cubic-bezier(0.22,1,0.36,1);
+}
+.drift-wall__tile img{
+  width:100%; height:100%; object-fit:cover; display:block;
+  filter:grayscale(var(--dw-gray, 0)) saturate(0.92);
+  transition:filter 0.42s cubic-bezier(0.22,1,0.36,1);
+  user-select:none; -webkit-user-drag:none;
+}
+.drift-wall__overlay{
+  position:absolute; inset:0; background:var(--dw-overlay, #171014);
+  opacity:0.42; pointer-events:none;
+  transition:opacity 0.42s cubic-bezier(0.22,1,0.36,1);
+}
+.drift-wall__tile.is-active .drift-wall__inner,
+.drift-wall__tile:focus-visible .drift-wall__inner{
+  opacity:1; transform:translateZ(var(--dw-lift, 64px));
+  box-shadow:0 24px 60px -18px rgba(0,0,0,0.7);
+}
+.drift-wall__tile.is-active img,
+.drift-wall__tile:focus-visible img{ filter:grayscale(0) saturate(1.05); }
+.drift-wall__tile.is-active .drift-wall__overlay,
+.drift-wall__tile:focus-visible .drift-wall__overlay{ opacity:0; }
+@media (prefers-reduced-motion: reduce){
+  .drift-wall__plane,
+  .drift-wall__track{ will-change:auto; }
+}
+@media (prefers-reduced-motion: reduce){
+  .drift-wall__inner,
+  .drift-wall__tile img,
+  .drift-wall__overlay{ transition:none; }
 }
 
 /* ----- item viewer (full-bleed immersive) -----

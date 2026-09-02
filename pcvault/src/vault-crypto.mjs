@@ -141,6 +141,10 @@ export async function createVault(pass, seedPhrase) {
     wrap: { salt: bufToB64(saltP), iv: wrapP.iv, data: wrapP.data },
     seedWrap: { salt: bufToB64(saltS), iv: wrapS.iv, data: wrapS.data },
     tamperIdx: 0, // deterministic tamper-sampling cursor
+    // preferences ride in the header so they travel with the vault file. This
+    // holds nothing secret (it's a UI choice, like tamperIdx); the wrapped keys
+    // below carry all the confidentiality.
+    prefs: { galleryStyle: 'phantom' },
   };
   return { manifest, dekRaw };
 }

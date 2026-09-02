@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">My Vault mark</title>
+  <desc id="desc">An outlined circle crossing a solid circle</desc>
+  <circle cx="98" cy="128" r="68" fill="none" stroke="#101010" stroke-width="10"/>
+  <circle cx="158" cy="128" r="68" fill="#101010"/>
+  <path d="M98 70a58 58 0 0 0 0 116" fill="none" stroke="#fff" stroke-width="4" opacity=".9"/>
+</svg>

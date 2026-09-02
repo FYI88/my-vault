@@ -40,6 +40,8 @@ await t('createVault builds a correct manifest', async () => {
   assert.ok(manifest.wrap.salt && manifest.wrap.iv && manifest.wrap.data);
   assert.ok(manifest.seedWrap.salt && manifest.seedWrap.iv && manifest.seedWrap.data);
   assert.equal(dekRaw.byteLength, 32);
+  // preferences ride in the header and default to 'phantom'
+  assert.ok(manifest.prefs && manifest.prefs.galleryStyle === 'phantom');
 });
 await t('passphrase unlocks and yields a usable 32-byte DEK', async () => {
   const raw = await unlockWithPass(manifest, pass);

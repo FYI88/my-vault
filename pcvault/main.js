@@ -81,10 +81,19 @@ function createWindow() {
   }
 
   win.on('closed', () => { win = null; });
+
+  // Push window state to the renderer so the traffic lights can react:
+  // the green dot swaps to the restore glyph while maximized, and all three
+  // dots desaturate while the window is unfocused (macOS-style).
+  win.on('maximize', () => win.webContents.send('win:maximized', true));
+  win.on('unmaximize', () => win.webContents.send('win:maximized', false));
+  win.on('focus', () => win.webContents.send('win:focused', true));
+  win.on('blur', () => win.webContents.send('win:focused', false));
 }
 
 app.whenReady().then(() => {
   loadVaultPath(); // restore the vault path the user picked in a previous run
+  loadBgPath();    // restore the custom lock-screen background copy
 
   // Serve files from src/ under app://bundle/<file>
   protocol.handle(SCHEME, async (request) => {
@@ -125,6 +134,20 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   app.quit();
 });
+
+// ---- window controls (frameless titlebar) ----------------------------------
+ipcMain.on('win:minimize', () => { if (win) win.minimize(); });
+ipcMain.on('win:toggleMaximize', () => {
+  if (!win) return;
+  if (win.isMaximized()) win.unmaximize();
+  else win.maximize();
+});
+ipcMain.on('win:close', () => { if (win) win.close(); });
+// Initial state, requested by the renderer on boot (events above only fire on change).
+ipcMain.handle('win:getState', () => ({
+  maximized: !!win && win.isMaximized(),
+  focused: !!win && win.isFocused(),
+}));
 
 // ---- Vault file IPC ---------------------------------------------------------
 // Trusted-path model: every path the renderer can hand us must have been minted
@@ -278,3 +301,79 @@ ipcMain.handle('vault:exists', async (_e, p) => {
     return false;
   }
 });
+
+// ---- custom lock-screen background (image or video) ----
+// The chosen file is copied into userData/background/ so it survives even if
+// the original is moved or deleted. Only its copied path is ever used, and
+// only the bytes of that copy are ever returned to the renderer.
+const BG_DIR = () => path.join(app.getPath('userData'), 'background');
+let bgFilePath = null; // copied background file inside BG_DIR
+
+function loadBgPath() {
+  try {
+    const s = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8'));
+    if (typeof s.bgFile === 'string' && s.bgFile) bgFilePath = s.bgFile;
+  } catch (e) { /* first run — no settings yet */ }
+}
+function saveBgPath() {
+  try {
+    fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ vaultPath, bgFile: bgFilePath }));
+  } catch (e) { /* best-effort — never fatal */ }
+}
+
+// Pick an image or video to use as the lock-screen background. Copies it into
+// userData/background so the vault stays self-contained; returns the kind
+// ('image' | 'video') or null if canceled.
+ipcMain.handle('vault:pickBackground', async () => {
+  const r = await dialog.showOpenDialog(win, {
+    title: 'Choose a lock-screen background',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'] },
+      { name: 'Videos', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] },
+    ],
+  });
+  if (r.canceled || !r.filePaths.length) return null;
+  const src = r.filePaths[0];
+  const ext = path.extname(src).toLowerCase();
+  const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']);
+  const kind = IMG_EXT.has(ext) ? 'image' : 'video';
+  try {
+    await fsp.mkdir(BG_DIR(), { recursive: true });
+    const dst = path.join(BG_DIR(), `bg${ext}`);
+    await fsp.copyFile(src, dst);
+    bgFilePath = dst;
+    saveBgPath();
+    return kind;
+  } catch (e) {
+    return null;
+  }
+});
+
+// Remove the custom background (fall back to the animated ones).
+ipcMain.handle('vault:clearBackground', () => {
+  bgFilePath = null;
+  saveBgPath();
+  return true;
+});
+
+// Bytes of the copied background file + its kind, for the renderer to render
+// as a blob URL. null if none is set or the copy is missing.
+ipcMain.handle('vault:getBackground', async () => {
+  if (!bgFilePath) return null;
+  try {
+    await fsp.access(bgFilePath);
+    const buf = await fsp.readFile(bgFilePath);
+    const ext = path.extname(bgFilePath).toLowerCase();
+    const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg']);
+    return {
+      kind: IMG_EXT.has(ext) ? 'image' : 'video',
+      bytes: new Uint8Array(buf),
+      name: path.basename(bgFilePath),
+    };
+  } catch (e) {
+    return null;
+  }
+});
+
+loadBgPath();

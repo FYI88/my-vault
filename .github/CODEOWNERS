@@ -1,0 +1,12 @@
+# Default owner for all files
+* @FYI88
+
+# Security and crypto sensitive paths
+/pcvault/src/vault-crypto.mjs @FYI88
+/pcvault/src/container.mjs @FYI88
+/pcvault/src/journal.mjs @FYI88
+/pcvault/src-tauri/src/lib.rs @FYI88
+/pcvault/main.js @FYI88
+/pcvault/preload.js @FYI88
+/SECURITY.md @FYI88
+/CONTRIBUTING.md @FYI88

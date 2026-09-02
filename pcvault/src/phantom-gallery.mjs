@@ -1,8 +1,22 @@
-// phantom-gallery.mjs — vanilla JS port of PhantomInfiniteGallery
+// phantom-gallery.mjs — vanilla JS port of Framer's PhantomInfiniteGallery
+// https://framer.com/m/PhantomInfiniteGallery-KBne.js@99C8ioUWN1y8Bj2XYLwl
 //
-// Infinite draggable gallery with 3D arc perspective, parallax mouse tracking,
-// inertia/throw physics, and press-to-zoom. Zero dependencies, strict-CSP-safe.
-// Ported from the Framer component; uses plain DOM + requestAnimationFrame.
+// Faithful to the original: an infinite draggable grid whose cells sit on a
+// 3D arc (they curve away toward the edges), each cell bordered and captioned
+// (bold uppercase title on the left, a datum on the right), with parallax,
+// inertia/throw, and press-to-zoom. Zero dependencies, strict-CSP-safe —
+// images are the caller's own `blob:` thumbnails, never a remote CDN.
+//
+// Item shape (vault adaptation of the Framer `{ title, image, year }` contract):
+//   { id, thumbUrl, title, meta, name }
+//   - thumbUrl: background image (blob/data URL)
+//   - title:    short display name (already shortened by the caller)
+//   - meta:     right-hand caption (year for photos, size for docs)
+//   - name:     full name — used only for the hover tooltip
+//
+// Options mirror Framer's property controls 1:1 (cellSize, gap, cellPadding,
+// border {width,style,color,showTop/Bottom/Left/Right}, hoverColor, arcAmount,
+// arcMaxAngleDeg, arcAxis, edgeFade, parallax*, inertia/throw*, zoomValue).
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -10,80 +24,66 @@ const toRad = (deg) => deg * Math.PI / 180;
 
 // ---- device-pixel crispness ----
 // At fractional display scales (125%/150%), 1px CSS borders land between
-// device pixels and alias into thin/cracked/faded lines. Snap every cell to
-// device pixels and size borders in whole device pixels so the white
-// separation lines stay crisp at any DPR.
+// device pixels and alias into thin/cracked lines. Size borders in whole
+// device pixels so the thin separation lines stay crisp at any DPR.
 const dpr = () => (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
 const snapPx = (v) => { const d = dpr(); return Math.round(v * d) / d; };
-const crispBorder = () => Math.max(1, Math.round(dpr())) / dpr();
+const crispBorder = (w = 1) => Math.max(1, Math.round(w * dpr())) / dpr();
 
-// ---- compute a stable world-space offset when cell size changes ----
-function pinnedOffset(prevSize, nextSize, pivot, prevOff) {
-  const wx = (pivot.x - prevOff.x) / prevSize;
-  const wy = (pivot.y - prevOff.y) / prevSize;
+// ---- keep the view stable when the cell size changes (zoom pinning) ----
+function computePinnedOffset(prevSize, nextSize, pivot, prevOffset) {
+  const wx = (pivot.x - prevOffset.x) / prevSize;
+  const wy = (pivot.y - prevOffset.y) / prevSize;
   return { x: pivot.x - wx * nextSize, y: pivot.y - wy * nextSize };
 }
 
-// ---- 3D arc transform per cell ----
-function arcTransform(cx, cy, vw, vh, axis, maxAngleDeg, arcAmt) {
-  const maxA = toRad(maxAngleDeg) * clamp(arcAmt, 0, 1);
-  if (maxA === 0) return { z: 0, yaw: 0, pitch: 0, edge: 0 };
-  if (axis === 'horizontal') {
-    const dx = (cx - vw / 2) / (vw / 2);
-    const a = dx * maxA;
-    const r = vw / (2 * Math.sin(Math.max(0.001, maxA)));
-    const z = -r * (Math.cos(a) - 1);
-    return { z, yaw: -(a * 180) / Math.PI, pitch: 0, edge: Math.min(1, Math.abs(dx)) };
+// ---- 3D arc transform per cell (the signature "phantom" curve) ----
+function calcArcTransform({ cellCenterX, cellCenterY, viewportW, viewportH, arcAxis, arcMaxAngleDeg, arcAmount }) {
+  const maxAngle = toRad(arcMaxAngleDeg) * clamp(arcAmount, 0, 1);
+  if (maxAngle === 0) return { z: 0, yawDeg: 0, pitchDeg: 0, edgeFactor: 0 };
+  if (arcAxis === 'horizontal') {
+    const dx = (cellCenterX - viewportW / 2) / (viewportW / 2); // -1..1
+    const angle = dx * maxAngle;
+    const radius = viewportW / (2 * Math.sin(Math.max(0.001, maxAngle)));
+    const z = -radius * (Math.cos(angle) - 1);
+    const yawDeg = -(angle * 180) / Math.PI;
+    const edgeFactor = Math.min(1, Math.abs(dx));
+    return { z, yawDeg, pitchDeg: 0, edgeFactor };
   }
-  const dy = (cy - vh / 2) / (vh / 2);
-  const a = dy * maxA;
-  const r = vh / (2 * Math.sin(Math.max(0.001, maxA)));
-  const z = -r * (Math.cos(a) - 1);
-  return { z, yaw: 0, pitch: a * 180 / Math.PI, edge: Math.min(1, Math.abs(dy)) };
+  const dy = (cellCenterY - viewportH / 2) / (viewportH / 2);
+  const angle = dy * maxAngle;
+  const radius = viewportH / (2 * Math.sin(Math.max(0.001, maxAngle)));
+  const z = -radius * (Math.cos(angle) - 1);
+  const pitchDeg = angle * 180 / Math.PI;
+  const edgeFactor = Math.min(1, Math.abs(dy));
+  return { z, yawDeg: 0, pitchDeg, edgeFactor };
 }
 
 /**
  * Create a PhantomInfiniteGallery inside `container`.
  *
- * @param {HTMLElement} container — must have a fixed size (e.g. 100% × 100%)
- * @param {Object} opts
- * @param {Array<{id:string, thumbUrl:string, name:string, kind:string, meta?:string}>} opts.items
- * @param {number}  [opts.cellSize=200]
- * @param {number}  [opts.gap=12]
- * @param {number}  [opts.cellPadding=10]
- * @param {string}  [opts.backgroundColor='#000000']
- * @param {string}  [opts.textColor='#808080']
- * @param {string}  [opts.borderColor='#ffffff']
- * @param {number}  [opts.borderWidth=1]
- * @param {boolean} [opts.borderTop=false] — reference shows only bottom/left/right
- * @param {string}  [opts.hoverColor='rgba(255,85,136,0.55)']
- * @param {number}  [opts.arcAmount=0.6]
- * @param {number}  [opts.arcMaxAngleDeg=28]
- * @param {'horizontal'|'vertical'} [opts.arcAxis='horizontal']
- * @param {number}  [opts.edgeFade=0.25]
- * @param {boolean} [opts.parallaxEnabled=true]
- * @param {number}  [opts.parallaxStrength=0.1]
- * @param {number}  [opts.parallaxEase=0.12]
- * @param {boolean} [opts.inertiaEnabled=true]
- * @param {number}  [opts.throwFriction=0.92]
- * @param {number}  [opts.throwMinSpeed=80]
- * @param {number}  [opts.throwMaxSpeed=2500]
- * @param {number}  [opts.zoomValue=0.7]
- * @param {function} [opts.onItemClick] — callback(item) when a cell is clicked
- * @returns {{ destroy():void, setItems(items):void }}
+ * @param {HTMLElement} container — fixed-size host (e.g. 100% × 100%)
+ * @param {Object} opts — see the header for the full option list
+ * @returns {{ destroy():void, setItems(items:Array):void }}
  */
 export function createPhantomGallery(container, opts = {}) {
   const C = Object.assign({
     cellSize: 200, gap: 12, cellPadding: 10,
     backgroundColor: '#000000', textColor: '#808080',
-    borderColor: '#ffffff', borderWidth: 1, borderTop: false,
-    hoverColor: 'rgba(255,85,136,0.55)',
+    borderColor: '#FFFFFF',
+    hoverColor: '#FF5588',
     arcAmount: 0.6, arcMaxAngleDeg: 28, arcAxis: 'horizontal', edgeFade: 0.25,
-    parallaxEnabled: true, parallaxStrength: 0.1, parallaxEase: 0.12,
-    inertiaEnabled: true, throwFriction: 0.92, throwMinSpeed: 80, throwMaxSpeed: 2500,
+    parallaxEnabled: true, parallaxStrength: 0.1, parallaxEase: 0.12, parallaxWhileDragging: false,
+    inertiaEnabled: true, throwFriction: 0.92, throwVelocityScale: 1, throwMinSpeed: 80, throwMaxSpeed: 2500,
     zoomValue: 0.7,
+    idleColor: 'rgba(0, 0, 0, 0.1)',
     onItemClick: null,
   }, opts);
+
+  const border = Object.assign({
+    width: 1, style: 'solid', color: C.borderColor,
+    showTop: false, showBottom: true, showLeft: true, showRight: true,
+  }, opts.border || {});
 
   // ---- state ----
   let items = C.items || [];
@@ -101,40 +101,31 @@ export function createPhantomGallery(container, opts = {}) {
   const velocity = { x: 0, y: 0 };
   const lastMove = { x: 0, y: 0, t: 0 };
   let inertiaActive = false;
-  let pressPos = { x: 0, y: 0 };
+  const pressPos = { x: 0, y: 0 };
   let startOff = { x: 0, y: 0 };
   let pressTimer = null;
   let dragOccurred = false; // the pointer actually dragged since pointerdown
   let zoomOccurred = false; // the press-hold zoom fired since pointerdown
   let viewport = { w: 0, h: 0 };
-  // whole-grid tilt: the grid rotates gently with the cursor (rotateX/Y about
-  // the container center) and pulls back while dragging — replaces the old
-  // per-cell arc, which read as "not geometrical".
-  const tilt = { rx: 0, ry: 0, s: 1 };
-  const tiltTarget = { rx: 0, ry: 0, s: 1 };
 
   // ---- DOM setup ----
-  // width:100% but NOT height:100% — the caller's stylesheet (or a wrapper) owns
-  // the height. Forcing height:100% clobbers .phantom-gallery's fixed height and
-  // collapses the container to 0px when the parent has no intrinsic height.
-  container.style.cssText = `width:100%;background:${C.backgroundColor};position:relative;overflow:hidden;touch-action:none;cursor:grab;user-select:none;perspective:1200px;transform-style:preserve-3d;`;
+  // width:100% but NOT height:100% — the caller's stylesheet owns the height.
+  // Forcing height:100% clobbers .phantom-gallery's fixed height and collapses
+  // the container to 0px when the parent has no intrinsic height.
+  container.style.cssText = `width:100%;background:${C.backgroundColor};overflow:hidden;touch-action:none;cursor:grab;user-select:none;perspective:1000px;transform-style:preserve-3d;`;
+  // The host's class owns position: .phantom-gallery is `relative` by default
+  // and flips to `fixed` full-bleed in gallery mode — never force it inline
+  // (inline beats the stylesheet's gallery-mode fixed).
+  container.style.removeProperty('position');
+  if (getComputedStyle(container).position === 'static') {
+    container.style.position = 'relative';
+  }
   const gridEl = document.createElement('div');
-  gridEl.style.cssText = 'position:absolute;width:100%;height:100%;transform-style:preserve-3d;will-change:transform;';
+  gridEl.style.cssText = 'position:absolute;width:100%;height:100%;transform-style:preserve-3d;';
   container.appendChild(gridEl);
-  // edge-fade vignette — adaptive: dark edges on dark backgrounds (reference
-  // look), a soft shadow on light backgrounds (cream theme) so the curved
-  // screen still reads without turning into gray mud.
+  // edge-fade vignette (Framer's dark radial)
   const vignette = document.createElement('div');
-  const bgLuma = (() => {
-    const m = /^#?([0-9a-f]{6})$/i.exec(C.backgroundColor.trim());
-    if (!m) return 0;
-    const n = parseInt(m[1], 16);
-    return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
-  })();
-  const vg = bgLuma > 0.5
-    ? 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.04) 60%, rgba(0,0,0,0.10) 90%, rgba(0,0,0,0.20) 100%)'
-    : 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0.8) 90%, rgba(0,0,0,1) 100%)';
-  vignette.style.cssText = `position:absolute;inset:0;pointer-events:none;background:${vg};`;
+  vignette.style.cssText = 'position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0.8) 90%, rgba(0,0,0,1) 100%);';
   container.appendChild(vignette);
 
   // ---- viewport tracking ----
@@ -145,76 +136,105 @@ export function createPhantomGallery(container, opts = {}) {
   ro.observe(container);
 
   // ---- grid cell cache ----
-  const cellEls = new Map(); // key → DOM element
+  const cellEls = new Map(); // key → { el, img, t, m }
   const GRID = 20; // 20×20 infinite grid
 
   function cellKey(x, y) { return `${x},${y}`; }
 
-  function makeCell(x, y) {
+  function makeCell() {
     const el = document.createElement('div');
     el.className = 'pgal-cell';
-    // frameless floating tile: no borders, no caption, no padding — just the
-    // photo, rounded like the app's cards, lifted by a soft shadow. This is
-    // the "phantom" look: photos float on the page instead of a bordered grid.
-    el.style.cssText = 'position:absolute;border-radius:14px;overflow:hidden;background:transparent;cursor:pointer;transition:box-shadow 0.25s ease;box-shadow:0 15px 35px rgba(74,63,66,0.18);';
-    const imgWrap = document.createElement('div');
-    const ghost = C.ghostImages !== false
-      ? 'filter:blur(0.6px) saturate(0.9) brightness(0.95);transition:filter 0.3s ease;'
-      : '';
-    imgWrap.style.cssText = `position:absolute;inset:0;background-size:cover;background-position:center;${ghost}`;
-    el.appendChild(imgWrap);
+    const bw = crispBorder(border.width) + 'px';
+    const bLine = (on) => on ? `${bw} ${border.style} ${border.color}` : 'none';
+    el.style.cssText =
+      'position:absolute;box-sizing:border-box;display:flex;flex-direction:column;' +
+      'transform-style:preserve-3d;will-change:transform,opacity,left,top;cursor:pointer;' +
+      'transition:background-color 0.3s ease;';
+    el.style.backgroundColor = C.idleColor;
+    el.style.borderTop = bLine(border.showTop);
+    el.style.borderLeft = bLine(border.showLeft);
+    el.style.borderRight = bLine(border.showRight);
+    el.style.borderBottom = bLine(border.showBottom);
 
-    el.addEventListener('mouseenter', () => {
-      el.style.boxShadow = '0 18px 40px rgba(74,63,66,0.32), 0 0 0 2px rgba(196,123,131,0.4)';
-      if (C.ghostImages !== false) imgWrap.style.filter = 'none';
-    });
-    el.addEventListener('mouseleave', () => {
-      el.style.boxShadow = '';
-      if (C.ghostImages !== false) imgWrap.style.filter = '';
-    });
-    return el;
+    const img = document.createElement('div');
+    img.style.cssText = `flex:1;min-height:0;background-size:cover;background-position:center;border-radius:4px;margin-bottom:${C.gap}px;`;
+
+    const cap = document.createElement('div');
+    cap.style.cssText = `display:flex;justify-content:space-between;align-items:center;gap:8px;color:${C.textColor};font-size:12px;font-family:'JetBrains Mono',monospace;line-height:1.4;`;
+    const t = document.createElement('span');
+    t.style.cssText = 'font-weight:bold;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;';
+    const m = document.createElement('span');
+    m.style.cssText = 'opacity:0.72;white-space:nowrap;flex-shrink:0;';
+    cap.appendChild(t);
+    cap.appendChild(m);
+
+    el.appendChild(img);
+    el.appendChild(cap);
+
+    el.addEventListener('mouseenter', () => { el.style.backgroundColor = C.hoverColor; });
+    el.addEventListener('mouseleave', () => { el.style.backgroundColor = C.idleColor; });
+
+    return { el, img, t, m };
   }
 
   function updateCells() {
     const cellW = cellSize;
-    const pitch = cellW + C.gap;
+    const pitch = cellW; // faithful: cells touch; the 1px borders separate them
     const sx = Math.floor(-off.x / pitch) - 5;
     const sy = Math.floor(-off.y / pitch) - 5;
     const needed = new Set();
+    const vw = viewport.w || 1;
+    const vh = viewport.h || 1;
 
     for (let y = sy; y < sy + GRID; y++) {
       for (let x = sx; x < sx + GRID; x++) {
         const k = cellKey(x, y);
         needed.add(k);
-        let el = cellEls.get(k);
-        if (!el) {
-          el = makeCell(x, y);
-          gridEl.appendChild(el);
-          cellEls.set(k, el);
+        let cell = cellEls.get(k);
+        if (!cell) {
+          cell = makeCell();
+          gridEl.appendChild(cell.el);
+          cellEls.set(k, cell);
         }
-        // clean tiling: pitch = cell + gap, snapped to device pixels so the
-        // grid stays geometrically perfect at any display scale
-        const left = snapPx(x * pitch + off.x + inertia.x);
-        const top = snapPx(y * pitch + off.y + inertia.y);
-        el.style.left = left + 'px';
-        el.style.top = top + 'px';
+
+        const left = x * pitch + off.x + inertia.x + mouseOff.x;
+        const top = y * pitch + off.y + inertia.y + mouseOff.y;
+        const { z, yawDeg, pitchDeg, edgeFactor } = calcArcTransform({
+          cellCenterX: left + cellW / 2,
+          cellCenterY: top + cellW / 2,
+          viewportW: vw, viewportH: vh,
+          arcAxis: C.arcAxis, arcMaxAngleDeg: C.arcMaxAngleDeg, arcAmount: C.arcAmount,
+        });
+        const scale = 1 - C.edgeFade * (edgeFactor * edgeFactor);
+        const opacity = 1 - 0.4 * (edgeFactor * C.arcAmount);
+
+        const el = cell.el;
+        el.style.left = snapPx(left) + 'px';
+        el.style.top = snapPx(top) + 'px';
         el.style.width = snapPx(cellW) + 'px';
         el.style.height = snapPx(cellW) + 'px';
+        el.style.padding = C.cellPadding + 'px';
+        el.style.transform = `translate3d(0, 0, ${z}px) rotateY(${yawDeg}deg) rotateX(${pitchDeg}deg) scale(${scale})`;
+        el.style.opacity = String(opacity);
 
-        // content
         const idx = Math.abs((x + y * 3) % (items.length || 1));
-        const item = items[idx];
+        const item = items[idx] || null;
+        el._item = item;
         if (item) {
-          el._item = item;
-          el.children[0].style.backgroundImage = item.thumbUrl ? `url(${item.thumbUrl})` : '';
+          cell.img.style.backgroundImage = item.thumbUrl ? `url("${item.thumbUrl}")` : 'none';
+          cell.t.textContent = item.title || item.name || '';
+          cell.m.textContent = (item.meta != null ? item.meta : (item.year != null ? item.year : '')) || '';
+          el.title = item.name || item.title || '';
         } else {
-          el._item = null;
+          cell.img.style.backgroundImage = 'none';
+          cell.t.textContent = '';
+          cell.m.textContent = '';
+          el.title = '';
         }
       }
     }
-    // remove offscreen cells
-    for (const [k, el] of cellEls) {
-      if (!needed.has(k)) { el.remove(); cellEls.delete(k); }
+    for (const [k, cell] of cellEls) {
+      if (!needed.has(k)) { cell.el.remove(); cellEls.delete(k); }
     }
   }
 
@@ -253,24 +273,14 @@ export function createPhantomGallery(container, opts = {}) {
     }
 
     // parallax
-    if (C.parallaxEnabled && !dragging) {
+    const parallaxOn = C.parallaxEnabled && (C.parallaxWhileDragging || !dragging);
+    if (parallaxOn) {
       mouseOff.x = lerp(mouseOff.x, targetMouseOff.x, C.parallaxEase);
       mouseOff.y = lerp(mouseOff.y, targetMouseOff.y, C.parallaxEase);
-    } else if (!C.parallaxEnabled || dragging) {
+    } else {
       mouseOff.x = lerp(mouseOff.x, 0, C.parallaxEase);
       mouseOff.y = lerp(mouseOff.y, 0, C.parallaxEase);
     }
-
-    // grid tilt — eased toward the cursor-driven target; the whole grid is one
-    // flat plane that gently rotates (a page, not a cylinder) and pulls back
-    // to 0.85 while dragging, per the AI's recipe
-    tilt.rx = lerp(tilt.rx, tiltTarget.rx, 0.08);
-    tilt.ry = lerp(tilt.ry, tiltTarget.ry, 0.08);
-    tilt.s = lerp(tilt.s, tiltTarget.s, 0.12);
-    if (Math.abs(tilt.rx - tiltTarget.rx) < 0.01) tilt.rx = tiltTarget.rx;
-    if (Math.abs(tilt.ry - tiltTarget.ry) < 0.01) tilt.ry = tiltTarget.ry;
-    if (Math.abs(tilt.s - tiltTarget.s) < 0.005) tilt.s = tiltTarget.s;
-    gridEl.style.transform = `translate3d(${mouseOff.x}px, ${mouseOff.y}px, 0) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) scale(${tilt.s})`;
 
     updateCells();
     raf = requestAnimationFrame(tick);
@@ -299,7 +309,8 @@ export function createPhantomGallery(container, opts = {}) {
     lastMove.t = performance.now();
     velocity.x = 0;
     velocity.y = 0;
-    pressPos = { x: e.clientX, y: e.clientY };
+    pressPos.x = e.clientX;
+    pressPos.y = e.clientY;
     startOff = { x: off.x, y: off.y };
 
     if (pressTimer) clearTimeout(pressTimer);
@@ -309,7 +320,7 @@ export function createPhantomGallery(container, opts = {}) {
         const pivot = { x: rect.width / 2, y: rect.height / 2 };
         const vis = { x: off.x + inertia.x, y: off.y + inertia.y };
         const newSize = cellSize * C.zoomValue;
-        const pinned = pinnedOffset(cellSize, newSize, pivot, vis);
+        const pinned = computePinnedOffset(cellSize, newSize, pivot, vis);
         zoomOccurred = true;
         targetCellSize = newSize;
         targetOff.x = pinned.x;
@@ -324,8 +335,8 @@ export function createPhantomGallery(container, opts = {}) {
       const dt = Math.max(0.001, (now - lastMove.t) / 1000);
       const dx = e.clientX - lastMove.x;
       const dy = e.clientY - lastMove.y;
-      const vx = clamp(dx / dt, -C.throwMaxSpeed, C.throwMaxSpeed);
-      const vy = clamp(dy / dt, -C.throwMaxSpeed, C.throwMaxSpeed);
+      const vx = clamp((dx / dt) * C.throwVelocityScale, -C.throwMaxSpeed, C.throwMaxSpeed);
+      const vy = clamp((dy / dt) * C.throwVelocityScale, -C.throwMaxSpeed, C.throwMaxSpeed);
       velocity.x = vx * 0.6 + velocity.x * 0.4;
       velocity.y = vy * 0.6 + velocity.y * 0.4;
       lastMove.x = e.clientX;
@@ -333,16 +344,13 @@ export function createPhantomGallery(container, opts = {}) {
       lastMove.t = now;
     }
 
-    // parallax + grid tilt targets (only when not pressing)
-    if (C.parallaxEnabled && !pressing && !dragging && container.getBoundingClientRect) {
+    // parallax target (suppressed while pressing/dragging, like the original)
+    if (C.parallaxEnabled && !pressing && container.getBoundingClientRect) {
       const rect = container.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       targetMouseOff.x = (rect.width / 2 - mx) * C.parallaxStrength;
       targetMouseOff.y = (rect.height / 2 - my) * C.parallaxStrength;
-      // ±12° tilt toward the cursor — the AI's rotateX/rotateY recipe
-      tiltTarget.ry = ((mx / rect.width) - 0.5) * 24;
-      tiltTarget.rx = ((my / rect.height) - 0.5) * -24;
     }
 
     if (!pressing) return;
@@ -351,7 +359,7 @@ export function createPhantomGallery(container, opts = {}) {
     if (!dragging && Math.hypot(dx, dy) > 4) {
       dragging = true;
       dragOccurred = true;
-      tiltTarget.s = 0.85; // pull the grid back while dragging (AI recipe)
+      container.style.cursor = 'grabbing';
       startOff = { x: off.x, y: off.y };
     }
     if (dragging) {
@@ -364,6 +372,7 @@ export function createPhantomGallery(container, opts = {}) {
 
   function onUp() {
     pressing = false;
+    container.style.cursor = 'grab';
     if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
     const speed = Math.hypot(velocity.x, velocity.y);
     if (C.inertiaEnabled && speed >= C.throwMinSpeed) {
@@ -374,12 +383,11 @@ export function createPhantomGallery(container, opts = {}) {
       inertia.y = 0;
     }
     dragging = false;
-    tiltTarget.s = 1;
-    // zoom back in
+    // zoom back in, center-pinned
     const rect = container.getBoundingClientRect();
     const pivot = { x: rect.width / 2, y: rect.height / 2 };
     const vis = { x: off.x + inertia.x, y: off.y + inertia.y };
-    const pinned = pinnedOffset(cellSize, C.cellSize, pivot, vis);
+    const pinned = computePinnedOffset(cellSize, C.cellSize, pivot, vis);
     targetMouseOff.x = 0;
     targetMouseOff.y = 0;
     targetCellSize = C.cellSize;
@@ -422,8 +430,7 @@ export function createPhantomGallery(container, opts = {}) {
     },
     setItems(newItems) {
       items = newItems || [];
-      // clear cached cells so they repopulate
-      for (const [, el] of cellEls) el.remove();
+      for (const [, cell] of cellEls) cell.el.remove();
       cellEls.clear();
     },
   };
