@@ -17,15 +17,15 @@ const CFG = {
   dotDensity: 4200,       // one dot per this many px²
   minDots: 800,           // never fewer than this, even on tiny windows
   maxDots: 9000,          // hard cap — keeps the frame cheap on big screens
-  colors: [               // vault minimal obsidian & crimson palette
-    [244, 63, 94],       // crimson rose (#f43f5e)
-    [228, 228, 231],     // linear silver (#e4e4e7)
-    [255, 255, 255],     // white (#ffffff)
-    [161, 161, 170],     // ash silver (#a1a1aa)
-    [225, 29, 72],       // deep rose (#e11d48)
+  colors: [               // vault palette, in the pen's spirit (deep + light)
+    [196, 123, 131],      // --rose-dark
+    [169, 138, 160],      // --mauve
+    [201, 168, 106],      // --gold
+    [138, 154, 123],      // --sage
+    [124, 101, 116],      // --mauve-dark
   ],
-  ringAlpha: 0.12,        // stroke alpha of the perspective rings
-  ringColor: [244, 63, 94], // crimson rose for the rings
+  ringAlpha: 0.10,        // stroke alpha of the perspective rings
+  ringColor: [124, 101, 116], // mauve-dark for the rings
   dotSpeed: 0.001,        // per-frame swirl advance (pen uses 0.001)
   discSpeed: 0.0003,      // ring drift (pen uses 0.0003)
   dotRadius: 1.2,         // base dot radius in CSS px

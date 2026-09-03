@@ -11,12 +11,20 @@ import { serializeVault, parseVault } from './container.mjs';
 import { initWormhole } from './wormhole.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
-import { createGarden } from './garden.mjs';
-import { emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak, sortedDayKeys, yearOf } from './journal.mjs';
+import { createPhantomGalleryV2 } from './phantom-gallery-v2.mjs';
+import { createDriftWall } from './drift-wall.mjs';
+import {
+  emptyYear, parseYearJSON, serializeYear, todayKey, yearKey, calcStreak, sortedDayKeys,
+  yearOf, searchYear, monthCells, exportYearMarkdown, entryWordCount,
+} from './journal.mjs';
 
 const $ = (id) => document.getElementById(id);
 const LS_IDLE = 'pcvault.idleMin';
 const LS_BG = 'pcvault.bg'; // 'wormhole' (default) or 'particles'
+const LS_CHROME = 'pcvault.chrome'; // 'mac' (default) or 'win' — titlebar controls style
+const LS_THEME = 'pcvault.theme'; // 'cream' (default) or 'mono' — the whole-app look
+const LS_FONT = 'pcvault.font'; // optional local font override; 'default' follows the theme
+const LS_GALLERY = 'pcvault.galleryStyle'; // legacy machine-local fallback — the choice now rides in the vault file
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
 // lucide-style inline icons (the phone app's `ic()` helper, reduced to what this UI uses)
@@ -45,12 +53,13 @@ const state = {
   pendingDek: null,   // held between "create" and "I've saved them"
   rotatePhrase: null,// rotation in progress — old words die only on save
   idleTimer: null,
-  galleryMode: false, // phantom infinite gallery view
-  phantomGallery: null,
+  galleryMode: false, // full-screen gallery view
+  galleryStyle: null, // controller for the active gallery style (phantom/phantom-v2/drift)
+  galleryKind: null,  // name of the active gallery style
+  galleryItems: [],   // the items handed to the active gallery controller
   journalTab: false,    // Journal tab active (vs Vault)
   journalCache: new Map(), // year → decrypted journal blob — plaintext, wiped on lock
   journalYear: null,    // the year the journal screen is showing
-  garden: null,         // canvas garden renderer
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
@@ -134,7 +143,18 @@ let pdfjsReady = null;    // lazy import of pdf.js + its worker module
 function show(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`screen-${name}`).classList.add('active');
+  // which header lives in the thin titlebar
+  document.body.classList.toggle('head-settings', name === 'settings');
+  document.body.classList.toggle('auth-screen', AUTH_SCREENS.has(name));
   if (bgCtrl) bgCtrl.setActive(AUTH_SCREENS.has(name));
+  // sidebar only visible on the unlocked screen
+  const sidebar = $('actionSidebar');
+  if (sidebar) sidebar.classList.toggle('hidden', name !== 'unlocked');
+  // unlocked vault gets a transparent-then-glass titlebar on scroll
+  document.body.classList.toggle('unlocked', name === 'unlocked');
+  if (name !== 'unlocked') document.body.classList.remove('scrolled');
+  // reset scroll so the unlocked content doesn't sit under the transparent titlebar
+  if (name === 'unlocked') window.scrollTo(0, 0);
 }
 function showOverlay(id, visible) {
   $(id).classList.toggle('hidden', !visible);
@@ -175,14 +195,36 @@ function refreshPathLines() {
   $('settingsPathLine').textContent = state.path || '';
 }
 
-function activeScreenName() {
-  const active = document.querySelector('.screen.active');
-  return active ? active.id.replace('screen-', '') : '';
-}
 
-function isTextEditingTarget(target) {
-  const tag = ((target && target.tagName) || '').toLowerCase();
-  return tag === 'input' || tag === 'textarea' || (target && target.isContentEditable);
+// ---- action dispatcher (one seam: the action-bar buttons and the keyboard
+//      shortcuts all call runAction; each action's behavior lives here once) ----
+function openSettings() {
+  refreshPathLines();
+  renderIdlePills();
+  renderThemePills();
+  renderFontPills();
+  renderBgPills();
+  renderChromePills();
+  renderGalleryPills(); // gallery style now lives in the vault file — re-read on every open
+  setErr('changeErr', ''); setOk('changeOk', '');
+  setErr('rotateErr', '');
+  show('settings');
+}
+function revealVaultFile() {
+  if (!state.path) return;
+  if (window.vaultAPI && window.vaultAPI.reveal) window.vaultAPI.reveal(state.path);
+  toast(state.path);
+}
+const ACTIONS = {
+  'add-files': () => { const inp = $('photoInput'); if (inp) inp.click(); },
+  gallery: toggleGallery,
+  settings: openSettings,
+  lock: () => lock(),
+  reveal: revealVaultFile,
+};
+function runAction(name) {
+  const fn = ACTIONS[name];
+  if (fn) fn();
 }
 
 // ---- vault file ----
@@ -369,7 +411,6 @@ function lock() {
   state.journalCache.clear(); // wipe the decrypted journal — no plaintext survives a lock
   state.journalYear = null;
   journalEditKey = null;
-  if (state.garden) { state.garden.destroy(); state.garden = null; }
   state.journalTab = false;
   if ($('journalEntry')) $('journalEntry').value = '';
   showVaultTab();
@@ -840,19 +881,28 @@ function ensureGalleryController() {
 // from the name cache; thumbnails from the thumb cache (drawn into the grid).
 async function buildGalleryItems() {
   await ensureNames();
-  const items = vaultItems().map((rec) => ({
-    id: rec.id,
-    thumbUrl: state.thumbCache.get(rec.id) || '',
-    name: state.nameCache.get(rec.id) || '',
-    kind: rec.kind,
-    meta: rec.kind === 'photo' ? String(new Date(rec.createdAt).getFullYear()) : fmtSize(rec.size),
-  }));
-  state.phantomGallery.setItems(items);
-  // The gallery needs the photos too, but thumbnails only land in the cache when
-  // the grid's IntersectionObserver reaches a cell. Hydrate anything missing so
-  // toggling straight into the gallery never shows dark tiles. The gallery reads
-  // the items array on every frame — mutating `thumbUrl` in place updates the
-  // cells without a rebuild.
+  return vaultItems().map((rec) => {
+    const full = state.nameCache.get(rec.id) || '';
+    return {
+      id: rec.id,
+      thumbUrl: state.thumbCache.get(rec.id) || '',
+      name: full,
+      title: shortName(full),
+      kind: rec.kind,
+      meta: rec.kind === 'photo' ? String(new Date(rec.createdAt).getFullYear()) : fmtSize(rec.size),
+    };
+  });
+}
+
+// Populate the active gallery and hydrate any thumbnails that only the grid has
+// touched. Mutating each item's thumbUrl in place (the gallery reads the array)
+// avoids a rebuild — same approach both controllers support.
+async function populateGallery() {
+  if (!state.galleryStyle || !state.unlocked || !state.galleryMode) return;
+  const items = await buildGalleryItems();
+  if (!state.unlocked || !state.galleryMode) return;
+  state.galleryItems = items;
+  state.galleryStyle.setItems(items);
   const missing = state.items.filter((rec) => rec.kind !== 'doc' && !state.thumbCache.has(rec.id));
   let hydrated = false;
   for (const rec of missing) {
@@ -886,23 +936,12 @@ function toggleGallery() {
   setHidden('noMatches', true);
   if ($('galleryExitBtn')) setHidden('galleryExitBtn', !state.galleryMode);
   if (state.galleryMode) {
-    if (!state.phantomGallery) {
-      state.phantomGallery = createPhantomGallery($('phantomGallery'), {
-        backgroundColor: '#fbf6f3', // the vault cream — the page's own color
-        cellSize: 240,
-        gap: 20,
-        parallaxStrength: 0.06,
-        parallaxEase: 0.12,
-        throwFriction: 0.92,
-        throwVelocityScale: 1,
-        onItemClick: (item) => openItem(item.id),
-      });
-    }
-    populatePhantomGallery();
+    ensureGalleryController();
+    populateGallery();
   }
 }
 
-// ---- journal (living garden) ----
+// ---- journal (writing-first) ----
 // One encrypted record per year. The record's ciphertext is the year blob JSON;
 // decrypt-once into state.journalCache, wiped on lock. Nothing journal-related
 // ever touches disk in plaintext.
@@ -933,7 +972,7 @@ async function journalForYear(year) {
       vaultWipeRaw(plain);
     }
   } catch (e) {
-    // tampered/damaged year — surface as empty rather than crash the garden
+    // tampered/damaged year — surface as empty rather than crash the journal
     const empty = emptyYear(year);
     state.journalCache.set(year, empty);
     return empty;
@@ -963,9 +1002,44 @@ function prettyDay(key) {
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+// Export the visible year as a markdown document — the "your words are never
+// locked in" guarantee. Same save-dialog + write path as item export.
+async function handleJournalExport() {
+  if (!state.unlocked || state.journalYear == null) return;
+  const year = state.journalYear;
+  const blob = await journalForYear(year);
+  const md = exportYearMarkdown(blob, prettyDay);
+  const dst = await window.vaultAPI.saveFileAs(`${year}.md`);
+  if (!dst) return;
+  await window.vaultAPI.writeFile(dst, new TextEncoder().encode(md));
+  toast(`exported ${year}.md`);
+}
+
+// Journal moods are stored as semantic keys ("growing", "sunny", ...). Older
+// vaults saved the plant-planet emoji ("🌱", "☀️", ...) instead — LEGACY_MOOD
+// maps those to the same key so an old entry keeps its mood. Everything renders
+// as a crisp line icon (no raw emoji) to match the rest of the UI.
+const JOURNAL_MOODS = ['growing', 'blooming', 'sunny', 'rainy', 'quiet', 'loving'];
+const LEGACY_MOOD = { '🌱': 'growing', '🌸': 'blooming', '☀️': 'sunny', '🌧️': 'rainy', '🍂': 'quiet', '❤️': 'loving' };
+const MOOD_ICON_PATH = {
+  growing: '<path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/>',
+  blooming: '<circle cx="12" cy="12" r="3"/><path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5z"/>',
+  sunny: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  rainy: '<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><line x1="16" y1="14" x2="16" y2="20"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="8" y1="14" x2="8" y2="20"/>',
+  quiet: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
+  loving: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+};
+function moodKey(mood) {
+  return JOURNAL_MOODS.includes(mood) ? mood : (LEGACY_MOOD[mood] || '');
+}
+function moodIcon(mood) {
+  const p = MOOD_ICON_PATH[moodKey(mood) || ''];
+  return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (p || '') + '</svg>';
+}
 function setMoodSelection(mood) {
+  const key = moodKey(mood);
   document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
-    b.classList.toggle('on', b.dataset.mood === mood);
+    b.classList.toggle('on', key !== '' && b.dataset.mood === key);
   });
 }
 
@@ -979,6 +1053,101 @@ function openJournalDay(key) {
     $('journalEntry').value = entry.text || '';
     setMoodSelection(entry.mood || '');
   });
+}
+
+function shortDay(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
+}
+
+// The 12-month calendar grid — plain DOM built from the pure monthCells().
+function renderCalendar(blob, matches) {
+  const year = blob.year;
+  const today = todayKey();
+  const matchSet = new Set(matches || []);
+  const monthNames = [...Array(12)].map((_, m) =>
+    new Date(year, m, 1).toLocaleDateString(undefined, { month: 'long' }));
+  const dows = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const cal = $('journalCalendar');
+  cal.textContent = '';
+  for (let m = 0; m < 12; m++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'calendar-month';
+    const name = document.createElement('h4');
+    name.className = 'calendar-month-name';
+    name.textContent = monthNames[m];
+    const days = document.createElement('div');
+    days.className = 'cal-days';
+    for (const d of dows) {
+      const dow = document.createElement('span');
+      dow.className = 'cal-dow';
+      dow.textContent = d;
+      days.appendChild(dow);
+    }
+    for (const week of monthCells(year, m)) {
+      for (const cell of week) {
+        if (!cell.key) {
+          const blank = document.createElement('span');
+          blank.className = 'cal-day empty';
+          days.appendChild(blank);
+          continue;
+        }
+        const btn = document.createElement('button');
+        btn.className = 'cal-day';
+        btn.textContent = String(cell.day);
+        if (blob.days[cell.key]) btn.classList.add('has-entry');
+        if (cell.key === today) btn.classList.add('today');
+        if (matchSet.has(cell.key)) btn.classList.add('match');
+        btn.addEventListener('click', () => openJournalDay(cell.key));
+        days.appendChild(btn);
+      }
+    }
+    wrap.appendChild(name);
+    wrap.appendChild(days);
+    cal.appendChild(wrap);
+  }
+}
+
+// Reverse-chronological entry list — date, mood, first line, word count.
+function renderEntryList(blob, matches) {
+  const list = $('journalEntryList');
+  list.textContent = '';
+  const keys = (matches && matches.length ? matches : sortedDayKeys(blob)).slice().reverse();
+  $('journalEntryCount').textContent = keys.length ? `${keys.length} entr${keys.length === 1 ? 'y' : 'ies'}` : '';
+  if (!keys.length) {
+    const empty = document.createElement('p');
+    empty.className = 'journal-empty';
+    empty.textContent = matches && matches.length === 0
+      ? "nothing matches that search."
+      : 'no entries yet this year. the first line of today is waiting.';
+    list.appendChild(empty);
+    return;
+  }
+  for (const key of keys) {
+    const e = blob.days[key] || {};
+    const text = (e.text || '').trim();
+    const row = document.createElement('button');
+    row.className = 'journal-entry-row';
+    const date = document.createElement('span');
+    date.className = 'journal-entry-date';
+    date.textContent = shortDay(key);
+    const mood = document.createElement('span');
+    mood.className = 'journal-entry-mood';
+    mood.title = moodKey(e.mood || '');
+    mood.innerHTML = e.mood ? moodIcon(e.mood) : '';
+    const preview = document.createElement('span');
+    preview.className = 'journal-entry-preview';
+    preview.textContent = text.split('\n')[0] || '(no text)';
+    const words = document.createElement('span');
+    words.className = 'journal-entry-words';
+    words.textContent = entryWordCount(text) ? `${entryWordCount(text)} words` : '';
+    row.appendChild(date);
+    row.appendChild(mood);
+    row.appendChild(preview);
+    row.appendChild(words);
+    row.addEventListener('click', () => openJournalDay(key));
+    list.appendChild(row);
+  }
 }
 
 async function renderOnThisDay(blob, year) {
@@ -1012,8 +1181,7 @@ async function renderJournal() {
   const streak = calcStreak(sortedDayKeys(blob));
   $('journalStreak').textContent = streak
     ? `${streak} day${streak === 1 ? '' : 's'} in a row`
-    : 'plant your first entry today';
-  if (state.garden) state.garden.setYear(blob);
+    : 'write your first entry today';
   // default editor day: today for the current year, else the latest entry in that
   // year (or Jan 1) — it must stay inside the year being shown, or a save would
   // write the entry into the wrong year record.
@@ -1032,7 +1200,16 @@ async function renderJournal() {
 
 function applyJournalSearch() {
   const q = $('journalSearchInput') ? $('journalSearchInput').value : '';
-  if (state.garden) state.garden.setQuery(q);
+  const year = state.journalYear;
+  if (!state.unlocked || year == null) return;
+  journalForYear(year).then((blob) => {
+    if (!state.unlocked || state.journalYear !== year) return;
+    // an empty query is "no search", not "match everything" — pass null so the
+    // calendar only shows its normal entry dots and the list is unfiltered
+    const matches = q.trim() ? searchYear(blob, q) : null;
+    renderCalendar(blob, matches);
+    renderEntryList(blob, matches);
+  });
 }
 
 function showJournalTab() {
@@ -1042,14 +1219,8 @@ function showJournalTab() {
   setHidden('vaultPane', true);
   setHidden('journalPane', false);
   // file controls are vault-only; journal has its own toolbar
-  setHidden('addFilesBtn', true);
-  setHidden('galleryToggleBtn', true);
-  if (!state.garden) {
-    state.garden = createGarden($('gardenCanvas'), {
-      todayKey: todayKey(),
-      onDayClick: (key) => openJournalDay(key),
-    });
-  }
+  if ($('addFilesBtn')) setHidden('addFilesBtn', true);
+  if ($('galleryToggleBtn')) setHidden('galleryToggleBtn', true);
   renderJournal();
 }
 
@@ -1059,8 +1230,8 @@ function showVaultTab() {
   $('journalTabBtn').classList.remove('on');
   setHidden('vaultPane', false);
   setHidden('journalPane', true);
-  setHidden('addFilesBtn', false);
-  setHidden('galleryToggleBtn', false);
+  if ($('addFilesBtn')) setHidden('addFilesBtn', false);
+  if ($('galleryToggleBtn')) setHidden('galleryToggleBtn', false);
 }
 
 // ---- grid + lazy thumbs ----
@@ -1294,7 +1465,7 @@ async function openPdf(itemId, bytes) {
     standardFontDataUrl: PDF_FONT_URL,
   });
   const doc = await task.promise;
-  if (!state.unlocked || currentItemId !== itemId) { task.destroy().catch(() => { }); return; }
+  if (!state.unlocked || currentItemId !== itemId) { task.destroy().catch(() => {}); return; }
   pdfTask = task;
   pdfDoc = doc;
   pdfPageCount = doc.numPages;
@@ -1311,7 +1482,7 @@ function closePdf() {
   const task = pdfTask;
   pdfTask = null;
   pdfDoc = null;
-  if (task) { try { task.destroy().catch(() => { }); } catch (e) { /* noop */ } }
+  if (task) { try { task.destroy().catch(() => {}); } catch (e) { /* noop */ } }
   pdfPage = 1;
   pdfPageCount = 0;
   pdfScale = 1;
@@ -1533,43 +1704,126 @@ function renderIdlePills() {
   });
 }
 
-function openSettingsScreen() {
-  refreshPathLines();
-  renderIdlePills();
-  renderBgPills();
-  setErr('changeErr', '');
-  setOk('changeOk', '');
-  setErr('rotateErr', '');
-  show('settings');
-}
-
-function setSettingsCardCollapsed(card, collapsed) {
-  card.classList.toggle('collapsed', collapsed);
-  const toggle = card.querySelector('.vault-sec-toggle');
-  if (toggle) toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-}
-
-function wireSettingsCards() {
-  const cards = [...document.querySelectorAll('#screen-settings .vault-sec-card')];
-  cards.forEach((card, idx) => {
-    setSettingsCardCollapsed(card, idx !== 0);
-    const toggle = card.querySelector('.vault-sec-toggle');
-    if (!toggle) return;
-    toggle.addEventListener('click', () => {
-      setSettingsCardCollapsed(card, !card.classList.contains('collapsed'));
-    });
-  });
-}
-
-// ---- background picker (wormhole vs particles) ----
+// ---- background picker (wormhole vs particles vs custom image/video) ----
 function bgChoice() {
-  return localStorage.getItem(LS_BG) === 'particles' ? 'particles' : 'wormhole';
+  const v = localStorage.getItem(LS_BG);
+  return v === 'particles' || v === 'image' || v === 'video' ? v : 'wormhole';
+}
+
+function bgCustom() {
+  return localStorage.getItem(LS_BG) === 'image' || localStorage.getItem(LS_BG) === 'video';
 }
 
 function renderBgPills() {
   const choice = bgChoice();
+  const custom = bgCustom();
   document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
     p.classList.toggle('on', p.dataset.bg === choice);
+  });
+  const row = $('bgCustom');
+  if (row) row.hidden = !custom;
+  // "remove" is only useful once a custom file is actually stored
+  const clearBtn = $('bgClear');
+  if (clearBtn) clearBtn.hidden = !custom;
+}
+
+// Render the custom image/video background. Async: the bytes come from main
+// (the renderer never touches the file system). Falls back to wormhole when
+// no file is set or the bridge is missing (browser preview).
+let bgMedia = null;    // <img> or <video> element for the custom background
+let bgBlobUrl = null;  // revoke on teardown
+
+function teardownBgMedia() {
+  if (bgBlobUrl) { URL.revokeObjectURL(bgBlobUrl); bgBlobUrl = null; }
+  if (bgMedia) { bgMedia.remove(); bgMedia = null; }
+  const canvas = $('authBg');
+  if (canvas) canvas.style.display = 'block';
+}
+
+async function mountCustomBackground() {
+  if (!window.vaultAPI || !window.vaultAPI.getBackground) {
+    mountBackground(); // bridge missing → fall back to animated
+    return;
+  }
+  const info = await window.vaultAPI.getBackground();
+  const canvas = $('authBg');
+  if (!info || !info.bytes || !canvas) {
+    if (bgCustom()) localStorage.setItem(LS_BG, 'wormhole'); // stale choice → reset
+    teardownBgMedia();
+    mountBackground();
+    renderBgPills();
+    return;
+  }
+  teardownBgMedia();
+  canvas.style.display = 'none';
+  const blob = new Blob([info.bytes], { type: info.kind === 'video' ? 'video/mp4' : 'image/*' });
+  bgBlobUrl = URL.createObjectURL(blob);
+  bgMedia = document.createElement(info.kind === 'video' ? 'video' : 'img');
+  bgMedia.src = bgBlobUrl;
+  if (info.kind === 'video') {
+    bgMedia.muted = true;
+    bgMedia.loop = true;
+    bgMedia.autoplay = true;
+    bgMedia.playsInline = true;
+  }
+  bgMedia.setAttribute('aria-hidden', 'true');
+  bgMedia.id = 'authBgMedia';
+  canvas.after(bgMedia);
+  // keep the same placement + interaction rules as the canvas
+  bgMedia.style.cssText = 'position:fixed; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; pointer-events:none;';
+  if (info.kind === 'video') bgMedia.play().catch(() => {});
+}
+
+// ---- theme picker (cream vs mono — abstract minimal black & white) ----
+function themeChoice() {
+  return localStorage.getItem(LS_THEME) === 'mono' ? 'mono' : 'cream';
+}
+
+function applyTheme(theme) {
+  const mono = theme === 'mono';
+  // Mirror the theme on html too: Chromium may attach the viewport scrollbar
+  // to html rather than body, so styling body alone leaves that edge mauve.
+  document.body.classList.toggle('theme-mono', mono);
+  document.documentElement.classList.toggle('theme-mono', mono);
+}
+
+function renderThemePills() {
+  const choice = themeChoice();
+  document.querySelectorAll('#themePills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.theme === choice);
+  });
+}
+
+const FONT_CHOICES = new Set(['default', 'cormorant', 'dm-serif', 'jetbrains', 'gc-beluga']);
+function fontChoice() {
+  const saved = localStorage.getItem(LS_FONT);
+  return FONT_CHOICES.has(saved) ? saved : 'default';
+}
+function applyFont(font) {
+  const choice = FONT_CHOICES.has(font) ? font : 'default';
+  document.body.classList.remove(...[...FONT_CHOICES].map((name) => `font-${name}`));
+  document.body.classList.add(`font-${choice}`);
+}
+function renderFontPills() {
+  const choice = fontChoice();
+  document.querySelectorAll('#fontPills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.font === choice);
+  });
+}
+
+// ---- window-chrome picker (mac traffic lights vs compact windows controls) ----
+function chromeChoice() {
+  return localStorage.getItem(LS_CHROME) === 'win' ? 'win' : 'mac';
+}
+
+function applyChrome(style) {
+  document.body.classList.toggle('chrome-win', style === 'win');
+}
+
+function renderChromePills() {
+  const choice = chromeChoice();
+  document.querySelectorAll('#chromePills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.chrome === choice);
   });
 }
 
@@ -1577,9 +1831,20 @@ function renderBgPills() {
 // changes or on boot. Reuses the same canvas; the previous controller is
 // destroyed first (particles has no destroy — optional chaining handles it).
 function mountBackground() {
+  teardownBgMedia();
+  // Custom media needs the desktop bridge (bytes come from main). Without it,
+  // calling mountCustomBackground() → mountBackground() looped forever and
+  // blew the stack (RangeError on boot in the browser preview, and any custom
+  // bg choice could wedge boot). Guard: only branch when the bridge exists;
+  // otherwise fall through to the animated background.
+  if (bgCustom() && window.vaultAPI && window.vaultAPI.getBackground) {
+    mountCustomBackground();
+    return;
+  }
   if (bgCtrl) bgCtrl.destroy?.();
   const canvas = $('authBg');
   if (!canvas) { bgCtrl = null; return; }
+  canvas.style.display = 'block';
   bgCtrl = bgChoice() === 'particles'
     ? initParticles(canvas)
     : initWormhole(canvas);
@@ -1640,7 +1905,7 @@ function wire() {
   initWindowControls();
 
   wireReorder();
-  wireSettingsCards();
+  wireWindowDrop(); // file drops land anywhere on the window, not just the grid
   $('welcomeCreateBtn').addEventListener('click', () => show('create'));
   $('welcomeOpenBtn').addEventListener('click', async () => {
     if (!window.vaultAPI) return; // browser preview without the desktop bridge
@@ -1676,8 +1941,20 @@ function wire() {
   $('searchInput').addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { clearSearch(); renderGrid(); $('searchInput').blur(); }
   });
-  $('addFilesBtn').addEventListener('click', () => $('photoInput').click());
-  $('galleryToggleBtn').addEventListener('click', toggleGallery);
+  // sidebar tray — delegated click (toggle + actions)
+  const sidebarTray = $('sidebarTray');
+  if (sidebarTray) {
+    sidebarTray.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (btn) runAction(btn.dataset.action);
+    });
+  }
+  const sidebarToggle = $('sidebarToggle');
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', () => {
+      $('sidebarTray').classList.toggle('hidden');
+    });
+  }
   $('vaultTabBtn').addEventListener('click', showVaultTab);
   $('journalTabBtn').addEventListener('click', showJournalTab);
   $('journalSaveBtn').addEventListener('click', async () => {
@@ -1685,7 +1962,7 @@ function wire() {
     const year = yearKey(key);
     const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
     await saveJournalEntry(year, key, $('journalEntry').value, mood);
-    toast('saved to your garden');
+    toast('saved');
     await renderJournal();
   });
   document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
@@ -1696,6 +1973,7 @@ function wire() {
     $('journalSearchInput').value = '';
     applyJournalSearch();
   });
+  $('journalExportBtn').addEventListener('click', handleJournalExport);
   $('journalYearPrev').addEventListener('click', () => {
     state.journalYear = (state.journalYear || yearOf(new Date())) - 1;
     journalEditKey = null;
@@ -1723,7 +2001,6 @@ function wire() {
   });
   if ($('galleryExitBtn')) $('galleryExitBtn').addEventListener('click', () => toggleGallery());
 
-  $('settingsBtn').addEventListener('click', openSettingsScreen);
   $('settingsBackBtn').addEventListener('click', () => show('unlocked'));
   $('itemBackBtn').addEventListener('click', closeItemOverlay);
   $('itemDeleteBtn').addEventListener('click', handleDelete);
@@ -1803,13 +2080,112 @@ function wire() {
       toast(p.dataset.min === '0' ? 'auto-lock off' : `auto-lock: ${p.dataset.min} min`);
     });
   });
-  document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
+  document.querySelectorAll('#themePills .vault-pill').forEach((p) => {
     p.addEventListener('click', () => {
-      localStorage.setItem(LS_BG, p.dataset.bg);
+      localStorage.setItem(LS_THEME, p.dataset.theme);
+      applyTheme(p.dataset.theme);
+      renderThemePills();
+      toast(p.dataset.theme === 'mono' ? 'theme: mono' : 'theme: cream');
+    });
+  });
+  document.querySelectorAll('#fontPills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      localStorage.setItem(LS_FONT, p.dataset.font);
+      applyFont(p.dataset.font);
+      renderFontPills();
+      const labels = {
+        default: 'font: theme default', cormorant: 'font: cormorant',
+        'dm-serif': 'font: dm serif', jetbrains: 'font: jetbrains',
+        'gc-beluga': 'font: gc beluga',
+      };
+      toast(labels[p.dataset.font] || 'font changed');
+    });
+  });
+  document.querySelectorAll('#bgPills .vault-pill').forEach((p) => {
+    p.addEventListener('click', async () => {
+      const kind = p.dataset.bg;
+      if (kind === 'image' || kind === 'video') {
+        if (!window.vaultAPI || !window.vaultAPI.pickBackground) {
+          toast('pick an image or video background in the app');
+          return;
+        }
+        const picked = await window.vaultAPI.pickBackground();
+        if (!picked) return; // canceled — keep the previous choice
+        localStorage.setItem(LS_BG, picked);
+      } else {
+        localStorage.setItem(LS_BG, kind);
+      }
       renderBgPills();
       mountBackground();
-      toast(p.dataset.bg === 'particles' ? 'background: particles' : 'background: wormhole');
+      const b = localStorage.getItem(LS_BG);
+      const label = b === 'particles' ? 'background: particles'
+        : b === 'image' ? 'background: image'
+        : b === 'video' ? 'background: video'
+        : 'background: wormhole';
+      toast(label);
     });
+  });
+  $('bgChoose').addEventListener('click', () => {
+    document.querySelector('#bgPills .vault-pill[data-bg="image"]').click();
+  });
+  $('bgClear').addEventListener('click', async () => {
+    if (window.vaultAPI && window.vaultAPI.clearBackground) await window.vaultAPI.clearBackground();
+    localStorage.setItem(LS_BG, 'wormhole');
+    renderBgPills();
+    mountBackground();
+    toast('background: wormhole');
+  });
+  document.querySelectorAll('#chromePills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      localStorage.setItem(LS_CHROME, p.dataset.chrome);
+      applyChrome(p.dataset.chrome);
+      renderChromePills();
+      toast(p.dataset.chrome === 'win' ? 'window chrome: windows' : 'window chrome: mac dots');
+    });
+  });
+  document.querySelectorAll('#galleryStylePills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      state.manifest.prefs.galleryStyle = p.dataset.gallery; // travels with the vault file
+      saveVault(); // persist the preference into the .cvault
+      renderGalleryPills();
+      // If the gallery is already open, rebuild it with the newly chosen style.
+      if (state.galleryMode) {
+        ensureGalleryController();
+        populateGallery();
+      }
+      const GALLERY_LABELS = { phantom: 'phantom', 'phantom-v2': 'phantom v4', drift: 'drift' };
+      toast('gallery style: ' + (GALLERY_LABELS[p.dataset.gallery] || p.dataset.gallery));
+    });
+  });
+
+  // phantom wall grid x:y + scale — apply live to an open gallery, persist debounced
+  let pgSaveTimer = 0;
+  function applyPgGridChange() {
+    const c = parseInt(document.getElementById('pgColsInput').value, 10);
+    const r = parseInt(document.getElementById('pgRowsInput').value, 10);
+    const s = parseFloat(document.getElementById('pgScaleInput').value) / 100;
+    if (!state.manifest) state.manifest = { prefs: {} };
+    if (!state.manifest.prefs) state.manifest.prefs = {};
+    state.manifest.prefs.pgCols = Number.isFinite(c) ? Math.max(1, Math.min(16, c)) : 5;
+    state.manifest.prefs.pgRows = Number.isFinite(r) ? Math.max(0, Math.min(30, r)) : 0;
+    state.manifest.prefs.pgScale = Number.isFinite(s) ? Math.max(0.5, Math.min(2.5, s)) : 1;
+    renderPgGridSettingsInputs(); // normalize what the user typed
+    clearTimeout(pgSaveTimer);
+    pgSaveTimer = setTimeout(() => { try { saveVault(); } catch (e) { /* preview has no vault */ } }, 300);
+    // live-apply to an open gallery wall
+    if (state.galleryMode && galleryStyleChoice() === 'phantom-v2') {
+      destroyGallery();
+      ensureGalleryController();
+      populateGallery();
+    }
+    const p = pgGridPrefs();
+    toast('phantom grid: ' + p.cols + ' × ' + (p.rows || 'auto') + ' · ' + Math.round(p.scale * 100) + '%');
+  }
+  const $g = (id) => document.getElementById(id);
+  ['input', 'change'].forEach((ev) => {
+    $g('pgColsInput').addEventListener(ev, applyPgGridChange);
+    $g('pgRowsInput').addEventListener(ev, applyPgGridChange);
+    $g('pgScaleInput').addEventListener(ev, applyPgGridChange);
   });
   $('vaultPathLine').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('revealBtn').addEventListener('click', () => window.vaultAPI.reveal(state.path));
@@ -1830,42 +2206,19 @@ function wire() {
     inp.addEventListener('input', () => updateMeter(inp));
   });
 
-  // keyboard shortcuts
+  // keyboard shortcuts: Esc/←/→/F drive the viewer; G toggles the gallery view
   window.addEventListener('keydown', (e) => {
-    const key = (e.key || '').toLowerCase();
-    const hasCmd = e.ctrlKey || e.metaKey;
-
-    // lock hotkey is global while unlocked: it should work even while typing.
-    if (state.unlocked && hasCmd && !e.altKey && !e.shiftKey && key === 'l') {
-      e.preventDefault();
-      lock();
-      toast('locked');
-      return;
-    }
-
-    // Esc should back out of transient locked-screen UI too.
-    if (!state.unlocked && e.key === 'Escape') {
-      if (!$('seedRecoveryForm').classList.contains('hidden')) {
-        setHidden('seedRecoveryForm', true);
-        setHidden('seedRecoveryLink', false);
-        setErr('seedRecoveryErr', '');
-      } else if (activeScreenName() === 'create') {
-        show('welcome');
-      }
-      return;
-    }
-
     if (!state.unlocked) return;
-
-    if (hasCmd && !e.altKey && e.key === 'Tab' && !viewerOpen()) {
-      e.preventDefault();
-      if (activeScreenName() === 'settings') show('unlocked');
-      if (state.journalTab) showVaultTab(); else showJournalTab();
-      return;
+    // Ctrl shortcuts work even while typing in a search box
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'i') { e.preventDefault(); runAction('add-files'); return; }
+      if (k === 'g') { e.preventDefault(); runAction('gallery'); return; }
+      if (k === ',') { e.preventDefault(); runAction('settings'); return; }
+      if (k === 'l') { e.preventDefault(); runAction('lock'); return; }
     }
-
-    if (isTextEditingTarget(e.target)) return;
-
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
     if (viewerOpen()) {
       if (e.key === 'Escape') {
         if (!document.fullscreenElement) closeItemOverlay();
@@ -1877,35 +2230,12 @@ function wire() {
       if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
       return;
     }
-
-    if (e.key === 'Escape') {
-      if (activeScreenName() === 'settings') { show('unlocked'); return; }
-      if (state.journalTab) { showVaultTab(); return; }
-      if (state.galleryMode) { toggleGallery(); return; }
-      if (state.searchQuery) { clearSearch(); renderGrid(); return; }
-    }
-
-    if (hasCmd && !e.altKey && !e.shiftKey && key === 'f') {
+    // immersive gallery: Esc exits (the floating exit pill works too)
+    if (state.galleryMode && e.key === 'Escape') {
       e.preventDefault();
-      const input = state.journalTab ? $('journalSearchInput') : $('searchInput');
-      if (input) {
-        input.focus();
-        input.select();
-      }
+      toggleGallery();
       return;
     }
-
-    if (hasCmd && !e.altKey && !e.shiftKey && e.key === ',') {
-      e.preventDefault();
-      openSettingsScreen();
-      return;
-    }
-
-    if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
-      toast('shortcuts: Ctrl/Cmd+L lock, Ctrl/Cmd+F search, Ctrl/Cmd+, settings, Ctrl/Cmd+Tab switch tabs, G gallery, Esc back');
-      return;
-    }
-
     if (e.key === 'g' || e.key === 'G') {
       e.preventDefault();
       toggleGallery();
@@ -1933,7 +2263,14 @@ function wire() {
 async function boot() {
   wire();
   renderIdlePills();
+  renderThemePills();
+  renderFontPills();
   renderBgPills();
+  renderChromePills();
+  renderGalleryPills();
+  applyTheme(themeChoice());
+  applyFont(fontChoice());
+  applyChrome(chromeChoice());
   ensureIO();
   mountBackground();
   if (!window.vaultAPI) {

@@ -4,8 +4,8 @@
 // vault palette. Strict-CSP-safe: plain 2D canvas only — no eval, no network.
 
 // --- tune the look here ---
-const COLOR_ROSE = [244, 63, 94];   // --rose (#f43f5e)
-const COLOR_MAUVE = [255, 255, 255];  // --mauve (#ffffff)
+const COLOR_ROSE = [196, 123, 131];   // --rose-dark
+const COLOR_MAUVE = [169, 138, 160];  // --mauve
 const CFG = {
   particlesPerArea: 16000,  // one particle per this many px²
   minParticles: 32,

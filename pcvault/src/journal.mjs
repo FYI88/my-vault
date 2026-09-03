@@ -100,6 +100,47 @@ export function sortedDayKeys(blob) {
   return Object.keys(blob.days).sort();
 }
 
+export function isLeapYear(year) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+// The days of a year laid out as a dot grid — pure geometry, no canvas, so
+// Node tests can pin it. `cols` defaults to 7 (a week per row); each cell:
+//   { key: 'YYYY-MM-DD', col, row, dayOfYear, monthStart }
+export function yearGrid(year, cols = 7) {
+  const daysInYear = isLeapYear(year) ? 366 : 365;
+  const monthStarts = new Set();
+  for (let m = 0; m < 12; m++) monthStarts.add(dateKey(new Date(year, m, 1)));
+  const out = [];
+  for (let doy = 0; doy < daysInYear; doy++) {
+    const d = new Date(year, 0, doy + 1);
+    const key = dateKey(d);
+    out.push({
+      key,
+      col: doy % cols,
+      row: Math.floor(doy / cols),
+      dayOfYear: doy,
+      monthStart: monthStarts.has(key),
+    });
+  }
+  return out;
+}
+
+// Doodle variant counts per growth stage — the "one year" line-art vocabulary
+// (sprout → young → full → blooming). Exported so tests can pin the counts.
+export const DOODLE_VARIANTS = { 1: 3, 2: 4, 3: 5, 4: 6 };
+
+// Deterministic doodle picker: stage 1..4 → variant 0..N, seeded by the day
+// key + mood so the same day always grows the same plant, and a mood nudge
+// changes it. Pure, so tests can pin determinism.
+export function pickDoodle(stage, mood, seed) {
+  let h = 7;
+  const s = String(seed) + '|' + (mood || '');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  const n = DOODLE_VARIANTS[stage] || 3;
+  return ((h % n) + n) % n;
+}
+
 // Search a year blob: keys whose entry text (or mood) contains the query.
 export function searchYear(blob, query) {
   const q = query.trim().toLowerCase();
@@ -111,4 +152,37 @@ export function searchYear(blob, query) {
     if (text.includes(q) || mood.includes(q)) out.push(k);
   }
   return out.sort();
+}
+
+// The cells of one calendar month, aligned to real weekdays (Sunday first),
+// padded with nulls so the renderer can lay a plain 7-column grid with zero
+// layout math: weeks = [[ { key|null, day|null } × 7 ], ...]. Pure + Node-tested.
+export function monthCells(year, month) {
+  const firstDow = new Date(year, month, 1).getDay(); // 0 = Sunday
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const weeks = [];
+  let week = [];
+  for (let i = 0; i < firstDow; i++) week.push({ key: null, day: null });
+  for (let d = 1; d <= daysInMonth; d++) {
+    week.push({ key: dateKey(new Date(year, month, d)), day: d });
+    if (week.length === 7) { weeks.push(week); week = []; }
+  }
+  while (week.length > 0 && week.length < 7) week.push({ key: null, day: null });
+  if (week.length) weeks.push(week);
+  return weeks;
+}
+
+// Render a year blob as a plain markdown document (export — the "your words are
+// never locked in" guarantee). Pure + Node-tested; `fmtDay` lets the caller
+// pretty-print dates (defaults to the raw YYYY-MM-DD key).
+export function exportYearMarkdown(blob, fmtDay) {
+  const f = typeof fmtDay === 'function' ? fmtDay : (key) => key;
+  const parts = [`# ${blob.year}`];
+  for (const key of sortedDayKeys(blob)) {
+    const e = blob.days[key];
+    parts.push('', `## ${f(key)}`);
+    if (e && e.mood) parts.push(`_mood ${e.mood}_`);
+    parts.push('', (e && e.text ? e.text : '').trim() || '_(no text)_');
+  }
+  return parts.join('\n') + '\n';
 }
