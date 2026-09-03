@@ -1097,3 +1097,45 @@ body.font-jetbrains,
 body.font-jetbrains *{ font-family:'JetBrains Mono',monospace !important; }
 body.font-gc-beluga,
 body.font-gc-beluga *{ font-family:'GC Beluga Mono',monospace !important; }
+
+/* ----- keyboard shortcuts help overlay (Ctrl+? / Ctrl+/) ----- */
+.shortcuts-help{
+  position:fixed; inset:0; z-index:300;
+  background:rgba(23,16,20,0.52);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center;
+  padding:1.2rem;
+}
+.shortcuts-help.hidden{ display:none; }
+.shortcuts-help-card{
+  background:var(--card); border:1px solid var(--border); border-radius:14px;
+  box-shadow:0 18px 50px rgba(0,0,0,0.28);
+  width:min(820px, 92vw); max-height:88vh; overflow:auto;
+  padding:1rem 1.1rem 1.2rem;
+}
+.shortcuts-help-head{
+  display:flex; align-items:center; justify-content:space-between; gap:0.6rem;
+  margin-bottom:0.7rem;
+}
+.shortcuts-help-head h3{
+  font-family:'DM Serif Display',serif; font-style:italic; font-weight:400;
+  font-size:1.15rem; color:var(--rose-dark); margin:0; letter-spacing:0.3px;
+}
+.shortcuts-help-grid{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:1rem 1.2rem;
+}
+.shortcuts-help-grid h4{
+  font-family:'JetBrains Mono',monospace; font-size:0.62rem; text-transform:uppercase;
+  letter-spacing:0.05em; color:var(--mauve-dark); margin:0 0 0.4rem;
+}
+.shortcuts-help-grid p{
+  font-family:'JetBrains Mono',monospace; font-size:0.62rem; line-height:1.5;
+  color:var(--text); margin:0 0 0.3rem;
+}
+.shortcuts-help kbd{
+  display:inline-block; min-width:1.35rem; text-align:center;
+  background:var(--bg); border:1px solid var(--border); border-bottom-width:2px;
+  border-radius:6px; padding:0.08rem 0.32rem;
+  font-family:'JetBrains Mono',monospace; font-size:0.58rem; color:var(--text-soft);
+}

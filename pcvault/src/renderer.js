@@ -227,6 +227,93 @@ function runAction(name) {
   if (fn) fn();
 }
 
+// ---- keyboard helpers (Esc back-stack, tab cycling, search focus) ----
+function isSettingsOpen() {
+  const s = $('screen-settings');
+  return s && s.classList.contains('active');
+}
+function cycleTabs(dir) {
+  // Ctrl+Tab cycles Vault <-> Journal only (Settings is via Ctrl+,), dir 1 / -1 both toggle with 2 pages
+  if (state.journalTab) showVaultTab();
+  else showJournalTab();
+}
+function focusSearch() {
+  if (state.journalTab) {
+    const i = $('journalSearchInput');
+    if (i) { i.focus(); i.select(); }
+  } else {
+    const i = $('searchInput');
+    if (i) { i.focus(); i.select(); }
+  }
+}
+function focusJournalEntry() {
+  showJournalTab();
+  requestAnimationFrame(() => {
+    const key = todayKey();
+    journalEditKey = key;
+    openJournalDay(key);
+    const ta = $('journalEntry');
+    if (ta) { ta.focus(); ta.select(); }
+  });
+}
+function ensureHelpOverlay() {
+  let el = $('shortcutsHelp');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'shortcutsHelp';
+  el.className = 'shortcuts-help hidden';
+  el.innerHTML = `
+    <div class="shortcuts-help-card" role="dialog" aria-label="keyboard shortcuts">
+      <div class="shortcuts-help-head"><h3>keyboard shortcuts</h3><button class="icon-btn" id="shortcutsHelpClose" aria-label="close" title="close (Esc)">✕</button></div>
+      <div class="shortcuts-help-grid">
+        <div><h4>navigation</h4>
+          <p><kbd>Esc</kbd> back / close viewer / exit gallery / leave settings</p>
+          <p><kbd>Backspace</kbd> back (when not typing)</p>
+          <p><kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> cycle Vault ↔ Journal</p>
+          <p><kbd>Ctrl</kbd>+<kbd>1</kbd> Vault &nbsp; <kbd>Ctrl</kbd>+<kbd>2</kbd> Journal</p>
+          <p><kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>Ctrl</kbd>+<kbd>F</kbd> focus search</p>
+          <p><kbd>Ctrl</kbd>+<kbd>,</kbd> settings &nbsp; <kbd>Ctrl</kbd>+<kbd>L</kbd> lock</p>
+          <p><kbd>g</kbd> toggle gallery &nbsp; <kbd>Ctrl</kbd>+<kbd>G</kbd> gallery</p>
+        </div>
+        <div><h4>vault & viewer</h4>
+          <p><kbd>Ctrl</kbd>+<kbd>I</kbd> add files &nbsp; <kbd>←</kbd> / <kbd>→</kbd> prev / next</p>
+          <p><kbd>f</kbd> fullscreen &nbsp; <kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd> zoom (photo)</p>
+          <p><kbd>Space</kbd> play / pause video</p>
+          <p><kbd>Ctrl</kbd>+<kbd>E</kbd> export current &nbsp; <kbd>Delete</kbd> delete</p>
+          <p><kbd>Esc</kbd> close viewer</p>
+        </div>
+        <div><h4>journal</h4>
+          <p><kbd>Ctrl</kbd>+<kbd>N</kbd> new entry (today)</p>
+          <p><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>Ctrl</kbd>+<kbd>Enter</kbd> save entry</p>
+          <p><kbd>Ctrl</kbd>+<kbd>E</kbd> export year as markdown</p>
+          <p><kbd>Alt</kbd>+<kbd>←</kbd> / <kbd>Alt</kbd>+<kbd>→</kbd> prev / next year</p>
+          <p><kbd>Ctrl</kbd>+<kbd>PageUp</kbd> / <kbd>PageDown</kbd> prev / next year</p>
+        </div>
+        <div><h4>general</h4>
+          <p><kbd>Ctrl</kbd>+<kbd>?</kbd> / <kbd>Ctrl</kbd>+<kbd>/</kbd> this help</p>
+        </div>
+      </div>
+      <p class="vault-sub" style="margin-top:12px">Shortcuts work when unlocked. Ctrl/Cmd both work on Mac.</p>
+    </div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click', (e) => { if (e.target === el) hideHelp(); });
+  const close = el.querySelector('#shortcutsHelpClose');
+  if (close) close.addEventListener('click', hideHelp);
+  return el;
+}
+function showHelp() {
+  const el = ensureHelpOverlay();
+  el.classList.remove('hidden');
+}
+function hideHelp() {
+  const el = $('shortcutsHelp');
+  if (el) el.classList.add('hidden');
+}
+function isHelpOpen() {
+  const el = $('shortcutsHelp');
+  return el && !el.classList.contains('hidden');
+}
+
 // ---- vault file ----
 async function saveVault() {
   if (!state.path || !state.manifest) return;
@@ -2206,39 +2293,162 @@ function wire() {
     inp.addEventListener('input', () => updateMeter(inp));
   });
 
-  // keyboard shortcuts: Esc/←/→/F drive the viewer; G toggles the gallery view
+  // keyboard shortcuts — full set (Esc back-stack, Ctrl+Tab paging, gallery/viewer/journal)
   window.addEventListener('keydown', (e) => {
+    // Help overlay: Esc always closes it, even when locked
+    if (isHelpOpen() && e.key === 'Escape') { e.preventDefault(); hideHelp(); return; }
+
     if (!state.unlocked) return;
-    // Ctrl shortcuts work even while typing in a search box
+
+    // ---- Ctrl/Cmd shortcuts — work even while typing ----
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
       const k = e.key.toLowerCase();
+
+      // Ctrl+Tab / Ctrl+Shift+Tab — cycle Vault <-> Journal only (no Settings)
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        cycleTabs(e.shiftKey ? -1 : 1);
+        return;
+      }
+      if (k === '1') { e.preventDefault(); showVaultTab(); return; }
+      if (k === '2') { e.preventDefault(); showJournalTab(); return; }
+      if (k === 'k' || k === 'f') { e.preventDefault(); focusSearch(); return; }
       if (k === 'i') { e.preventDefault(); runAction('add-files'); return; }
       if (k === 'g') { e.preventDefault(); runAction('gallery'); return; }
       if (k === ',') { e.preventDefault(); runAction('settings'); return; }
       if (k === 'l') { e.preventDefault(); runAction('lock'); return; }
+      if (k === 'n') { e.preventDefault(); focusJournalEntry(); return; }
+      if (k === 's') {
+        // Ctrl+S — save journal entry when on Journal tab (like Ctrl+Enter)
+        if (state.journalTab) {
+          e.preventDefault();
+          const key = journalEditKey || todayKey();
+          const year = yearKey(key);
+          const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
+          saveJournalEntry(year, key, $('journalEntry').value, mood).then(() => { toast('saved'); renderJournal(); });
+          return;
+        }
+      }
+      if (k === 'e') {
+        // Ctrl+E — export: viewer item if open, else journal year if on journal, else no-op
+        if (viewerOpen()) { e.preventDefault(); handleExport(); return; }
+        if (state.journalTab) { e.preventDefault(); handleJournalExport(); return; }
+      }
+      if (k === '/' || k === '?' || (e.key === '/' || e.key === '?')) { e.preventDefault(); if (isHelpOpen()) hideHelp(); else showHelp(); return; }
+      // viewer photo zoom: Ctrl+= / Ctrl+- / Ctrl+0 (also plain +/- when viewer open, handled below)
+      if (e.key === '=' || e.key === '+' || k === '=' || k === '+') {
+        if (viewerOpen() && !$('itemImg').classList.contains('hidden')) { e.preventDefault(); const r = $('itemImg').getBoundingClientRect(); setViewerZoom(viewerZoom * 1.25, 50, 50); return; }
+      }
+      if (e.key === '-' || e.key === '_' || k === '-') {
+        if (viewerOpen() && !$('itemImg').classList.contains('hidden')) { e.preventDefault(); setViewerZoom(viewerZoom * 0.8, 50, 50); return; }
+      }
+      if (e.key === '0' || k === '0') {
+        if (viewerOpen() && !$('itemImg').classList.contains('hidden')) { e.preventDefault(); resetViewerZoom(); return; }
+      }
+      // Ctrl+PageUp/PageDown — journal year nav
+      if (e.key === 'PageUp') {
+        if (state.journalTab) { e.preventDefault(); state.journalYear = (state.journalYear || yearOf(new Date())) - 1; journalEditKey = null; renderJournal(); return; }
+      }
+      if (e.key === 'PageDown') {
+        if (state.journalTab) { e.preventDefault(); state.journalYear = (state.journalYear || yearOf(new Date())) + 1; journalEditKey = null; renderJournal(); return; }
+      }
     }
-    const tag = (e.target.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
-    if (viewerOpen()) {
-      if (e.key === 'Escape') {
-        if (!document.fullscreenElement) closeItemOverlay();
+
+    // ---- Esc back-stack — works even when typing (highest priority after Ctrl) ----
+    if (e.key === 'Escape') {
+      // viewer has top priority
+      if (viewerOpen()) {
+        e.preventDefault();
+        if (document.fullscreenElement) { try { document.exitFullscreen(); } catch {} return; }
+        closeItemOverlay();
         return;
       }
+      if (state.galleryMode) { e.preventDefault(); toggleGallery(); return; }
+      if (isSettingsOpen()) { e.preventDefault(); show('unlocked'); return; }
+      // clear search if focused or has query
+      const ae = document.activeElement;
+      const aeTag = (ae && ae.tagName || '').toLowerCase();
+      if (aeTag === 'input' || aeTag === 'textarea') {
+        // in a search box: Esc clears it (existing behavior extended)
+        if (ae.id === 'searchInput') { e.preventDefault(); clearSearch(); renderGrid(); ae.blur(); return; }
+        if (ae.id === 'journalSearchInput') { e.preventDefault(); ae.value = ''; applyJournalSearch(); ae.blur(); return; }
+        // in journal entry textarea: Esc blurs (not delete)
+        if (ae.id === 'journalEntry') { e.preventDefault(); ae.blur(); return; }
+      }
+      if (state.searchQuery) { e.preventDefault(); clearSearch(); renderGrid(); return; }
+      const jq = $('journalSearchInput');
+      if (jq && jq.value.trim()) { e.preventDefault(); jq.value = ''; applyJournalSearch(); return; }
+      return;
+    }
+
+    // Backspace as Back when not typing (laptop parity with Esc)
+    if (e.key === 'Backspace') {
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+      if (viewerOpen() || state.galleryMode || isSettingsOpen()) {
+        e.preventDefault();
+        if (viewerOpen()) { if (!document.fullscreenElement) closeItemOverlay(); return; }
+        if (state.galleryMode) { toggleGallery(); return; }
+        if (isSettingsOpen()) { show('unlocked'); return; }
+      }
+    }
+
+    // ---- no-input shortcuts (let typing through) ----
+    const tag = (e.target.tagName || '').toLowerCase();
+    const typing = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+    if (typing) {
+      // Ctrl+Enter in journal entry also saves (handled above via Ctrl+S, but add plain Enter with Ctrl)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && e.target.id === 'journalEntry') {
+        e.preventDefault();
+        const key = journalEditKey || todayKey();
+        const year = yearKey(key);
+        const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
+        saveJournalEntry(year, key, $('journalEntry').value, mood).then(() => { toast('saved'); renderJournal(); });
+        return;
+      }
+      return;
+    }
+
+    // viewer open — arrow nav, f, zoom, space, delete (typing already returned)
+    if (viewerOpen()) {
       if (e.target.tagName === 'VIDEO') return; // native controls own the arrows while focused
       if (e.key === 'ArrowLeft') { e.preventDefault(); viewerNav(-1); return; }
       if (e.key === 'ArrowRight') { e.preventDefault(); viewerNav(1); return; }
-      if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
+      if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFullscreen(); return; }
+      if (e.key === '+' || e.key === '=' ) { e.preventDefault(); setViewerZoom(viewerZoom * 1.25, 50, 50); return; }
+      if (e.key === '-' || e.key === '_' ) { e.preventDefault(); setViewerZoom(viewerZoom * 0.8, 50, 50); return; }
+      if (e.key === '0') { e.preventDefault(); resetViewerZoom(); return; }
+      if (e.key === ' ') { // Space play/pause video
+        const vid = $('itemVideo');
+        if (currentItemKind === 'video' && vid && !vid.classList.contains('hidden')) { e.preventDefault(); if (vid.paused) vid.play().catch(()=>{}); else vid.pause(); return; }
+      }
+      if (e.key === 'Delete') { e.preventDefault(); handleDelete(); return; }
       return;
     }
-    // immersive gallery: Esc exits (the floating exit pill works too)
-    if (state.galleryMode && e.key === 'Escape') {
-      e.preventDefault();
-      toggleGallery();
-      return;
+
+    // gallery Esc already handled in back-stack; g toggles
+    if (e.key === 'g' || e.key === 'G') { e.preventDefault(); toggleGallery(); return; }
+
+    // journal year nav: Alt+ArrowLeft / Alt+ArrowRight
+    if (e.altKey && !e.ctrlKey && !e.metaKey) {
+      if (e.key === 'ArrowLeft') {
+        if (state.journalTab) { e.preventDefault(); state.journalYear = (state.journalYear || yearOf(new Date())) - 1; journalEditKey = null; renderJournal(); return; }
+      }
+      if (e.key === 'ArrowRight') {
+        if (state.journalTab) { e.preventDefault(); state.journalYear = (state.journalYear || yearOf(new Date())) + 1; journalEditKey = null; renderJournal(); return; }
+      }
     }
-    if (e.key === 'g' || e.key === 'G') {
-      e.preventDefault();
-      toggleGallery();
+
+    // journal saves via Ctrl+Enter handled in typing branch; non-typing fallback
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      if (state.journalTab) {
+        e.preventDefault();
+        const key = journalEditKey || todayKey();
+        const year = yearKey(key);
+        const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
+        saveJournalEntry(year, key, $('journalEntry').value, mood).then(() => { toast('saved'); renderJournal(); });
+        return;
+      }
     }
   });
 
