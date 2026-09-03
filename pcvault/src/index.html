@@ -246,7 +246,7 @@
       <section class="journal-card secrets-composer">
         <p class="vault-sub" style="margin-bottom:0.5rem">add a secret — encrypted like everything else, wiped on lock</p>
         <input id="secretsLabel" class="vault-input" type="text" placeholder="label — e.g. GitHub, Wi-Fi, Bank" autocomplete="off">
-        <div class="vault-pills" id="secretsCategoryPills" style="margin-top:0.55rem">
+        <div class="vault-pills" id="secretsCategoryPills">
           <button class="vault-pill on" data-cat="login">login</button>
           <button class="vault-pill" data-cat="api">api</button>
           <button class="vault-pill" data-cat="ssh">ssh</button>
@@ -254,7 +254,7 @@
           <button class="vault-pill" data-cat="card">card</button>
           <button class="vault-pill" data-cat="note">note</button>
         </div>
-        <input id="secretsUsername" class="vault-input" type="text" placeholder="username / phone / identifier" autocomplete="off" style="margin-top:0.55rem">
+        <input id="secretsUsername" class="vault-input" type="text" placeholder="username / phone / identifier" autocomplete="off">
         <div class="secrets-secret-row">
           <input id="secretsSecret" class="vault-input" type="password" placeholder="secret — password, token, key, number" autocomplete="off">
           <button id="secretsRevealBtn" class="icon-btn" aria-label="reveal" title="reveal (hold)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>

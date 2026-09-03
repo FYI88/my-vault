@@ -33,6 +33,8 @@ const ICON_PATHS = {
   film: '<rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>',
   file: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/>',
   play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.59 9.59 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>',
 };
 function ic(name, cls) {
   const inner = ICON_PATHS[name] || '';
@@ -310,7 +312,7 @@ function ensureHelpOverlay() {
           <p><kbd>Ctrl</kbd>+<kbd>3</kbd> secrets &nbsp; <kbd>Ctrl</kbd>+<kbd>N</kbd> new secret</p>
           <p><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>Ctrl</kbd>+<kbd>Enter</kbd> save secret</p>
           <p><kbd>Enter</kbd> save (when in form)</p>
-          <p>eye = reveal · copy clears in 30s</p>
+          <p>eye icon = reveal · copy clears in 30s</p>
         </div>
         <div><h4>general</h4>
           <p><kbd>Ctrl</kbd>+<kbd>?</kbd> / <kbd>Ctrl</kbd>+<kbd>/</kbd> this help</p>
@@ -1022,10 +1024,10 @@ async function renderSecrets() {
     copyUser.addEventListener('click', () => copyWithClear(val.username, 'username'));
     const copySecret = document.createElement('button'); copySecret.className = 'icon-btn small'; copySecret.title = 'copy secret (clears in 30s)'; copySecret.textContent = 'copy';
     copySecret.addEventListener('click', () => copyWithClear(val.secret, 'secret'));
-    const reveal = document.createElement('button'); reveal.className = 'icon-btn small'; reveal.title = 'reveal'; reveal.textContent = '👁';
+    const reveal = document.createElement('button'); reveal.className = 'icon-btn small'; reveal.title = 'reveal'; reveal.innerHTML = ic('eye');
     let revealed = false;
     const secretDots = document.createElement('span'); secretDots.className = 'secrets-dots'; secretDots.textContent = val.secret ? '••••••••' : '';
-    reveal.addEventListener('click', () => { revealed = !revealed; secretDots.textContent = revealed ? val.secret : (val.secret ? '••••••••' : ''); reveal.textContent = revealed ? '🙈' : '👁'; });
+    reveal.addEventListener('click', () => { revealed = !revealed; secretDots.textContent = revealed ? val.secret : (val.secret ? '••••••••' : ''); reveal.innerHTML = ic(revealed ? 'eyeOff' : 'eye'); });
     const editBtn = document.createElement('button'); editBtn.className = 'icon-btn small'; editBtn.title = 'edit'; editBtn.textContent = 'edit';
     editBtn.addEventListener('click', () => {
       editingSecretId = rec.id;
