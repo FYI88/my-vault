@@ -947,10 +947,10 @@ body.gallery-mode .titlebar *{ pointer-events:auto; }
   display:flex; align-items:center; gap:0.4rem; width:100%;
 }
 .journal-year{
-  font-family:'DM Serif Display',serif; font-style:italic; font-size:1.35rem;
-  font-weight:400; color:#fff; letter-spacing:0.5px; margin:0; line-height:1;
-  background:var(--mauve-dark); border-radius:999px; padding:0.45rem 1.1rem;
-  min-width:5ch; text-align:center; box-shadow:0 2px 8px rgba(124,101,116,0.25);
+  font-family:'DM Serif Display',serif; font-style:italic; font-size:1.25rem;
+  font-weight:400; color:var(--rose-dark); letter-spacing:0.6px; margin:0; line-height:1;
+  background:transparent; border:none; padding:0.2rem 0.3rem;
+  min-width:5ch; text-align:center; box-shadow:none;
 }
 .journal-toolbar-gap{ flex:1; }
 .journal-search{
