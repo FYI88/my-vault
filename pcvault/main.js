@@ -24,7 +24,6 @@ function mimeFor(p) {
   if (ext === '.css') return 'text/css';
   if (ext === '.js' || ext === '.mjs') return 'text/javascript';
   if (ext === '.png') return 'image/png';
-  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
   if (ext === '.svg') return 'image/svg+xml';
   if (ext === '.woff2') return 'font/woff2';
   if (ext === '.json') return 'application/json';
@@ -44,15 +43,15 @@ function createWindow() {
     minWidth: 420,
     minHeight: 600,
     icon: fs.existsSync(APP_ICON) ? APP_ICON : undefined,
-    backgroundColor: '#09090b', // obsidian dark theme
+    backgroundColor: '#fbf6f3', // --cream — no flash of a different tone behind the page
     title: 'My Vault',
     autoHideMenuBar: true,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#121215',      // dark obsidian chrome
-      symbolColor: '#f4f4f5', // white icons
-      height: 40,
-    },
+    // Frameless: the page draws its own thin titlebar (macOS-style traffic lights
+    // + the app header in one strip — .titlebar in styles.css), so the window
+    // chrome belongs to the keepsake design instead of floating OS buttons on a
+    // band. Controls go through the win:* IPC below; the strip is the drag region
+    // and double-click maximizes. (Tradeoff: no Win11 snap-layout flyout.)
+    frame: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
