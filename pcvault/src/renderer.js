@@ -60,10 +60,16 @@ const state = {
   journalTab: false,    // Journal tab active (vs Vault)
   journalCache: new Map(), // year → decrypted journal blob — plaintext, wiped on lock
   journalYear: null,    // the year the journal screen is showing
+  secretsTab: false,    // Secrets tab active
+  secretsCache: new Map(), // id → decrypted secret JSON — plaintext, wiped on lock
+  secretsFilter: 'all', // category filter
+  secretsQuery: '',     // lowercased live query
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
 let toastTimer = null;
+let editingSecretId = null; // null = new secret, else id of secret being edited
+let clipboardClearTimer = null;
 
 // ---- immersive viewer (full-bleed stage + floating chrome) ----
 let viewerZoom = 1;          // photo zoom factor (1 = fit)
@@ -233,12 +239,23 @@ function isSettingsOpen() {
   return s && s.classList.contains('active');
 }
 function cycleTabs(dir) {
-  // Ctrl+Tab cycles Vault <-> Journal only (Settings is via Ctrl+,), dir 1 / -1 both toggle with 2 pages
-  if (state.journalTab) showVaultTab();
-  else showJournalTab();
+  // Ctrl+Tab cycles Vault -> Journal -> Secrets -> Vault (Settings via Ctrl+, only)
+  const order = ['vault', 'journal', 'secrets'];
+  let cur = 'vault';
+  if (state.secretsTab) cur = 'secrets';
+  else if (state.journalTab) cur = 'journal';
+  let idx = order.indexOf(cur);
+  idx = (idx + dir + order.length) % order.length;
+  const next = order[idx];
+  if (next === 'vault') showVaultTab();
+  else if (next === 'journal') showJournalTab();
+  else showSecretsTab();
 }
 function focusSearch() {
-  if (state.journalTab) {
+  if (state.secretsTab) {
+    const i = $('secretsSearchInput');
+    if (i) { i.focus(); i.select(); }
+  } else if (state.journalTab) {
     const i = $('journalSearchInput');
     if (i) { i.focus(); i.select(); }
   } else {
@@ -267,10 +284,10 @@ function ensureHelpOverlay() {
       <div class="shortcuts-help-head"><h3>keyboard shortcuts</h3><button class="icon-btn" id="shortcutsHelpClose" aria-label="close" title="close (Esc)">✕</button></div>
       <div class="shortcuts-help-grid">
         <div><h4>navigation</h4>
-          <p><kbd>Esc</kbd> back / close viewer / exit gallery / leave settings</p>
+          <p><kbd>Esc</kbd> back / close viewer / exit gallery / leave settings / back to Vault</p>
           <p><kbd>Backspace</kbd> back (when not typing)</p>
-          <p><kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> cycle Vault ↔ Journal</p>
-          <p><kbd>Ctrl</kbd>+<kbd>1</kbd> Vault &nbsp; <kbd>Ctrl</kbd>+<kbd>2</kbd> Journal</p>
+          <p><kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> cycle Vault ↔ Journal ↔ Secrets</p>
+          <p><kbd>Ctrl</kbd>+<kbd>1</kbd> Vault &nbsp; <kbd>Ctrl</kbd>+<kbd>2</kbd> Journal &nbsp; <kbd>Ctrl</kbd>+<kbd>3</kbd> Secrets</p>
           <p><kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>Ctrl</kbd>+<kbd>F</kbd> focus search</p>
           <p><kbd>Ctrl</kbd>+<kbd>,</kbd> settings &nbsp; <kbd>Ctrl</kbd>+<kbd>L</kbd> lock</p>
           <p><kbd>g</kbd> toggle gallery &nbsp; <kbd>Ctrl</kbd>+<kbd>G</kbd> gallery</p>
@@ -288,6 +305,12 @@ function ensureHelpOverlay() {
           <p><kbd>Ctrl</kbd>+<kbd>E</kbd> export year as markdown</p>
           <p><kbd>Alt</kbd>+<kbd>←</kbd> / <kbd>Alt</kbd>+<kbd>→</kbd> prev / next year</p>
           <p><kbd>Ctrl</kbd>+<kbd>PageUp</kbd> / <kbd>PageDown</kbd> prev / next year</p>
+        </div>
+        <div><h4>secrets</h4>
+          <p><kbd>Ctrl</kbd>+<kbd>3</kbd> secrets &nbsp; <kbd>Ctrl</kbd>+<kbd>N</kbd> new secret</p>
+          <p><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>Ctrl</kbd>+<kbd>Enter</kbd> save secret</p>
+          <p><kbd>Enter</kbd> save (when in form)</p>
+          <p>eye = reveal · copy clears in 30s</p>
         </div>
         <div><h4>general</h4>
           <p><kbd>Ctrl</kbd>+<kbd>?</kbd> / <kbd>Ctrl</kbd>+<kbd>/</kbd> this help</p>
@@ -500,6 +523,20 @@ function lock() {
   journalEditKey = null;
   state.journalTab = false;
   if ($('journalEntry')) $('journalEntry').value = '';
+  // secrets — wipe plaintext like journal
+  state.secretsCache.clear();
+  state.secretsQuery = '';
+  state.secretsFilter = 'all';
+  state.secretsTab = false;
+  editingSecretId = null;
+  if ($('secretsSearchInput')) $('secretsSearchInput').value = '';
+  if ($('secretsLabel')) $('secretsLabel').value = '';
+  if ($('secretsUsername')) $('secretsUsername').value = '';
+  if ($('secretsSecret')) { $('secretsSecret').value = ''; $('secretsSecret').type = 'password'; }
+  if ($('secretsUrl')) $('secretsUrl').value = '';
+  if ($('secretsNotes')) $('secretsNotes').value = '';
+  clearTimeout(clipboardClearTimer);
+  clipboardClearTimer = null;
   showVaultTab();
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
   destroyGallery();
@@ -804,9 +841,9 @@ function ensureNames() {
   return state.namesReady;
 }
 
-// Journal records are not files — the grid, search, and gallery all skip them.
+// Journal + Secrets are not files — the grid, search, and gallery all skip them.
 function vaultItems() {
-  return state.items.filter((r) => r.kind !== 'journal');
+  return state.items.filter((r) => r.kind !== 'journal' && r.kind !== 'secret');
 }
 
 async function filteredItems() {
@@ -822,6 +859,196 @@ function clearSearch() {
   if (input) input.value = '';
   $('searchRow').classList.remove('has-query');
   setHidden('searchCount', true);
+}
+
+// ---- secrets (like journal but per-row, masked, copy-clears in 30s) ----
+const SECRET_CATEGORIES = ['login', 'api', 'ssh', 'phone', 'card', 'note'];
+const SECRET_MIME = 'application/x-vault-secret';
+function secretRecords() {
+  return state.items.filter((r) => r.kind === 'secret');
+}
+async function decryptSecret(rec) {
+  if (state.secretsCache.has(rec.id)) return state.secretsCache.get(rec.id);
+  try {
+    const itemKey = await unwrapItemKey(state.dek, rec);
+    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    try {
+      const txt = new TextDecoder().decode(plain);
+      const obj = JSON.parse(txt);
+      const val = {
+        label: String(obj.label || ''),
+        category: SECRET_CATEGORIES.includes(obj.category) ? obj.category : 'login',
+        username: String(obj.username || ''),
+        secret: String(obj.secret || ''),
+        url: String(obj.url || ''),
+        notes: String(obj.notes || ''),
+        updatedAt: Number(obj.updatedAt || rec.createdAt || Date.now()),
+      };
+      if (!state.unlocked) return null;
+      state.secretsCache.set(rec.id, val);
+      return val;
+    } finally { vaultWipeRaw(plain); }
+  } catch { return { label: '', category: 'login', username: '', secret: '', url: '', notes: '', updatedAt: rec.createdAt }; }
+}
+async function ensureSecretsCache() {
+  const recs = secretRecords();
+  for (const r of recs) {
+    if (!state.unlocked) return;
+    if (!state.secretsCache.has(r.id)) await decryptSecret(r);
+  }
+}
+function clearSecretsForm() {
+  editingSecretId = null;
+  const s = $('secretsLabel'); if (s) s.value = '';
+  const u = $('secretsUsername'); if (u) u.value = '';
+  const p = $('secretsSecret'); if (p) { p.value = ''; p.type = 'password'; }
+  const url = $('secretsUrl'); if (url) url.value = '';
+  const notes = $('secretsNotes'); if (notes) notes.value = '';
+  document.querySelectorAll('#secretsCategoryPills .vault-pill').forEach((b) => b.classList.toggle('on', b.dataset.cat === 'login'));
+  const save = $('secretsSaveBtn'); if (save) save.textContent = 'save secret';
+  setHidden('secretsCancelBtn', true);
+}
+function secretsCategoryChoice() {
+  const on = document.querySelector('#secretsCategoryPills .vault-pill.on');
+  return on ? on.dataset.cat : 'login';
+}
+async function saveSecret() {
+  if (!state.unlocked || !state.dek) return;
+  const label = ($('secretsLabel').value || '').trim();
+  const category = secretsCategoryChoice();
+  const username = ($('secretsUsername').value || '').trim();
+  const secret = ($('secretsSecret').value || '');
+  const url = ($('secretsUrl').value || '').trim();
+  const notes = ($('secretsNotes').value || '').trim();
+  if (!label) { toast('label is required'); $('secretsLabel').focus(); return; }
+  if (!secret && category !== 'note') { toast('secret is required'); $('secretsSecret').focus(); return; }
+  const payload = JSON.stringify({ label, category, username, secret, url, notes, updatedAt: Date.now() });
+  const bytes = new TextEncoder().encode(payload);
+  if (editingSecretId) {
+    // replace existing record
+    state.items = state.items.filter((r) => r.id !== editingSecretId);
+    state.secretsCache.delete(editingSecretId);
+  }
+  const rec = await encryptFile('secret', SECRET_MIME, label, bytes);
+  // keep kind consistent for filtering
+  rec.kind = 'secret';
+  state.items.push(rec);
+  state.secretsCache.set(rec.id, { label, category, username, secret, url, notes, updatedAt: Date.now() });
+  await saveVault();
+  clearSecretsForm();
+  await renderSecrets();
+  toast(editingSecretId ? 'secret updated' : 'secret saved');
+}
+async function deleteSecret(id) {
+  state.items = state.items.filter((r) => r.id !== id);
+  state.secretsCache.delete(id);
+  if (editingSecretId === id) clearSecretsForm();
+  await saveVault();
+  await renderSecrets();
+  toast('secret deleted');
+}
+function copyWithClear(text, label) {
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    toast(label + ' copied — clears in 30s');
+    clearTimeout(clipboardClearTimer);
+    clipboardClearTimer = setTimeout(() => {
+      // best-effort clear: write empty if still our value
+      navigator.clipboard.writeText('').catch(() => {});
+      toast('clipboard cleared');
+    }, 30000);
+  }).catch(() => toast("couldn't copy"));
+}
+async function renderSecrets() {
+  if (!state.unlocked) return;
+  await ensureSecretsCache();
+  if (!state.unlocked || !state.secretsTab && !$('secretsPane')?.classList.contains('hidden') === false) {
+    // allow render even if tab not active when called after save, but respect lock
+  }
+  const list = $('secretsList');
+  const countEl = $('secretsEntryCount');
+  const count2 = $('secretsCount');
+  if (!list) return;
+  const q = (state.secretsQuery || '').toLowerCase();
+  const cat = state.secretsFilter || 'all';
+  const recs = secretRecords();
+  // build filtered list with decrypted values
+  const rows = [];
+  for (const r of recs) {
+    const v = await decryptSecret(r);
+    if (!v) continue;
+    if (cat !== 'all' && v.category !== cat) continue;
+    if (q) {
+      const hay = (v.label + ' ' + v.username + ' ' + v.url + ' ' + v.notes + ' ' + v.category).toLowerCase();
+      if (!hay.includes(q)) continue;
+    }
+    rows.push({ rec: r, val: v });
+  }
+  rows.sort((a, b) => (b.val.updatedAt || 0) - (a.val.updatedAt || 0));
+  list.textContent = '';
+  if (countEl) countEl.textContent = rows.length ? rows.length + ' secret' + (rows.length === 1 ? '' : 's') : '';
+  if (count2) { count2.textContent = rows.length ? rows.length + ' of ' + recs.length : ''; setHidden('secretsCount', !q && cat === 'all'); }
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'secrets-empty';
+    if (q || cat !== 'all') empty.textContent = 'nothing matches.';
+    else empty.textContent = recs.length ? 'nothing matches.' : 'no secrets yet. add one above.';
+    list.appendChild(empty);
+    return;
+  }
+  for (const { rec, val } of rows) {
+    const row = document.createElement('div');
+    row.className = 'secrets-row';
+    row.dataset.id = rec.id;
+    const head = document.createElement('div');
+    head.className = 'secrets-row-head';
+    const catEl = document.createElement('span');
+    catEl.className = 'secrets-cat';
+    catEl.textContent = val.category;
+    const labelEl = document.createElement('span');
+    labelEl.className = 'secrets-label';
+    labelEl.textContent = val.label;
+    const timeEl = document.createElement('span');
+    timeEl.className = 'secrets-time';
+    timeEl.textContent = new Date(val.updatedAt).toLocaleDateString();
+    head.appendChild(catEl); head.appendChild(labelEl); head.appendChild(timeEl);
+    const meta = document.createElement('div');
+    meta.className = 'secrets-meta';
+    if (val.username) { const s = document.createElement('span'); s.textContent = val.username; s.title = val.username; meta.appendChild(s); }
+    if (val.url) { const a = document.createElement('a'); a.href = val.url; a.textContent = val.url; a.target = '_blank'; a.rel = 'noopener'; a.className = 'secrets-url'; meta.appendChild(a); }
+    const actions = document.createElement('div');
+    actions.className = 'secrets-actions-row';
+    const copyUser = document.createElement('button'); copyUser.className = 'icon-btn small'; copyUser.title = 'copy username'; copyUser.textContent = 'user';
+    copyUser.addEventListener('click', () => copyWithClear(val.username, 'username'));
+    const copySecret = document.createElement('button'); copySecret.className = 'icon-btn small'; copySecret.title = 'copy secret (clears in 30s)'; copySecret.textContent = 'copy';
+    copySecret.addEventListener('click', () => copyWithClear(val.secret, 'secret'));
+    const reveal = document.createElement('button'); reveal.className = 'icon-btn small'; reveal.title = 'reveal'; reveal.textContent = '👁';
+    let revealed = false;
+    const secretDots = document.createElement('span'); secretDots.className = 'secrets-dots'; secretDots.textContent = val.secret ? '••••••••' : '';
+    reveal.addEventListener('click', () => { revealed = !revealed; secretDots.textContent = revealed ? val.secret : (val.secret ? '••••••••' : ''); reveal.textContent = revealed ? '🙈' : '👁'; });
+    const editBtn = document.createElement('button'); editBtn.className = 'icon-btn small'; editBtn.title = 'edit'; editBtn.textContent = 'edit';
+    editBtn.addEventListener('click', () => {
+      editingSecretId = rec.id;
+      $('secretsLabel').value = val.label;
+      document.querySelectorAll('#secretsCategoryPills .vault-pill').forEach((b) => b.classList.toggle('on', b.dataset.cat === val.category));
+      $('secretsUsername').value = val.username;
+      $('secretsSecret').value = val.secret;
+      $('secretsUrl').value = val.url;
+      $('secretsNotes').value = val.notes;
+      const save = $('secretsSaveBtn'); if (save) save.textContent = 'update secret';
+      setHidden('secretsCancelBtn', false);
+      $('secretsLabel').focus();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    const delBtn = document.createElement('button'); delBtn.className = 'icon-btn small danger'; delBtn.title = 'delete'; delBtn.textContent = 'del';
+    delBtn.addEventListener('click', () => { if (confirm('delete "' + val.label + '"?')) deleteSecret(rec.id); });
+    actions.appendChild(secretDots); actions.appendChild(reveal); actions.appendChild(copyUser); actions.appendChild(copySecret); actions.appendChild(editBtn); actions.appendChild(delBtn);
+    row.appendChild(head);
+    if (meta.childNodes.length) row.appendChild(meta);
+    if (val.notes) { const n = document.createElement('p'); n.className = 'secrets-notes'; n.textContent = val.notes; row.appendChild(n); }
+    row.appendChild(actions);
+    list.appendChild(row);
+  }
 }
 
 // ---- full-screen gallery (style-agnostic) ----
@@ -1301,10 +1528,13 @@ function applyJournalSearch() {
 
 function showJournalTab() {
   state.journalTab = true;
+  state.secretsTab = false;
   $('vaultTabBtn').classList.remove('on');
   $('journalTabBtn').classList.add('on');
+  const st = $('secretsTabBtn'); if (st) st.classList.remove('on');
   setHidden('vaultPane', true);
   setHidden('journalPane', false);
+  setHidden('secretsPane', true);
   // file controls are vault-only; journal has its own toolbar
   if ($('addFilesBtn')) setHidden('addFilesBtn', true);
   if ($('galleryToggleBtn')) setHidden('galleryToggleBtn', true);
@@ -1313,12 +1543,29 @@ function showJournalTab() {
 
 function showVaultTab() {
   state.journalTab = false;
+  state.secretsTab = false;
   $('vaultTabBtn').classList.add('on');
   $('journalTabBtn').classList.remove('on');
+  const st = $('secretsTabBtn'); if (st) st.classList.remove('on');
   setHidden('vaultPane', false);
   setHidden('journalPane', true);
+  setHidden('secretsPane', true);
   if ($('addFilesBtn')) setHidden('addFilesBtn', false);
   if ($('galleryToggleBtn')) setHidden('galleryToggleBtn', false);
+}
+
+function showSecretsTab() {
+  state.secretsTab = true;
+  state.journalTab = false;
+  $('vaultTabBtn').classList.remove('on');
+  $('journalTabBtn').classList.remove('on');
+  const st = $('secretsTabBtn'); if (st) st.classList.add('on');
+  setHidden('vaultPane', true);
+  setHidden('journalPane', true);
+  setHidden('secretsPane', false);
+  if ($('addFilesBtn')) setHidden('addFilesBtn', true);
+  if ($('galleryToggleBtn')) setHidden('galleryToggleBtn', true);
+  renderSecrets();
 }
 
 // ---- grid + lazy thumbs ----
@@ -2044,6 +2291,7 @@ function wire() {
   }
   $('vaultTabBtn').addEventListener('click', showVaultTab);
   $('journalTabBtn').addEventListener('click', showJournalTab);
+  const stBtn = $('secretsTabBtn'); if (stBtn) stBtn.addEventListener('click', showSecretsTab);
   $('journalSaveBtn').addEventListener('click', async () => {
     const key = journalEditKey || todayKey();
     const year = yearKey(key);
@@ -2051,6 +2299,42 @@ function wire() {
     await saveJournalEntry(year, key, $('journalEntry').value, mood);
     toast('saved');
     await renderJournal();
+  });
+  // secrets wiring
+  const ss = $('secretsSearchInput');
+  if (ss) ss.addEventListener('input', () => { state.secretsQuery = ss.value.trim().toLowerCase(); renderSecrets(); });
+  const ssc = $('secretsSearchClear');
+  if (ssc) ssc.addEventListener('click', () => { state.secretsQuery = ''; if (ss) ss.value = ''; renderSecrets(); });
+  document.querySelectorAll('#secretsFilterPills .vault-pill').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#secretsFilterPills .vault-pill').forEach((p) => p.classList.remove('on'));
+      b.classList.add('on');
+      state.secretsFilter = b.dataset.cat || 'all';
+      renderSecrets();
+    });
+  });
+  document.querySelectorAll('#secretsCategoryPills .vault-pill').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#secretsCategoryPills .vault-pill').forEach((p) => p.classList.remove('on'));
+      b.classList.add('on');
+    });
+  });
+  const secSave = $('secretsSaveBtn');
+  if (secSave) secSave.addEventListener('click', () => saveSecret());
+  const secCancel = $('secretsCancelBtn');
+  if (secCancel) secCancel.addEventListener('click', () => { clearSecretsForm(); toast('canceled'); });
+  const secReveal = $('secretsRevealBtn');
+  if (secReveal) {
+    secReveal.addEventListener('pointerdown', () => { const inp = $('secretsSecret'); if (inp) inp.type = 'text'; });
+    const hide = () => { const inp = $('secretsSecret'); if (inp) inp.type = 'password'; };
+    secReveal.addEventListener('pointerup', hide);
+    secReveal.addEventListener('pointerleave', hide);
+    secReveal.addEventListener('click', () => { const inp = $('secretsSecret'); if (inp) inp.type = inp.type === 'password' ? 'text' : 'password'; });
+  }
+  // Enter in secrets form saves
+  ['secretsLabel','secretsUsername','secretsSecret','secretsUrl'].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveSecret(); } });
   });
   document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
     b.addEventListener('click', () => setMoodSelection(b.dataset.mood));
@@ -2312,14 +2596,19 @@ function wire() {
       }
       if (k === '1') { e.preventDefault(); showVaultTab(); return; }
       if (k === '2') { e.preventDefault(); showJournalTab(); return; }
+      if (k === '3') { e.preventDefault(); showSecretsTab(); return; }
       if (k === 'k' || k === 'f') { e.preventDefault(); focusSearch(); return; }
       if (k === 'i') { e.preventDefault(); runAction('add-files'); return; }
       if (k === 'g') { e.preventDefault(); runAction('gallery'); return; }
       if (k === ',') { e.preventDefault(); runAction('settings'); return; }
       if (k === 'l') { e.preventDefault(); runAction('lock'); return; }
-      if (k === 'n') { e.preventDefault(); focusJournalEntry(); return; }
+      if (k === 'n') {
+        e.preventDefault();
+        if (state.secretsTab) { const el = $('secretsLabel'); if (el) { clearSecretsForm(); el.focus(); } return; }
+        focusJournalEntry(); return;
+      }
       if (k === 's') {
-        // Ctrl+S — save journal entry when on Journal tab (like Ctrl+Enter)
+        if (state.secretsTab) { e.preventDefault(); saveSecret(); return; }
         if (state.journalTab) {
           e.preventDefault();
           const key = journalEditKey || todayKey();
@@ -2369,15 +2658,18 @@ function wire() {
       const ae = document.activeElement;
       const aeTag = (ae && ae.tagName || '').toLowerCase();
       if (aeTag === 'input' || aeTag === 'textarea') {
-        // in a search box: Esc clears it (existing behavior extended)
         if (ae.id === 'searchInput') { e.preventDefault(); clearSearch(); renderGrid(); ae.blur(); return; }
         if (ae.id === 'journalSearchInput') { e.preventDefault(); ae.value = ''; applyJournalSearch(); ae.blur(); return; }
-        // in journal entry textarea: Esc blurs (not delete)
+        if (ae.id === 'secretsSearchInput') { e.preventDefault(); state.secretsQuery = ''; ae.value = ''; renderSecrets(); ae.blur(); return; }
         if (ae.id === 'journalEntry') { e.preventDefault(); ae.blur(); return; }
+        if (['secretsLabel','secretsUsername','secretsSecret','secretsUrl','secretsNotes'].includes(ae.id)) { e.preventDefault(); ae.blur(); return; }
       }
       if (state.searchQuery) { e.preventDefault(); clearSearch(); renderGrid(); return; }
       const jq = $('journalSearchInput');
       if (jq && jq.value.trim()) { e.preventDefault(); jq.value = ''; applyJournalSearch(); return; }
+      if (state.secretsQuery) { e.preventDefault(); state.secretsQuery = ''; const s = $('secretsSearchInput'); if (s) s.value = ''; renderSecrets(); return; }
+      const sq2 = $('secretsSearchInput');
+      if (sq2 && sq2.value.trim()) { e.preventDefault(); state.secretsQuery = ''; sq2.value = ''; renderSecrets(); return; }
       return;
     }
 
@@ -2397,14 +2689,18 @@ function wire() {
     const tag = (e.target.tagName || '').toLowerCase();
     const typing = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
     if (typing) {
-      // Ctrl+Enter in journal entry also saves (handled above via Ctrl+S, but add plain Enter with Ctrl)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && e.target.id === 'journalEntry') {
-        e.preventDefault();
-        const key = journalEditKey || todayKey();
-        const year = yearKey(key);
-        const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
-        saveJournalEntry(year, key, $('journalEntry').value, mood).then(() => { toast('saved'); renderJournal(); });
-        return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (e.target.id === 'journalEntry') {
+          e.preventDefault();
+          const key = journalEditKey || todayKey();
+          const year = yearKey(key);
+          const mood = document.querySelector('#journalMoodRow .journal-mood.on')?.dataset.mood || '';
+          saveJournalEntry(year, key, $('journalEntry').value, mood).then(() => { toast('saved'); renderJournal(); });
+          return;
+        }
+        if (['secretsLabel','secretsUsername','secretsSecret','secretsUrl','secretsNotes'].includes(e.target.id)) {
+          e.preventDefault(); saveSecret(); return;
+        }
       }
       return;
     }
@@ -2439,8 +2735,9 @@ function wire() {
       }
     }
 
-    // journal saves via Ctrl+Enter handled in typing branch; non-typing fallback
+    // journal/secrets saves via Ctrl+Enter handled in typing branch; non-typing fallback
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      if (state.secretsTab) { e.preventDefault(); saveSecret(); return; }
       if (state.journalTab) {
         e.preventDefault();
         const key = journalEditKey || todayKey();

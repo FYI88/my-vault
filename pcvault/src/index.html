@@ -121,6 +121,7 @@
     <div class="vault-tabs">
       <button id="vaultTabBtn" class="vault-tab on">vault</button>
       <button id="journalTabBtn" class="vault-tab">journal</button>
+      <button id="secretsTabBtn" class="vault-tab">secrets</button>
       <span class="vault-tabs-gap"></span>
       <button id="addFilesBtn" class="add-btn small" data-action="add-files">+ add files</button>
     </div>
@@ -221,6 +222,59 @@
       </section>
 
       <p class="vault-ok journal-onthisday hidden" id="journalOnThisDayText"></p>
+    </div>
+    <div id="secretsPane" class="secrets-pane hidden">
+      <div class="secrets-toolbar">
+        <div class="vault-search" id="secretsSearchRow">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="secretsSearchInput" class="vault-search-input" type="text" placeholder="search secrets" autocomplete="off" spellcheck="false">
+          <button id="secretsSearchClear" class="vault-search-clear" aria-label="clear search" title="clear">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <span class="vault-fileline" id="secretsCount"></span>
+      </div>
+      <div class="vault-pills secrets-filter" id="secretsFilterPills">
+        <button class="vault-pill on" data-cat="all">all</button>
+        <button class="vault-pill" data-cat="login">login</button>
+        <button class="vault-pill" data-cat="api">api</button>
+        <button class="vault-pill" data-cat="ssh">ssh</button>
+        <button class="vault-pill" data-cat="phone">phone</button>
+        <button class="vault-pill" data-cat="card">card</button>
+        <button class="vault-pill" data-cat="note">note</button>
+      </div>
+      <section class="journal-card secrets-composer">
+        <p class="vault-sub" style="margin-bottom:0.5rem">add a secret — encrypted like everything else, wiped on lock</p>
+        <input id="secretsLabel" class="vault-input" type="text" placeholder="label — e.g. GitHub, Wi-Fi, Bank" autocomplete="off">
+        <div class="vault-pills" id="secretsCategoryPills" style="margin-top:0.55rem">
+          <button class="vault-pill on" data-cat="login">login</button>
+          <button class="vault-pill" data-cat="api">api</button>
+          <button class="vault-pill" data-cat="ssh">ssh</button>
+          <button class="vault-pill" data-cat="phone">phone</button>
+          <button class="vault-pill" data-cat="card">card</button>
+          <button class="vault-pill" data-cat="note">note</button>
+        </div>
+        <input id="secretsUsername" class="vault-input" type="text" placeholder="username / phone / identifier" autocomplete="off" style="margin-top:0.55rem">
+        <div class="secrets-secret-row">
+          <input id="secretsSecret" class="vault-input" type="password" placeholder="secret — password, token, key, number" autocomplete="off">
+          <button id="secretsRevealBtn" class="icon-btn" aria-label="reveal" title="reveal (hold)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <input id="secretsUrl" class="vault-input" type="text" placeholder="url (optional)" autocomplete="off">
+        <textarea id="secretsNotes" class="vault-input" rows="2" placeholder="notes (optional)"></textarea>
+        <div class="secrets-actions">
+          <button id="secretsSaveBtn" class="add-btn">save secret</button>
+          <button id="secretsCancelBtn" class="add-btn ghost hidden">cancel</button>
+          <span class="secrets-hint">Ctrl+N new · Ctrl+S save · Enter while typing also saves</span>
+        </div>
+      </section>
+      <section class="journal-card">
+        <div class="journal-section-head">
+          <h3 class="journal-section-title">secrets</h3>
+          <span class="journal-count" id="secretsEntryCount"></span>
+        </div>
+        <div id="secretsList" class="secrets-list"></div>
+      </section>
+      <p class="vault-sub" style="margin-top:0.7rem; text-align:center">secrets are masked. copy clears after 30 seconds.</p>
     </div>
   </section>
 
