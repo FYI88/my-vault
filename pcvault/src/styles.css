@@ -3,7 +3,6 @@
 @import './fonts/fonts.css';/* utility classes — replaces the inline style="..." attributes (strict CSP: style-src 'self') */
 .hidden { display: none !important; }
 .vault-head-gap { display: flex; gap: 0.2rem; align-items: center; }
-.vault-head-spacer { width: 19px; }
 .vault-btn-row { display: flex; gap: 0.5rem; margin-top: 0.7rem; }
 
 :root {
@@ -129,8 +128,6 @@ body.theme-mono .vault-meter i.w{ background:var(--rose-dark); }
 body.theme-mono .cal-day:hover{ background:rgba(0,0,0,0.07); }
 body.theme-mono .cal-day.match{ background:rgba(0,0,0,0.1); }
 body.theme-mono .journal-entry-row:hover{ background:rgba(0,0,0,0.04); }
-body.theme-mono .item-stage{ background:#0c0c0c; }
-body.theme-mono .item-stage .pdf-scroll,
 body.theme-mono .viewer-stage .pdf-scroll{ background:#e4e4e4; }
 body.theme-mono .item-overlay{ background:#0c0c0c; }
 body.theme-mono .viewer-top{ background:linear-gradient(rgba(12,12,12,0.82), rgba(12,12,12,0)); }
@@ -148,7 +145,6 @@ body.theme-mono .drift-wall__tile:focus-visible img{ filter:grayscale(0); }
 body.theme-mono #authBg,
 body.theme-mono #authBgMedia{ filter:grayscale(1) invert(1) contrast(1.05); opacity:0.85; }
 body.theme-mono .vault-sec-title,
-body.theme-mono .vault-tabs .vault-tab,
 body.theme-mono .vault-fileline{ letter-spacing:0.08em; }
 /* The page's own side scrollbar lives on body, not on a descendant — a bare
    `body.theme-mono ::-webkit-scrollbar-thumb` (descendant combinator) never
@@ -177,29 +173,19 @@ body.theme-mono .vault-wordmark,
 body.theme-mono .vault-wordmark-bar,
 body.theme-mono .vault-head h1,
 body.theme-mono .titlebar .vault-head h1,
-body.theme-mono .vault-tab,
-body.theme-mono .vault-tabs .vault-tab,
 body.theme-mono .v-tab,
 body.theme-mono .vault-pill,
 body.theme-mono .vault-sub,
-body.theme-mono .vault-hint,
 body.theme-mono .vault-btn,
 body.theme-mono .hud-btn,
 body.theme-mono .hud-chip,
-body.theme-mono .cal-month-label,
 body.theme-mono .journal-entry-row,
-body.theme-mono .settings-card h3,
-body.theme-mono .settings-card p,
 body.theme-mono .add-btn{ font-family:'GC Beluga Mono',monospace; font-style:normal; }
 body.theme-mono .vault-head h1{ font-size:1.3rem; }
 body.theme-mono .titlebar .vault-head h1{ font-size:0.82rem; }
 body.theme-mono .vault-sub{ font-size:0.75rem; }
-body.theme-mono .vault-hint{ font-size:0.68rem; }
 body.theme-mono .vault-btn{ font-size:0.8rem; }
-body.theme-mono .vault-tab{ font-size:0.78rem; }
 body.theme-mono .v-tab{ font-size:0.78rem; }
-body.theme-mono .settings-card h3{ font-size:0.85rem; }
-body.theme-mono .settings-card p{ font-size:0.72rem; }
 *{box-sizing:border-box;margin:0;padding:0;}
 :focus-visible{ outline:2px solid var(--mauve-dark); outline-offset:2px; }
 :focus:not(:focus-visible){ outline:none; }
@@ -292,6 +278,10 @@ body.win-inactive .tl{ filter:saturate(0.3) brightness(0.92); }
 .title-right{ position:absolute; right:0.8rem; top:0; bottom:0; display:flex; align-items:center; gap:0.35rem; -webkit-app-region:no-drag; }
 body.chrome-win .win-controls{ display:flex; }
 body.chrome-win .traffic-lights{ display:none; }
+/* the page scrollbar runs full height behind the fixed titlebar — keep the
+   Windows controls clear of it (10px cream scrollbar, 6px in mono) */
+body.chrome-win .title-right{ right:calc(0.8rem + 10px); }
+body.chrome-win.theme-mono .title-right{ right:calc(0.8rem + 6px); }
 .win-ctl{
   width:36px; height:24px; border:none; background:none; border-radius:6px;
   display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
@@ -330,8 +320,7 @@ body.head-settings .title-center{ display:none; }
   margin:0; white-space:nowrap;
 }
 
-/* page-level action bar — sticky below the titlebar, auto-hides on scroll-down */
-.page-actions{ display:none; }
+
 
 
 #galleryToggleBtn.on{ color:var(--rose-dark); background:rgba(196,123,131,0.15); }
@@ -374,15 +363,17 @@ button, input, textarea, select, .add-btn, .icon-btn, .hud-btn, .hud-chip, .vaul
   color:var(--rose-dark); font-size:1.75rem; letter-spacing:0.5px;
 }
 .vault-sub{ font-size:0.85rem; color:var(--text-soft); line-height:1.5; margin:0; max-width:30rem; }
-.vault-hint{ font-size:0.75rem; color:var(--text-soft); line-height:1.5; margin:0 0 0.2rem; max-width:30rem; }
+
 
 .vault-form{ width:100%; display:flex; flex-direction:column; gap:0.6rem; margin-top:0.4rem; }
 .vault-input{
-  width:100%; text-align:center; font-size:1.05rem;
+  width:100%; text-align:left; font-size:1.05rem;
   border:1px solid var(--border); border-radius:10px; padding:0.6rem;
   background:var(--card); color:var(--text); font-family:'Cormorant Garamond',serif;
   transition:border-color 0.2s;
 }
+/* centering lives only on auth screens — form fields everywhere else read left */
+.screen-center .vault-input{ text-align:center; }
 .vault-input::placeholder{ color:var(--text-soft); opacity:0.7; }
 .vault-input:focus{ border-color:var(--mauve-dark); outline:none; }
 textarea.vault-input{ resize:vertical; text-align:left; line-height:1.5; }
@@ -501,7 +492,7 @@ body.theme-mono .vault-btn-small{ font-family:'GC Beluga Mono',monospace; }
   border-radius:0 0 12px 12px; pointer-events:none;
 }
 .grid-hover-names .vault-photo-cell:hover .cell-name,
-.grid-hover-names .vault-photo-cell.hover-sim .cell-name{ opacity:1; }
+
 .vault-photo-cell .play-badge{
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   pointer-events:none;
@@ -522,47 +513,7 @@ body.theme-mono .vault-btn-small{ font-family:'GC Beluga Mono',monospace; }
 .vault-empty p{ font-size:0.95rem; color:var(--text); line-height:1.55; margin:0; }
 .vault-empty .vault-sub{ margin-top:0.2rem; }
 
-/* ----- item view ----- */
-.item-stage{
-  width:100%; background:#171014; border-radius:12px; margin-top:0.6rem;
-  display:flex; align-items:center; justify-content:center; padding:0.8rem; min-height:240px;
-}
-.item-stage img{ max-width:100%; max-height:calc(100vh - 240px); border-radius:8px; }
-.item-stage video{ max-width:100%; max-height:calc(100vh - 240px); border-radius:8px; outline:none; }
-.item-stage .item-pdf{
-  width:100%; height:calc(100vh - 240px); min-height:360px;
-  display:flex; flex-direction:column; border-radius:8px; overflow:hidden;
-  background:#fff;
-}
-.item-stage .pdf-bar{
-  flex:none; display:flex; align-items:center; gap:0.35rem;
-  padding:0.35rem 0.55rem; background:var(--card); border-bottom:1px solid var(--border);
-}
-.item-stage .pdf-bar .icon-btn{ color:var(--mauve-dark); padding:0.3rem; }
-.item-stage .pdf-bar .icon-btn:hover{ color:var(--rose-dark); background:rgba(196,123,131,0.1); }
-.item-stage .pdf-bar .icon-btn:disabled{ opacity:0.35; cursor:default; background:none; }
-.item-stage .pdf-page, .item-stage .pdf-zoom{
-  font-family:'JetBrains Mono',monospace; font-size:0.62rem; letter-spacing:0.02em;
-  color:var(--text-soft); white-space:nowrap; user-select:none;
-}
-.item-stage .pdf-bar-gap{ flex:1; }
-.item-stage .pdf-scroll{
-  flex:1; overflow:auto; display:flex; align-items:flex-start; justify-content:center;
-  padding:1.1rem; background:#d8d1cf;
-}
-.item-stage .pdf-scroll canvas{
-  display:block; background:#fff; box-shadow:0 2px 14px rgba(0,0,0,0.28); border-radius:2px;
-}
-.item-stage .item-text{ width:100%; max-width:900px; }
-.item-stage .item-text pre{
-  white-space:pre-wrap; word-break:break-word; font-family:'JetBrains Mono',monospace;
-  font-size:0.8rem; line-height:1.6; color:#fbf6f3; margin:0; text-align:left;
-  max-height:calc(100vh - 240px); overflow:auto; width:100%;
-}
-.item-stage .doc-icon{ color:var(--mauve-dark); }
-.item-stage .doc-icon .ic{ width:44px; height:44px; }
-.item-stage .doc-name{ font-size:1.1rem; color:var(--text); margin-top:0.5rem; max-width:420px; word-break:break-all; text-align:center; }
-.doc-meta-line{ font-family:'JetBrains Mono',monospace; font-size:0.62rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-soft); margin-top:0.35rem; }
+
 .vault-item-meta{
   font-family:'JetBrains Mono',monospace; font-size:0.58rem; text-transform:uppercase;
   letter-spacing:0.04em; color:var(--text-soft); margin-top:0.4rem; width:100%;
@@ -581,7 +532,7 @@ body.theme-mono .vault-btn-small{ font-family:'GC Beluga Mono',monospace; }
 .vault-sec-card .vault-input{ text-align:left; }
 .vault-sec-card .vault-sub{ margin-bottom:0.4rem; }
 
-.vault-pills{ display:flex; gap:0.45rem; width:100%; }
+.vault-pills{ display:flex; gap:0.45rem; width:100%; flex-wrap:wrap; }
 .vault-pill{
   flex:1; border:1px solid var(--border); border-radius:20px; padding:0.42rem 0.2rem;
   background:var(--bg); color:var(--text-soft); font-family:'JetBrains Mono',monospace;
@@ -649,7 +600,6 @@ body.gallery-mode #searchCount{ display:none; }
   position:fixed; inset:0; z-index:160;
   margin:0; height:auto;
 }
-#galleryToggleBtn.on{ color:var(--rose-dark); background:rgba(196,123,131,0.15); }
 
 /* in immersive gallery mode the top bar hides — it reappears at full opacity
    when the mouse reaches the top edge (the strip stays hit-testable so the
@@ -981,9 +931,6 @@ body.theme-mono .v-tabs{ background:rgba(0,0,0,0.06); }
   opacity:1; transform:translateX(0);
   transition:opacity 0.22s ease, transform 0.22s ease;
 }
-.sidebar-tray.hidden{
-  opacity:0; transform:translateX(0.5rem); pointer-events:none;
-}
 .sidebar-tray .icon-btn{ padding:0.35rem; }
 .sidebar-tray .icon-btn .ic{ width:17px; height:17px; }
 
@@ -1029,10 +976,10 @@ body.theme-mono .v-tabs{ background:rgba(0,0,0,0.06); }
 @media (prefers-reduced-motion: reduce){ .journal-year-ring-fill{ transition:none; } }
 body.theme-mono .journal-year-ring-fill{ stroke:#111; }
 body.theme-mono .journal-year-ring-comet{ stroke:#000; filter:drop-shadow(0 0 3px rgba(0,0,0,0.45)); }
-.year-weeks-grid{ display:grid; grid-template-columns:repeat(13, 1fr); gap:4px; margin-top:0.7rem; }
-.year-week{ aspect-ratio:1; border-radius:3px; background:var(--bg); border:1px solid var(--border); }
-.year-week.done{ background:var(--mauve-dark); border-color:var(--mauve-dark); }
-.year-week.now{ background:var(--rose-dark); border-color:var(--rose-dark); box-shadow:0 0 8px rgba(196,123,131,0.6); }
+.year-weeks-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(10px,1fr)); gap:6px; margin-top:0.7rem; }
+.year-week{ aspect-ratio:1/1; border-radius:2px; background:#fff; border:1px solid rgba(0,0,0,0.2); }
+.year-week.done{ background:#000; border-color:#000; }
+.year-week.now{ background:#6ee7b7; border-color:#000; }
 .life-title{
   font-family:'DM Serif Display',serif; font-style:italic; font-weight:400;
   font-size:1.05rem; color:var(--mauve-dark); margin:0 0 0.2rem; letter-spacing:0.3px;
@@ -1279,6 +1226,231 @@ body.font-gc-beluga *{ font-family:'GC Beluga Mono',monospace !important; }
 .secrets-actions-row .icon-btn.small:hover{ border-color:var(--mauve-dark); color:var(--rose-dark); background:rgba(196,123,131,0.08); }
 .secrets-actions-row .icon-btn.small.danger:hover{ border-color:var(--rose-dark); color:var(--rose-dark); }
 .secrets-actions-row .icon-btn.small .ic{ width:14px; height:14px; }
+.secrets-intro{ margin-bottom:0.5rem; }
+.secrets-footnote{ margin-top:0.7rem; text-align:center; }
 .secrets-dots{ font-family:'JetBrains Mono',monospace; font-size:0.7rem; letter-spacing:0.12em; color:var(--text-soft); min-width:6rem; display:inline-block; }
 .secrets-notes{ font-family:'Cormorant Garamond',serif; font-size:0.88rem; line-height:1.45; color:var(--text); margin:0; white-space:pre-wrap; word-break:break-word; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:0.5rem 0.65rem; }
 .secrets-empty{ font-family:'Cormorant Garamond',serif; font-size:0.95rem; font-style:italic; color:var(--text-soft); padding:0.3rem 0.2rem; }
+
+/* secrets + life forms are left-aligned forms, not centered auth inputs */
+#secretsPane .vault-input, #journalPane .vault-input{ text-align:left; }
+/* the font override must not turn the recovery phrase, <kbd>, <pre> proportional */
+body[class*="font-"] kbd, body[class*="font-"] pre, body[class*="font-"] code,
+body[class*="font-"] .vault-seed-input, body[class*="font-"] .vault-seed-chip,
+body[class*="font-"] .secrets-dots{ font-family:'JetBrains Mono',monospace !important; }
+/* titlebar hides in real fullscreen — the top HUD moves up */
+.item-overlay:fullscreen .viewer-top{ top:0; }
+.secrets-intro{ margin-bottom:0.5rem; }
+.secrets-footnote{ margin-top:0.7rem; text-align:center; }
+.shortcuts-help-note{ margin-top:12px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   premium motion layer v2 — append last. Pairs with the renderer hooks:
+   .leaving  .unlocking  .busy  .is-wrong  .settled  .is-new  .is-loading
+   img.is-loaded  .closing  [data-dir]  .collapsed  #toast.bump  .animate
+   All enter animations use `backwards` fill so finished animations never
+   override runtime state (.dragging, :disabled, inline zoom transforms).
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  --ease-in-out:cubic-bezier(.65,0,.35,1);
+  --accent-rgb:196,123,131;
+  --ring:0 0 0 3px rgba(122,95,116,.16);
+}
+body.theme-mono{ --accent-rgb:17,17,17; --ring:0 0 0 3px rgba(0,0,0,.10); }
+::selection{ background:rgba(var(--accent-rgb),.22); }
+
+/* ---- keyframes ---- */
+@keyframes riseIn    { from{opacity:0; transform:translateY(10px);} }
+@keyframes screenOut { to{opacity:0; transform:translateY(-6px);} }
+@keyframes unlockOut { to{opacity:0; transform:scale(1.05); filter:blur(6px);} }
+@keyframes viewerOut { to{opacity:0;} }
+@keyframes mediaIn   { from{opacity:0; transform:scale(.965) translateY(8px);} }
+@keyframes mediaNext { from{opacity:0; transform:translateX(28px) scale(.985);} }
+@keyframes mediaPrev { from{opacity:0; transform:translateX(-28px) scale(.985);} }
+@keyframes hudDown   { from{opacity:0; transform:translateY(-10px);} }
+@keyframes hudUp     { from{opacity:0; transform:translateY(10px);} }
+@keyframes popIn     { from{opacity:0; transform:scale(.94) translateY(8px);} }
+@keyframes pop       { 45%{transform:scale(1.09);} }
+@keyframes ringPulse { to{transform:scale(1.38); opacity:0;} }
+@keyframes shimmer   { to{transform:translateX(100%);} }
+@keyframes sheen     { to{transform:translateX(130%);} }
+@keyframes toastBump { 40%{transform:translate(-50%,0) scale(1.04);} 100%{transform:translate(-50%,0) scale(1);} }
+@keyframes todayPulse{
+  0%,100%{ box-shadow:inset 0 0 0 1px var(--rose-dark), 0 0 0 0 rgba(var(--accent-rgb),.38); }
+  60%    { box-shadow:inset 0 0 0 1px var(--rose-dark), 0 0 0 6px rgba(var(--accent-rgb),0); }
+}
+
+/* ---- screens: exit, then a staggered arrival (form fields cascade too) ---- */
+.screen.leaving{ animation:screenOut 160ms var(--ease) forwards; pointer-events:none; }
+.vault-screen{ animation:viewerFade var(--t-slow) var(--ease-out); }
+.vault-screen > *, .vault-form > *{ animation:riseIn 420ms var(--ease-out) backwards; }
+.vault-screen > :nth-child(2){ animation-delay:45ms; }
+.vault-screen > :nth-child(3){ animation-delay:90ms; }
+.vault-screen > :nth-child(4){ animation-delay:135ms; }
+.vault-screen > :nth-child(n+5){ animation-delay:180ms; }
+.vault-form > :nth-child(1){ animation-delay:120ms; }
+.vault-form > :nth-child(2){ animation-delay:160ms; }
+.vault-form > :nth-child(3){ animation-delay:200ms; }
+.vault-form > :nth-child(4){ animation-delay:240ms; }
+.vault-form > :nth-child(n+5){ animation-delay:280ms; }
+.vault-seed-grid .vault-seed-chip{ animation:popIn 380ms var(--ease-out) backwards; }
+.vault-seed-chip:nth-child(n+2){ animation-delay:30ms; }  .vault-seed-chip:nth-child(n+4){ animation-delay:80ms; }
+.vault-seed-chip:nth-child(n+7){ animation-delay:140ms; } .vault-seed-chip:nth-child(n+10){ animation-delay:200ms; }
+
+/* the unlock beat: lock card lifts away while the living background blooms */
+body.unlocking .vault-screen{ animation:unlockOut 460ms var(--ease-in-out) forwards; pointer-events:none; }
+#authBg, #authBgMedia{ transition:filter 480ms var(--ease-in-out), transform 480ms var(--ease-in-out), opacity 480ms var(--ease-in-out); }
+body.unlocking #authBg, body.unlocking #authBgMedia{ filter:blur(10px) brightness(1.12); transform:scale(1.06); }
+body.theme-mono.unlocking #authBg, body.theme-mono.unlocking #authBgMedia{ filter:grayscale(1) invert(1) contrast(1.05) blur(10px); }
+
+/* ---- feedback: errors fade in, wrong input glows, busy buttons sweep ---- */
+.vault-error, .vault-ok{ transition:opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease-out); }
+.vault-error:empty, .vault-ok:empty{ opacity:0; transform:translateY(-3px); }
+.vault-input.is-wrong{ border-color:var(--rose-dark); box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14); }
+.vault-input:read-only:not(textarea){ color:var(--text-soft); }
+
+/* ---- buttons ---- */
+.add-btn{
+  position:relative; overflow:hidden; box-shadow:var(--e1);
+  transition:transform var(--t-med) var(--ease-out), box-shadow var(--t-med) var(--ease-out),
+             background var(--t-med) var(--ease), color var(--t-med) var(--ease), opacity var(--t-med) var(--ease);
+}
+.add-btn:hover{ opacity:1; transform:translateY(-1px); box-shadow:var(--e2); }
+.add-btn:active{ transform:translateY(0) scale(.97); box-shadow:var(--e1); transition-duration:var(--t-fast); }
+.add-btn:disabled{ transform:none; box-shadow:none; }
+.add-btn::after{
+  content:''; position:absolute; inset:0; pointer-events:none; transform:translateX(-130%);
+  background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.22) 50%, transparent 65%);
+}
+.add-btn:hover::after{ transform:translateX(130%); transition:transform 700ms var(--ease-out); }
+.add-btn.ghost::after, .add-btn.danger::after{ display:none; }
+.add-btn.busy{ opacity:.92 !important; cursor:progress; pointer-events:none; }
+.add-btn.busy::after{ display:block; transition:none; animation:sheen 1.1s var(--ease-in-out) infinite; }
+
+.icon-btn{ transition:color var(--t-med) var(--ease), background var(--t-med) var(--ease), transform var(--t-fast) var(--ease-out); }
+.icon-btn:active{ transform:scale(.9); }
+.win-ctl:active{ transform:scale(.94); }
+.link{ transition:color var(--t-med) var(--ease); }
+.link:hover{ color:var(--rose-dark); }
+
+.vault-pill{ transition:border-color var(--t-med) var(--ease), color var(--t-med) var(--ease), box-shadow var(--t-med) var(--ease), transform var(--t-fast) var(--ease-out); }
+.vault-pill:active{ transform:scale(.96); }
+.vault-pill.on{ box-shadow:inset 0 0 0 1px var(--sage-dark); }
+
+/* ---- inputs: focus halo instead of a bare border swap ---- */
+.vault-input, .journal-entry, .vault-search, .journal-search, .pg-grid-num{
+  transition:border-color var(--t-med) var(--ease), box-shadow var(--t-med) var(--ease);
+}
+.vault-input:focus, .journal-entry:focus, .pg-grid-num:focus,
+.vault-search:focus-within, .journal-search:focus-within{ border-color:var(--mauve-dark); box-shadow:var(--ring); outline:none; }
+.vault-meter i{ transition:background var(--t-slow) var(--ease), transform var(--t-slow) var(--ease-spring); }
+.vault-meter i.w, .vault-meter i.s{ transform:scaleY(1.35); }
+
+/* ---- tabs + panes ---- */
+#vaultPane{ animation:vaultIn .3s var(--ease-out); }
+.v-tabs-ind{ transition:transform var(--t-slow) var(--ease-spring), width var(--t-med) var(--ease); }
+
+/* ---- photo grid: arrival stagger runs once (.settled), new files rise in,
+        decrypting cells shimmer, decoded thumbs fade, hover lifts + zooms ---- */
+.vault-photo-grid:not(.settled) .vault-photo-cell, .vault-photo-cell.is-new{ animation:riseIn 460ms var(--ease-out) backwards; }
+.vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(2){animation-delay:35ms}  .vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(3){animation-delay:70ms}
+.vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(4){animation-delay:105ms} .vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(5){animation-delay:140ms}
+.vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(6){animation-delay:175ms} .vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(7){animation-delay:210ms}
+.vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(8){animation-delay:245ms} .vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(9){animation-delay:280ms}
+.vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(10){animation-delay:315ms}.vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(11){animation-delay:350ms}
+.vault-photo-grid:not(.settled) .vault-photo-cell:nth-child(n+12){animation-delay:385ms}
+.vault-photo-cell.dragging{ animation:none; }
+
+.vault-photo-cell .cell-media{ box-shadow:var(--e1); transition:box-shadow var(--t-slow) var(--ease-out), transform var(--t-slow) var(--ease-out); }
+.vault-photo-cell:hover .cell-media{ transform:translateY(-3px); box-shadow:0 0 0 1px var(--border-strong), var(--e3); }
+.vault-photo-cell img{ opacity:0; transition:opacity 420ms var(--ease-out), transform 650ms var(--ease-out); }
+.vault-photo-cell img.is-loaded{ opacity:1; }
+.vault-photo-cell:hover img{ transform:scale(1.035); }
+.vault-photo-cell .play-badge .ic{ transition:transform var(--t-slow) var(--ease-spring), background var(--t-med) var(--ease); }
+.vault-photo-cell:hover .play-badge .ic{ transform:scale(1.1); background:rgba(0,0,0,.6); }
+.vault-photo-cell.is-loading .ph{ position:relative; overflow:hidden; }
+.vault-photo-cell.is-loading .ph::before{
+  content:''; position:absolute; inset:0; transform:translateX(-100%);
+  background:linear-gradient(100deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%);
+  animation:shimmer 1.6s var(--ease-in-out) infinite;
+}
+.grid-hover-names .vault-photo-cell .cell-name{ transform:translateY(4px); transition:opacity var(--t-slow) var(--ease-out), transform var(--t-slow) var(--ease-out); }
+.grid-hover-names .vault-photo-cell:hover .cell-name{ transform:none; }
+
+/* ---- gallery mode: stage and exit pill fade in ---- */
+.phantom-gallery{ animation:viewerFade 320ms var(--ease-out); }
+.gallery-exit{ animation:hudUp 420ms var(--ease-out) 120ms backwards; transition:background var(--t-med) var(--ease), transform var(--t-med) var(--ease-out), box-shadow var(--t-med) var(--ease-out); }
+.gallery-exit:hover{ transform:translateY(-2px); box-shadow:0 12px 30px rgba(0,0,0,.42); }
+
+/* ---- item viewer: media settles in (directional on ←/→), HUD slides, fade out ---- */
+.item-overlay{ animation:viewerFade 240ms var(--ease-out); }
+.item-overlay.closing{ animation:viewerOut 170ms var(--ease) forwards; pointer-events:none; }
+.viewer-stage > img, .viewer-stage > video, .viewer-stage .item-pdf, .viewer-stage .item-text, #itemDocInfo{
+  animation:mediaIn 420ms var(--ease-out) backwards;
+}
+.viewer-stage[data-dir="next"] > img, .viewer-stage[data-dir="next"] > video, .viewer-stage[data-dir="next"] .item-pdf,
+.viewer-stage[data-dir="next"] .item-text, .viewer-stage[data-dir="next"] #itemDocInfo{ animation-name:mediaNext; }
+.viewer-stage[data-dir="prev"] > img, .viewer-stage[data-dir="prev"] > video, .viewer-stage[data-dir="prev"] .item-pdf,
+.viewer-stage[data-dir="prev"] .item-text, .viewer-stage[data-dir="prev"] #itemDocInfo{ animation-name:mediaPrev; }
+.viewer-hud{ transition:opacity var(--t-slow) var(--ease), transform var(--t-slow) var(--ease-out); }
+.viewer-top{ animation:hudDown 420ms var(--ease-out) 80ms backwards; }
+.viewer-bottom{ animation:hudUp 420ms var(--ease-out) 80ms backwards; }
+.viewer-top.chrome-hidden{ transform:translateY(-8px); }
+.viewer-bottom.chrome-hidden{ transform:translateY(8px); }
+.hud-btn, .hud-chip{ transition:background var(--t-med) var(--ease), border-color var(--t-med) var(--ease), color var(--t-med) var(--ease), transform var(--t-fast) var(--ease-out); }
+.hud-btn:active, .hud-chip:active{ transform:scale(.93); }
+.viewer-play::before{
+  content:''; position:absolute; inset:-6px; border-radius:50%; pointer-events:none;
+  border:1px solid rgba(251,246,243,.28); animation:ringPulse 2.4s var(--ease-in-out) infinite;
+}
+.viewer-play:hover::before{ animation-duration:1.4s; }
+.viewer-err{ animation:hudUp 300ms var(--ease-out); }
+
+/* ---- toast ---- */
+#toast{ box-shadow:var(--e3); transform:translate(-50%,14px) scale(.96); transition:opacity var(--t-slow) var(--ease), transform 480ms var(--ease-spring); }
+#toast.show{ transform:translate(-50%,0) scale(1); }
+#toast.show.bump{ animation:toastBump 380ms var(--ease-spring); }
+
+/* ---- journal / secrets / settings cards cascade in ---- */
+.journal-pane .journal-card, .secrets-pane .journal-card, #screen-settings .vault-sec-card{ animation:riseIn 420ms var(--ease-out) backwards; }
+.journal-pane .journal-card:nth-of-type(2), .secrets-pane .journal-card:nth-of-type(2), #screen-settings .vault-sec-card:nth-child(2){ animation-delay:50ms; }
+.journal-pane .journal-card:nth-of-type(3), .secrets-pane .journal-card:nth-of-type(3), #screen-settings .vault-sec-card:nth-child(3){ animation-delay:100ms; }
+.journal-pane .journal-card:nth-of-type(n+4), #screen-settings .vault-sec-card:nth-child(4){ animation-delay:150ms; }
+#screen-settings .vault-sec-card:nth-child(5){ animation-delay:200ms; } #screen-settings .vault-sec-card:nth-child(6){ animation-delay:250ms; }
+#screen-settings .vault-sec-card:nth-child(n+7){ animation-delay:300ms; }
+.vault-sec-card, .journal-card, .secrets-row{ transition:box-shadow var(--t-slow) var(--ease-out), border-color var(--t-slow) var(--ease); }
+.vault-sec-card:hover, .journal-card:hover{ box-shadow:var(--e2); }
+.secrets-row:hover{ box-shadow:var(--e1); border-color:var(--border-strong); }
+/* settings float over the live background — a touch more opaque + frosted */
+body.auth-screen .vault-sec-card{ background:color-mix(in srgb, var(--card) 88%, transparent); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+
+/* ---- sidebar tray: real collapse (the old .hidden rule was display:none) ---- */
+.sidebar-tray{ transform-origin:top right; transition:opacity var(--t-med) var(--ease), transform var(--t-slow) var(--ease-spring); }
+.sidebar-tray.collapsed{ opacity:0; transform:translateX(10px) scale(.94); pointer-events:none; }
+.sidebar-tray .icon-btn{ transition:color var(--t-med) var(--ease), background var(--t-med) var(--ease), transform var(--t-slow) var(--ease-out), opacity var(--t-med) var(--ease); }
+.sidebar-tray.collapsed .icon-btn{ opacity:0; transform:translateX(6px); }
+.sidebar-tray:not(.collapsed) .icon-btn:nth-child(2){ transition-delay:30ms; }
+.sidebar-tray:not(.collapsed) .icon-btn:nth-child(3){ transition-delay:60ms; }
+.sidebar-toggle .ic{ transition:transform var(--t-slow) var(--ease-spring); }
+.sidebar-toggle[aria-expanded="false"] .ic{ transform:rotate(90deg); }
+
+/* ---- help overlay ---- */
+.shortcuts-help{ animation:viewerFade 200ms var(--ease-out); }
+.shortcuts-help-card{ animation:popIn 380ms var(--ease-spring) backwards; }
+
+/* ---- one switch kills all of it ---- */
+@media (prefers-reduced-motion: reduce){
+  .screen.leaving, .vault-screen, .vault-screen > *, .vault-form > *, .vault-seed-chip, body.unlocking .vault-screen,
+  .vault-photo-cell, .vault-photo-cell.is-new, .vault-photo-cell.is-loading .ph::before, .phantom-gallery, .gallery-exit,
+  .item-overlay, .item-overlay.closing, .viewer-stage > *, #itemDocInfo, .viewer-hud, .viewer-play::before, .viewer-err,
+  #toast.show.bump, .journal-card, .vault-sec-card, .calendar-month, .cal-day.today, .journal-mood.on, .secrets-row,
+  .shortcuts-help, .shortcuts-help-card, #vaultPane, .add-btn.busy::after{ animation:none !important; }
+  .add-btn::after{ display:none; }
+  #authBg, #authBgMedia, .sidebar-tray, .sidebar-tray .icon-btn, .vault-meter i, .vault-photo-cell img{ transition:none; }
+  body.unlocking #authBg, body.unlocking #authBgMedia{ filter:none; transform:none; }
+  .add-btn:hover, .cal-day:hover, .journal-entry-row:hover, .journal-year-wrap:hover, .gallery-exit:hover,
+  .vault-photo-cell:hover img, .vault-photo-cell:hover .cell-media, .sidebar-tray.collapsed, .sidebar-tray.collapsed .icon-btn,
+  .viewer-top.chrome-hidden, .viewer-bottom.chrome-hidden{ transform:none; }
+  .vault-photo-cell img{ opacity:1; }
+}

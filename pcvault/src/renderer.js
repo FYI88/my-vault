@@ -68,6 +68,7 @@ const state = {
   secretsQuery: '',     // lowercased live query
   lifeCache: null,      // { dob, expectancy } — plaintext, wiped on lock (never localStorage)
   lifeOpen: false,      // year-progress sub-page open inside Journal
+  newIds: new Set(),    // ids added this session — rise in once, then the grid is settled
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
@@ -125,7 +126,7 @@ function viewerNav(delta) {
   const idx = state.items.findIndex((r) => r.id === currentItemId);
   if (idx === -1) return;
   const next = state.items[(idx + delta + state.items.length) % state.items.length];
-  openItem(next.id);
+  openItem(next.id, delta > 0 ? 'next' : 'prev');
 }
 
 function toggleFullscreen() {
@@ -151,10 +152,21 @@ let pdfjsReady = null;    // lazy import of pdf.js + its worker module
 // ---- screens ----
 
 
-function show(name) {
-  document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
-  $(`screen-${name}`).classList.add('active');
-  // which header lives in the thin titlebar
+let showSeq = 0;
+async function show(name) {
+  const seq = ++showSeq;
+  const cur = document.querySelector('.screen.active');
+  const next = $(`screen-${name}`);
+  if (cur && cur !== next && !reducedMotion() && !document.body.classList.contains('unlocking')) {
+    cur.classList.add('leaving');
+    await sleep(160);
+    cur.classList.remove('leaving');
+    if (seq !== showSeq) return; // a newer show() won the race
+  }
+  document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active', 'leaving'));
+  next.classList.add('active');
+  document.body.classList.remove('unlocking');
+  // ---- everything below is unchanged ----
   document.body.classList.toggle('head-settings', name === 'settings');
   document.body.classList.toggle('auth-screen', AUTH_SCREENS.has(name));
   if (bgCtrl) bgCtrl.setActive(AUTH_SCREENS.has(name));
@@ -172,23 +184,34 @@ function show(name) {
 function showOverlay(id, visible) {
   $(id).classList.toggle('hidden', !visible);
 }
+let overlayClosing = false;
 function closeItemOverlay() {
-  showOverlay('itemOverlay', false);
-  currentItemId = null;
-  currentItemKind = null;
-  closePdf();
-  const video = $('itemVideo');
-  video.pause(); video.removeAttribute('src'); video.load();
-  setHidden('itemVideo', true);
-  setHidden('itemImg', true);
-  setHidden('itemDocInfo', true);
-  setHidden('itemText', true);
-  setHidden('viewerPlay', true);
-  $('itemTextContent').textContent = '';
-  resetViewerZoom();
-  clearTimeout(chromeTimer);
-  setChromeHidden(false);
+  const ov = $('itemOverlay');
+  if (ov.classList.contains('hidden') || overlayClosing) return;
+  const finish = () => {
+    overlayClosing = false;
+    ov.classList.remove('closing');
+    showOverlay('itemOverlay', false);
+    currentItemId = null;
+    currentItemKind = null;
+    closePdf();
+    const video = $('itemVideo');
+    video.pause(); video.removeAttribute('src'); video.load();
+    setHidden('itemVideo', true);
+    setHidden('itemImg', true);
+    setHidden('itemDocInfo', true);
+    setHidden('itemText', true);
+    setHidden('viewerPlay', true);
+    $('itemTextContent').textContent = '';
+    resetViewerZoom();
+    clearTimeout(chromeTimer);
+    setChromeHidden(false);
+  };
   if (document.fullscreenElement) document.exitFullscreen();
+  if (reducedMotion()) return finish();
+  overlayClosing = true;
+  ov.classList.add('closing');
+  setTimeout(finish, 170);
 }
 
 // ---- tiny helpers ----
@@ -196,12 +219,52 @@ function setErr(id, msg) { const el = $(id); if (el) el.textContent = msg || '';
 function setOk(id, msg) { const el = $(id); if (el) el.textContent = msg || ''; }
 function toast(msg) {
   const t = $('toast');
-  t.textContent = msg;
-  t.classList.add('show');
   clearTimeout(toastTimer);
+  t.textContent = msg;
+  t.classList.remove('bump');
+  void t.offsetWidth;
+  t.classList.add('show', 'bump');
   toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
 function setHidden(id, hidden) { $(id).classList.toggle('hidden', hidden); }
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function reducedMotion() {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+// Web Animations API on purpose: it never touches the CSS `animation` property,
+// so it can't restart the screen's entrance stagger the way a class swap would.
+function shake(el) {
+  if (!el) return;
+  el.classList.add('is-wrong');
+  el.addEventListener('input', () => el.classList.remove('is-wrong'), { once: true });
+  if (reducedMotion() || typeof el.animate !== 'function') return;
+  el.animate(
+    [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(5px)' },
+     { transform: 'translateX(-4px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }],
+    { duration: 420, easing: 'cubic-bezier(.36,.07,.19,.97)' });
+}
+function setBusy(btn, on) { if (!btn) return; btn.classList.toggle('busy', on); btn.disabled = on; }
+
+// the one beat between "key accepted" and "vault open" — the background blooms,
+// the lock card lifts away; show() clears the class once the swap lands
+async function unlockBeat() {
+  if (reducedMotion()) return;
+  document.body.classList.add('unlocking');
+  await sleep(460);
+}
+
+// thumbnails fade in when decoded; cached ones (already decoded) appear instantly
+function setCellMedia(media, url, kind, instant) {
+  const badge = kind === 'video' ? `<div class="play-badge">${ic('play')}</div>` : '';
+  media.innerHTML = `<img alt="">${badge}`;
+  const img = media.firstElementChild;
+  if (instant) img.classList.add('is-loaded');
+  else img.addEventListener('load', () => img.classList.add('is-loaded'), { once: true });
+  img.src = url;
+  if (!instant && img.complete && img.naturalWidth) img.classList.add('is-loaded');
+}
 function refreshPathLines() {
   $('lockedPathLine').textContent = state.path || '';
   $('vaultPathLine').textContent = state.path || '';
@@ -288,7 +351,7 @@ function ensureHelpOverlay() {
   el.className = 'shortcuts-help hidden';
   el.innerHTML = `
     <div class="shortcuts-help-card" role="dialog" aria-label="keyboard shortcuts">
-      <div class="shortcuts-help-head"><h3>keyboard shortcuts</h3><button class="icon-btn" id="shortcutsHelpClose" aria-label="close" title="close (Esc)">✕</button></div>
+      <div class="shortcuts-help-head"><h3>keyboard shortcuts</h3><button class="icon-btn" id="shortcutsHelpClose" aria-label="close" title="close (Esc)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button></div>
       <div class="shortcuts-help-grid">
         <div><h4>navigation</h4>
           <p><kbd>Esc</kbd> back / close viewer / exit gallery / leave settings / back to Vault</p>
@@ -323,7 +386,7 @@ function ensureHelpOverlay() {
           <p><kbd>Ctrl</kbd>+<kbd>?</kbd> / <kbd>Ctrl</kbd>+<kbd>/</kbd> this help</p>
         </div>
       </div>
-      <p class="vault-sub" style="margin-top:12px">Shortcuts work when unlocked. Ctrl/Cmd both work on Mac.</p>
+      <p class="vault-sub shortcuts-help-note">Shortcuts work when unlocked. Ctrl/Cmd both work on Mac.</p>
     </div>`;
   document.body.appendChild(el);
   el.addEventListener('click', (e) => { if (e.target === el) hideHelp(); });
@@ -391,6 +454,7 @@ async function handleCreate(e) {
   }
   if (pass !== pass2) {
     setErr('createErr', "the two passphrases don't match");
+    shake($('createPass2'));
     return;
   }
   const folder = await window.vaultAPI.pickFolder();
@@ -400,7 +464,7 @@ async function handleCreate(e) {
     setErr('createErr', 'a vault already exists there. open it instead.');
     return;
   }
-  $('createBtn').disabled = true;
+  setBusy($('createBtn'), true);
   try {
     const phrase = await bip39Generate();
     const { manifest, dekRaw } = await createVault(pass, phrase);
@@ -416,7 +480,7 @@ async function handleCreate(e) {
   } catch (err) {
     setErr('createErr', "couldn't create the vault. " + err.message);
   } finally {
-    $('createBtn').disabled = false;
+    setBusy($('createBtn'), false);
   }
 }
 
@@ -452,6 +516,7 @@ async function handleSeedDone() {
     state.pendingDek = null;
   }
   state.unlocked = true;
+  await unlockBeat();
   renderGrid();
   show('unlocked');
   resetIdle();
@@ -480,40 +545,51 @@ async function enterWithDek(dek) {
   setHidden('tamperWarn', true);
   $('unlockPass').value = '';
   await saveVault(); // persist the tamper cursor
+  await unlockBeat();
   renderGrid();
   show('unlocked');
   resetIdle();
 }
 
+let authBusy = false;
 async function handleUnlock(e) {
   e.preventDefault();
+  if (authBusy) return;
+  authBusy = true;
   setErr('unlockErr', '');
-  const pass = $('unlockPass').value;
-  const raw = await unlockWithPass(state.manifest, pass);
-  if (!raw) {
-    setErr('unlockErr', 'wrong passphrase');
-    return;
+  const inp = $('unlockPass');
+  setBusy($('unlockBtn'), true); inp.readOnly = true;
+  try {
+    const raw = await unlockWithPass(state.manifest, inp.value);
+    if (!raw) { setErr('unlockErr', 'wrong passphrase'); shake(inp); inp.select(); return; }
+    const dek = await vaultImportAESKey(raw);
+    vaultWipeRaw(raw);
+    await enterWithDek(dek);
+  } finally {
+    setBusy($('unlockBtn'), false); inp.readOnly = false; authBusy = false;
   }
-  const dek = await vaultImportAESKey(raw);
-  vaultWipeRaw(raw);
-  await enterWithDek(dek);
 }
 
 async function handleSeedRecovery(e) {
   e.preventDefault();
+  if (authBusy) return;
+  authBusy = true;
   setErr('seedRecoveryErr', '');
-  const phrase = $('seedRecoveryInput').value.trim();
-  const raw = await unlockWithSeed(state.manifest, phrase);
-  if (!raw) {
-    setErr('seedRecoveryErr', "those words don't unlock this vault");
-    return;
+  const inp = $('seedRecoveryInput');
+  const btn = e.target.querySelector('button[type="submit"]');
+  setBusy(btn, true); inp.readOnly = true;
+  try {
+    const raw = await unlockWithSeed(state.manifest, inp.value.trim());
+    if (!raw) { setErr('seedRecoveryErr', "those words don't unlock this vault"); shake(inp); return; }
+    const dek = await vaultImportAESKey(raw);
+    vaultWipeRaw(raw);
+    inp.value = '';
+    setHidden('seedRecoveryForm', true);
+    setHidden('seedRecoveryLink', false);
+    await enterWithDek(dek);
+  } finally {
+    setBusy(btn, false); inp.readOnly = false; authBusy = false;
   }
-  const dek = await vaultImportAESKey(raw);
-  vaultWipeRaw(raw);
-  $('seedRecoveryInput').value = '';
-  setHidden('seedRecoveryForm', true);
-  setHidden('seedRecoveryLink', false);
-  await enterWithDek(dek);
 }
 
 // ---- lock ----
@@ -563,6 +639,8 @@ function lock() {
   if ($('journalYearProgress')) setHidden('journalYearProgress', true);
   showVaultTab();
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
+  $('grid').classList.remove('settled'); state.newIds.clear();
+  if ($('secretsList')) $('secretsList').classList.remove('settled');
   destroyGallery();
   state.galleryMode = false;
   if ($('galleryToggleBtn')) $('galleryToggleBtn').classList.remove('on');
@@ -711,12 +789,14 @@ async function handleFiles(files) {
         // photos are EXIF-stripped (canvas re-encode) exactly like the phone vault
         const stripped = await stripExif(file);
         const bytes = new Uint8Array(await stripped.arrayBuffer());
-        state.items.push(await encryptFile('photo', 'image/jpeg', file.name, bytes));
+        const rec = await encryptFile('photo', 'image/jpeg', file.name, bytes);
+        state.items.push(rec); state.newIds.add(rec.id);
       } else {
         // videos + docs keep their original bytes (no transcoding, no re-encode)
         const bytes = new Uint8Array(await file.arrayBuffer());
         const kind = mime.startsWith('video/') ? 'video' : 'doc';
-        state.items.push(await encryptFile(kind, mime, file.name, bytes));
+        const rec = await encryptFile(kind, mime, file.name, bytes);
+        state.items.push(rec); state.newIds.add(rec.id);
       }
       added++;
     } catch (err) {
@@ -1065,7 +1145,15 @@ async function renderSecrets() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
     const delBtn = document.createElement('button'); delBtn.className = 'icon-btn small danger'; delBtn.title = 'delete'; delBtn.textContent = 'del';
-    delBtn.addEventListener('click', () => { if (confirm('delete "' + val.label + '"?')) deleteSecret(rec.id); });
+    delBtn.addEventListener('click', () => {
+      if (delBtn.dataset.arm !== '1') {
+        delBtn.dataset.arm = '1'; delBtn.classList.add('armed'); delBtn.textContent = 'sure?';
+        delBtn._t = setTimeout(() => { delBtn.dataset.arm = ''; delBtn.classList.remove('armed'); delBtn.textContent = 'del'; }, 3500);
+        return;
+      }
+      clearTimeout(delBtn._t);
+      deleteSecret(rec.id);
+    });
     actions.appendChild(secretDots); actions.appendChild(reveal); actions.appendChild(copyUser); actions.appendChild(copySecret); actions.appendChild(editBtn); actions.appendChild(delBtn);
     row.appendChild(head);
     if (meta.childNodes.length) row.appendChild(meta);
@@ -1073,6 +1161,7 @@ async function renderSecrets() {
     row.appendChild(actions);
     list.appendChild(row);
   }
+  if (!list.classList.contains('settled')) setTimeout(() => list.classList.add('settled'), 700);
 }
 
 // ---- life data (DOB + expectancy) — encrypted record, never localStorage ----
@@ -1510,6 +1599,8 @@ function renderCalendar(blob, matches) {
     new Date(year, m, 1).toLocaleDateString(undefined, { month: 'long' }));
   const dows = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const cal = $('journalCalendar');
+  cal.classList.toggle('animate', cal.dataset.year !== String(year));
+  cal.dataset.year = String(year);
   cal.textContent = '';
   for (let m = 0; m < 12; m++) {
     const wrap = document.createElement('div');
@@ -1913,13 +2004,12 @@ async function renderGrid() {
     const media = document.createElement('div');
     media.className = 'cell-media';
     if (cached) {
-      // already decrypted once this session — reuse the thumbnail, no re-decrypt
-      const badge = rec.kind === 'video' ? `<div class="play-badge">${ic('play')}</div>` : '';
-      media.innerHTML = `<img src="${cached}" alt="">${badge}`;
+      setCellMedia(media, cached, rec.kind, true);
     } else {
       media.innerHTML = `<div class="ph">${ic(icon)}</div>`;
-      if (rec.kind !== 'doc') gridIO.observe(cell); // docs are icon cells — nothing to hydrate
+      if (rec.kind !== 'doc') { cell.classList.add('is-loading'); gridIO.observe(cell); }
     }
+    if (state.newIds.has(rec.id)) cell.classList.add('is-new');
     const name = state.nameCache.get(rec.id) || '';
     const caption = document.createElement('div');
     caption.className = 'cell-name';
@@ -1930,6 +2020,9 @@ async function renderGrid() {
     cell.addEventListener('click', () => openItem(rec.id));
     $('grid').appendChild(cell);
   }
+  state.newIds.clear();
+  const grid = $('grid');
+  if (shown.length && !grid.classList.contains('settled')) setTimeout(() => grid.classList.add('settled'), 900);
   // keep the gallery in sync: after a reorder, re-populate so the changed
   // order/set shows in full-screen view too.
   if (state.galleryMode && state.galleryStyle) populateGallery();
@@ -1967,12 +2060,13 @@ async function hydrateCell(cell, rec) {
     else url = await thumbUrl(rec);
     if (!state.unlocked) return; // locked mid-decrypt — never show plaintext
     state.thumbCache.set(rec.id, url); // re-renders reuse this — no re-decrypt
-    const badge = rec.kind === 'video' ? `<div class="play-badge">${ic('play')}</div>` : '';
     const media = cell.querySelector('.cell-media');
-    if (media) media.innerHTML = `<img src="${url}" alt="">${badge}`;
+    if (media) setCellMedia(media, url, rec.kind, false);
   } catch (err) {
     const media = cell.querySelector('.cell-media');
     if (media) media.innerHTML = '<div class="ph"><span class="bad">can\'t open</span></div>';
+  } finally {
+    cell.classList.remove('is-loading');
   }
 }
 
@@ -2148,8 +2242,8 @@ function pdfZoom(delta) {
 }
 
 // ---- item view ----
-async function openItem(id) {
-  if (!state.unlocked) return;
+async function openItem(id, dir) {
+  if (!state.unlocked || overlayClosing) return;
   const rec = state.items.find((r) => r.id === id);
   if (!rec) return;
   currentItemId = id;
@@ -2172,6 +2266,7 @@ async function openItem(id) {
   closePdf();
   $('itemTextContent').textContent = '';
   setHidden('itemText', true);
+  $('viewerStage').dataset.dir = dir || 'in';
   showOverlay('itemOverlay', true);
   pokeChrome(); // show the chrome; it fades out after a moment of stillness
   try {
@@ -2193,8 +2288,11 @@ async function openItem(id) {
       }
       const url = URL.createObjectURL(blob);
       state.urls.add(url);
+      const img = $('itemImg');
+      img.src = url;
+      try { await img.decode(); } catch { /* still show it */ }
+      if (currentItemId !== id) return; // navigated away while decoding
       setHidden('itemImg', false);
-      $('itemImg').src = url;
     } else if (rec.kind === 'video') {
       const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
       let blob;
@@ -2588,7 +2686,8 @@ function wire() {
   const sidebarToggle = $('sidebarToggle');
   if (sidebarToggle) {
     sidebarToggle.addEventListener('click', () => {
-      $('sidebarTray').classList.toggle('hidden');
+      const collapsed = $('sidebarTray').classList.toggle('collapsed');
+      sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
     });
   }
   $('vaultTabBtn').addEventListener('click', showVaultTab);

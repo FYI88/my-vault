@@ -130,7 +130,7 @@
     </div>
     <!-- action sidebar — togglable vertical tray on the right edge -->
     <div class="action-sidebar" id="actionSidebar">
-      <button class="sidebar-toggle" id="sidebarToggle" aria-label="toggle actions" title="toggle actions">
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="toggle actions" title="toggle actions" aria-expanded="true">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
       </button>
       <div class="sidebar-tray" id="sidebarTray">
@@ -203,7 +203,7 @@
       <section id="journalYearProgress" class="journal-card hidden">
         <div class="journal-section-head">
           <h3 class="journal-section-title">year progress</h3>
-          <button id="yearProgressClose" class="icon-btn" aria-label="close" title="close (Esc)">✕</button>
+          <button id="yearProgressClose" class="icon-btn" aria-label="close" title="close (Esc)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
         </div>
         <p class="vault-sub" id="yearProgressStats"></p>
         <div id="yearWeeksGrid" class="year-weeks-grid" aria-hidden="true"></div>
@@ -295,7 +295,7 @@
         <button class="vault-pill" data-cat="note">note</button>
       </div>
       <section class="journal-card secrets-composer">
-        <p class="vault-sub" style="margin-bottom:0.5rem">add a secret — encrypted like everything else, wiped on lock</p>
+        <p class="vault-sub secrets-intro">add a secret — encrypted like everything else, wiped on lock</p>
         <input id="secretsLabel" class="vault-input" type="text" placeholder="label — e.g. GitHub, Wi-Fi, Bank" autocomplete="off">
         <div class="vault-pills" id="secretsCategoryPills">
           <button class="vault-pill on" data-cat="login">login</button>
@@ -325,7 +325,7 @@
         </div>
         <div id="secretsList" class="secrets-list"></div>
       </section>
-      <p class="vault-sub" style="margin-top:0.7rem; text-align:center">secrets are masked. copy clears after 30 seconds.</p>
+      <p class="vault-sub secrets-footnote">secrets are masked. copy clears after 30 seconds.</p>
     </div>
   </section>
 
@@ -468,8 +468,8 @@
         <button class="vault-pill" data-bg="video">video</button>
       </div>
       <div class="vault-bg-custom" id="bgCustom" hidden>
-        <button class="vault-btn vault-btn-small" id="bgChoose">choose a file…</button>
-        <button class="vault-btn vault-btn-ghost vault-btn-small" id="bgClear" hidden>remove</button>
+        <button class="add-btn small" id="bgChoose">choose a file…</button>
+        <button class="add-btn ghost small" id="bgClear" hidden>remove</button>
       </div>
     </div>
 

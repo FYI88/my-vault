@@ -1,6 +1,6 @@
 ﻿# HANDOFF-FABLE — My Vault UI polish pass (for Fable 5)
 
-Read THIS file plus only the files it names. Do not crawl the repo. Goal: UI polish, zero behavior or crypto changes. Branch `master` @ `e80307a`, tree clean except this file.
+Read THIS file plus only the files it names. Do not crawl the repo. Goal: UI polish, zero behavior or crypto changes. Branch `master` @ `6394d43` (pre-fable checkpoint, pushed) plus uncommitted Fable batch 2 on top. Section 8 lists what already landed — read it before proposing anything that touches the same selectors. Batch 2 added ~120 lines to `renderer.js`, so §3 line anchors below it drift upward; grep the function name when an anchor misses.
 
 ## 0. Run it (2 min)
 
@@ -55,6 +55,7 @@ Read THIS file plus only the files it names. Do not crawl the repo. Goal: UI pol
 4. Every rAF loop needs a stop path on `lock()` and tab switch (see `ringSweepRaf` pattern).
 5. Life grid is ~4680 nodes — build once per DOB and cache, never rebuild per keystroke.
 6. Never store anything sensitive in `localStorage` (legacy `lifeWeeksDOB` keys are migrated into the vault once, then deleted).
+7. CSP `style-src 'self'` blocks BOTH `style=` attributes and JS-set `element.style` (verified live in Electron). Animate with classes and keyframes, never inline styles.
 
 ## 6. Task for Fable
 
@@ -67,4 +68,32 @@ Polish pass over Vault grid, Journal, Secrets, tabs, and viewer chrome: spacing 
 3. `Ctrl+1/2/3`, `Ctrl+Tab`, `Esc` stack, arrows in viewer all still work
 4. Cream plus mono look intentional, no emoji anywhere in UI
 5. Commit message style: `style: ...` or `fix: ...`, one concern per commit. Do not push — owner pushes.
+
+## 8. Already applied (do not redo)
+
+- Premium motion layer appended at end of `styles.css` (screens stagger, button lift plus sheen, input halo `--ring`, grid arrival, viewer HUD slides, toast spring, calendar pulse, card hover, tray stagger, help pop, full reduced-motion kill).
+- Zero inline `style=` left in `index.html` (CSP drops them); use `.secrets-intro` and `.secrets-footnote`.
+- `#yearProgressClose` is the `searchClear` line-X SVG, never the `X` glyph.
+- `.vault-input` aligns left globally, centered only under `.screen-center` (auth screens).
+- `.vault-pills` wraps (`flex-wrap`), so 5-pill rows stack instead of squeezing.
+- `#addFilesBtn` visibility is JS-driven per tab (`showVaultTab` shows, journal and secrets hide) — no CSS needed.
+
+## 9. Backlog (later, not this pass)
+
+- Sidebar overlap with `+ add files` on narrow windows — deferred by owner.
+- Add-font button or picker (custom user fonts) — deferred by owner.
+- `.grid-fade-imgs` plus `img.is-loaded` opt-in still needs JS (only `.is-loading` shimmer got wired).
+
+## 10. Batch 2 applied (Fable 5.1 motion-plus-hooks, uncommitted)
+
+- `show()` is async with a 160 ms `.leaving` exit plus race guard (`showSeq`); no caller awaits it. Unlock beat: `unlockBeat()` blooms the background 460 ms before the swap; auth forms use `setBusy` plus `shake()` (WAAPI) plus `is-wrong` on failure.
+- Tray collapse uses `.collapsed`, never `.hidden` (which is `display:none` and kills fades). Viewer close fades via `.closing` (170 ms); photo open waits `img.decode()`; `viewerNav` passes `next` and `prev` for directional entry.
+- Grid: `state.newIds` rise once, `.settled` gates the stagger, decrypting cells shimmer (`.is-loading`), thumbs fade via `setCellMedia` plus `img.is-loaded`. Secrets rows settle once; row delete is two-tap arm (`sure?`), no `confirm()`. Calendar months cascade only on year change (`.animate` flag).
+- Dead CSS deleted: `.item-stage` block, mono leftovers, `.page-actions`, `.vault-hint`, `.hover-sim`, `.doc-meta-line`, `.vault-head-spacer`, `.cal-month-label`, one duplicate `#galleryToggleBtn.on`, `.sidebar-tray.hidden` base. Kept `.viewer-stage` selectors inside the old mono pdf-scroll rule.
+- V1 motion layer replaced wholesale by v2 (do not re-add v1). V2 pairs with the classes above; reduced-motion kills all of it.
+- Win-chrome controls sit clear of the full-height body scrollbar (`.title-right` offset, 10 px cream / 6 px mono).
+- Year-weeks grid mirrors the life grid: small auto-fill 10 px boxes, lived black, current emerald, future white.
+- `.vault-pills` wraps, so 5-pill rows (font picker) stack instead of squeezing.
+- Inner-scroller experiment reverted by owner: `body` scrolls again, `.wrap` is back to padding-only, glass plus both `scrollTo` calls use `window` again. Win-chrome controls keep their scrollbar clearance offset.
+- Deviations from the paste: `enterWithDek` and `handleSeedDone` kept their adopt and tamper tails with `unlockBeat()` inserted (no wholesale tail swap); `reducedMotion()` guards `matchMedia` for non-browser harnesses; `shake()` guards `el.animate`; `#secretsPane .vault-input` left-align rule skipped (base `.vault-input` is already left); leftover v1 `.sidebar-tray:not(.hidden)` stagger selectors left dead but harmless.
 
