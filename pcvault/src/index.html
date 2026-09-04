@@ -119,9 +119,12 @@
   <!-- unlocked -->
   <section id="screen-unlocked" class="screen">
     <div class="vault-tabs">
-      <button id="vaultTabBtn" class="vault-tab on">vault</button>
-      <button id="journalTabBtn" class="vault-tab">journal</button>
-      <button id="secretsTabBtn" class="vault-tab">secrets</button>
+      <div class="v-tabs" role="tablist" aria-label="vault sections" id="vaultTabs">
+        <span class="v-tabs-ind" id="vaultTabsInd" aria-hidden="true"></span>
+        <button id="vaultTabBtn" class="v-tab" role="tab" aria-selected="true">vault</button>
+        <button id="journalTabBtn" class="v-tab" role="tab" aria-selected="false">journal</button>
+        <button id="secretsTabBtn" class="v-tab" role="tab" aria-selected="false">secrets</button>
+      </div>
       <span class="vault-tabs-gap"></span>
       <button id="addFilesBtn" class="add-btn small" data-action="add-files">+ add files</button>
     </div>
@@ -172,7 +175,14 @@
         <button id="journalYearPrev" class="icon-btn" aria-label="previous year" title="previous year">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
         </button>
-        <h2 id="journalYearLabel" class="journal-year"></h2>
+        <button id="journalYearBtn" class="journal-year-wrap" aria-label="view year progress" title="view year progress">
+          <svg class="journal-year-ring" viewBox="0 0 72 72" aria-hidden="true">
+            <circle class="journal-year-ring-bg" cx="36" cy="36" r="30"></circle>
+            <circle id="journalYearRing" class="journal-year-ring-fill" cx="36" cy="36" r="30"></circle>
+            <circle id="journalYearComet" class="journal-year-ring-comet" cx="36" cy="36" r="30"></circle>
+          </svg>
+          <span id="journalYearLabel" class="journal-year"></span>
+        </button>
         <button id="journalYearNext" class="icon-btn" aria-label="next year" title="next year">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
         </button>
@@ -189,6 +199,47 @@
         </div>
       </div>
       <p class="journal-streak" id="journalStreak"></p>
+
+      <section id="journalYearProgress" class="journal-card hidden">
+        <div class="journal-section-head">
+          <h3 class="journal-section-title">year progress</h3>
+          <button id="yearProgressClose" class="icon-btn" aria-label="close" title="close (Esc)">✕</button>
+        </div>
+        <p class="vault-sub" id="yearProgressStats"></p>
+        <div id="yearWeeksGrid" class="year-weeks-grid" aria-hidden="true"></div>
+        <div id="lifeIntro">
+          <h4 class="life-title">life in weeks</h4>
+          <p class="vault-sub">a simple visualization to reflect on time passing</p>
+          <label class="life-label">enter a date of birth<input id="lifeDobIntro" type="date" class="vault-input"></label>
+          <div class="secrets-actions">
+            <button id="lifeVisualizeBtn" class="add-btn">visualize your time</button>
+          </div>
+          <p class="vault-sub">encrypted in this vault file — never online, wiped on lock</p>
+        </div>
+        <div id="lifeMain" class="hidden">
+          <div class="life-inputs">
+            <label class="life-label">date of birth<input id="lifeDobInput" type="date" class="vault-input"></label>
+            <label class="life-label">life expectancy (years)<input id="lifeExpectancyInput" type="number" min="1" max="130" value="90" class="vault-input"></label>
+          </div>
+          <div class="secrets-actions">
+            <button id="lifeClearBtn" class="add-btn ghost">remove</button>
+          </div>
+          <div class="life-stats3">
+            <div class="life-stat"><span>weeks lived</span><b id="lsLived"></b></div>
+            <div class="life-stat"><span>weeks remaining</span><b id="lsLeft"></b></div>
+            <div class="life-stat"><span id="lsTotalLabel">total at 90 years</span><b id="lsTotal"></b></div>
+          </div>
+          <div class="life-stats4">
+            <div class="life-stat"><span>age</span><b id="lsAge"></b></div>
+            <div class="life-stat"><span>life elapsed</span><b id="lsPct"></b></div>
+            <div class="life-stat"><span>days until birthday</span><b id="lsBday"></b></div>
+            <div class="life-stat"><span>weekends left</span><b id="lsEnds"></b></div>
+          </div>
+          <div id="lifeDecades" class="life-decades"></div>
+          <p class="vault-sub">your life in weeks</p>
+          <div id="lifeWeeksGrid" class="life-weeks-grid"></div>
+        </div>
+      </section>
 
       <section class="journal-card journal-composer">
         <p class="journal-day" id="journalDayLabel"></p>

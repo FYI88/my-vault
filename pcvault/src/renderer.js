@@ -66,12 +66,15 @@ const state = {
   secretsCache: new Map(), // id → decrypted secret JSON — plaintext, wiped on lock
   secretsFilter: 'all', // category filter
   secretsQuery: '',     // lowercased live query
+  lifeCache: null,      // { dob, expectancy } — plaintext, wiped on lock (never localStorage)
+  lifeOpen: false,      // year-progress sub-page open inside Journal
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
 let toastTimer = null;
 let editingSecretId = null; // null = new secret, else id of secret being edited
 let clipboardClearTimer = null;
+let ringSweepRaf = 0; // year-ring comet loop id
 
 // ---- immersive viewer (full-bleed stage + floating chrome) ----
 let viewerZoom = 1;          // photo zoom factor (1 = fit)
@@ -163,6 +166,8 @@ function show(name) {
   if (name !== 'unlocked') document.body.classList.remove('scrolled');
   // reset scroll so the unlocked content doesn't sit under the transparent titlebar
   if (name === 'unlocked') window.scrollTo(0, 0);
+  // the tabs indicator measures layout — seat it instantly once the unlocked screen is visible
+  if (name === 'unlocked') requestAnimationFrame(() => { setTabsSelected(); placeTabsIndicator(false); });
 }
 function showOverlay(id, visible) {
   $(id).classList.toggle('hidden', !visible);
@@ -457,6 +462,11 @@ async function enterWithDek(dek) {
   // First unlock: fold the machine-local gallery pick into the vault file so it
   // travels with the .cvault from now on.
   if (adoptGalleryStyleIntoFile()) await saveVault();
+  // Migrate any legacy localStorage life DOB into the encrypted record once.
+  // Needs DEK first, so set a temp unlock flag for the encrypt path.
+  state.dek = dek;
+  try { await adoptLifeFromLocalStorage(); } catch {}
+  state.dek = null;
   const r = await tamperSample(state.manifest, dek, state.items);
   if (r.tampered) {
     setHidden('tamperWarn', false);
@@ -539,6 +549,18 @@ function lock() {
   if ($('secretsNotes')) $('secretsNotes').value = '';
   clearTimeout(clipboardClearTimer);
   clipboardClearTimer = null;
+  // life — wipe DOB plaintext, close sub-page, clear inputs (never localStorage)
+  stopRingSweep();
+  state.lifeCache = null;
+  state.lifeOpen = false;
+  if ($('lifeDobIntro')) $('lifeDobIntro').value = '';
+  if ($('lifeDobInput')) $('lifeDobInput').value = '';
+  if ($('lifeExpectancyInput')) $('lifeExpectancyInput').value = '90';
+  const lw = $('lifeWeeksGrid');
+  if (lw) { lw.textContent = ''; delete lw.dataset.key; }
+  const ldec = $('lifeDecades');
+  if (ldec) ldec.textContent = '';
+  if ($('journalYearProgress')) setHidden('journalYearProgress', true);
   showVaultTab();
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
   destroyGallery();
@@ -658,7 +680,7 @@ async function encryptFile(kind, mime, name, bytes) {
   const nameEnc = await encText(itemKey, name);
   const enc = await encBytes(itemKey, bytes);
   return {
-    id: (kind === 'photo' ? 'p' : kind === 'video' ? 'v' : kind === 'journal' ? 'j' : 'd') + vaultRandId(),
+    id: (kind === 'photo' ? 'p' : kind === 'video' ? 'v' : kind === 'journal' ? 'j' : kind === 'life' ? 'l' : 'd') + vaultRandId(),
     kind, mime, size: bytes.length,
     createdAt: Date.now(),
     nameIv: nameEnc.iv, name: nameEnc.data,
@@ -843,9 +865,9 @@ function ensureNames() {
   return state.namesReady;
 }
 
-// Journal + Secrets are not files — the grid, search, and gallery all skip them.
+// Journal + Secrets + Life are not files — the grid, search, and gallery all skip them.
 function vaultItems() {
-  return state.items.filter((r) => r.kind !== 'journal' && r.kind !== 'secret');
+  return state.items.filter((r) => r.kind !== 'journal' && r.kind !== 'secret' && r.kind !== 'life');
 }
 
 async function filteredItems() {
@@ -1051,6 +1073,109 @@ async function renderSecrets() {
     row.appendChild(actions);
     list.appendChild(row);
   }
+}
+
+// ---- life data (DOB + expectancy) — encrypted record, never localStorage ----
+// manifest.prefs rides PLAINTEXT in the file header (see container.mjs + vault-crypto.mjs:144),
+// so DOB must NOT go there. It lives in one encrypted record kind='life',
+// decrypted to state.lifeCache, wiped on lock like journal/secrets.
+const LIFE_MIME = 'application/x-vault-life';
+const LIFE_NAME = '__life__';
+function lifeRecord() {
+  return state.items.find((r) => r.kind === 'life');
+}
+async function getLifeData() {
+  if (state.lifeCache) return state.lifeCache;
+  const rec = lifeRecord();
+  if (!rec) return null;
+  try {
+    const itemKey = await unwrapItemKey(state.dek, rec);
+    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    try {
+      const obj = JSON.parse(new TextDecoder().decode(plain));
+      const dob = String(obj.dob || '');
+      let exp = parseInt(obj.expectancy, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
+      if (!Number.isFinite(exp)) exp = 90;
+      exp = Math.max(1, Math.min(130, exp));
+      if (!state.unlocked) return null;
+      state.lifeCache = { dob, expectancy: exp };
+      return state.lifeCache;
+    } finally { vaultWipeRaw(plain); }
+  } catch { return null; }
+}
+async function saveLifeData(dob, expectancy) {
+  if (!state.unlocked || !state.dek) return;
+  const exp = Math.max(1, Math.min(130, parseInt(expectancy, 10) || 90));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) { toast('pick a valid date of birth'); return; }
+  const payload = JSON.stringify({ dob, expectancy: exp });
+  const bytes = new TextEncoder().encode(payload);
+  state.items = state.items.filter((r) => r.kind !== 'life');
+  if (state.lifeCache && state.lifeCache.dob === dob && state.lifeCache.expectancy === exp) return;
+  const rec = await encryptFile('life', LIFE_MIME, LIFE_NAME, bytes);
+  rec.kind = 'life';
+  state.items.push(rec);
+  state.lifeCache = { dob, expectancy: exp };
+  await saveVault();
+}
+async function clearLifeData() {
+  state.items = state.items.filter((r) => r.kind !== 'life');
+  state.lifeCache = null;
+  await saveVault();
+}
+// One-time migration: if an old localStorage DOB exists, fold it into the vault once then delete it.
+async function adoptLifeFromLocalStorage() {
+  if (!state.manifest || lifeRecord()) return false;
+  let dob = null;
+  let exp = 90;
+  try {
+    dob = localStorage.getItem('lifeWeeksDOB');
+    const e = localStorage.getItem('lifeWeeksExpectancy');
+    if (e) { const n = parseInt(e, 10); if (Number.isFinite(n)) exp = Math.max(1, Math.min(130, n)); }
+  } catch { return false; }
+  if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return false;
+  try {
+    const payload = JSON.stringify({ dob, expectancy: exp });
+    const bytes = new TextEncoder().encode(payload);
+    const rec = await encryptFile('life', LIFE_MIME, LIFE_NAME, bytes);
+    rec.kind = 'life';
+    state.items.push(rec);
+    state.lifeCache = { dob, expectancy: exp };
+    try { localStorage.removeItem('lifeWeeksDOB'); localStorage.removeItem('lifeWeeksExpectancy'); } catch {}
+    return true;
+  } catch { return false; }
+}
+// Year progress — pure Date math, no storage, no PII.
+function yearProgress(year) {
+  const now = new Date();
+  const start = new Date(year, 0, 1);
+  const end = new Date(year, 11, 31, 23, 59, 59, 999);
+  const total = (end - start) / 86400000 + 1 / 86400000; // days incl fraction
+  const totalDays = Math.round((new Date(year, 11, 31) - new Date(year, 0, 1)) / 86400000) + 1;
+  if (year < now.getFullYear()) return { pct: 100, passed: totalDays, remaining: 0, total: totalDays };
+  if (year > now.getFullYear()) return { pct: 0, passed: 0, remaining: totalDays, total: totalDays };
+  const passedFloat = Math.max(0, Math.min(totalDays, (now - start) / 86400000));
+  const passed = Math.floor(passedFloat) + 1;
+  const pct = Math.max(0, Math.min(100, Math.round((passedFloat / totalDays) * 100)));
+  return { pct, passed: Math.min(totalDays, passed), remaining: Math.max(0, totalDays - passed), total: totalDays };
+}
+function lifeStats(dobStr, expectancy) {
+  const birth = new Date(dobStr + 'T00:00:00');
+  const now = new Date();
+  if (isNaN(birth)) return null;
+  const weekMs = 604800000;
+  const weeksLived = Math.max(0, Math.floor((now - birth) / weekMs));
+  const totalWeeks = Math.max(1, Math.floor(expectancy * 52));
+  const weeksRemaining = Math.max(0, totalWeeks - weeksLived);
+  const yearMs = 31557600000;
+  const exactAge = Math.max(0, (now - birth) / yearMs);
+  const percent = Math.min(100, Math.max(0, Math.round((weeksLived / totalWeeks) * 100)));
+  const next = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+  if (next < now) next.setFullYear(now.getFullYear() + 1);
+  const daysToNext = Math.ceil((next - now) / 86400000);
+  let ageYears = now.getFullYear() - birth.getFullYear();
+  if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) ageYears--;
+  return { weeksLived, totalWeeks, weeksRemaining, exactAge, percent, daysToNext, ageYears: Math.max(0, ageYears), weekendsLeft: weeksRemaining };
 }
 
 // ---- full-screen gallery (style-agnostic) ----
@@ -1487,6 +1612,137 @@ async function renderOnThisDay(blob, year) {
   setHidden('journalOnThisDayText', true);
 }
 
+function toggleYearProgress(force) {
+  state.lifeOpen = typeof force === 'boolean' ? force : !state.lifeOpen;
+  setHidden('journalYearProgress', !state.lifeOpen);
+  if (state.lifeOpen) renderYearProgress();
+}
+function stopRingSweep() {
+  if (ringSweepRaf) cancelAnimationFrame(ringSweepRaf);
+  ringSweepRaf = 0;
+}
+// Comet pulse ping-pongs inside the filled arc only (start → tip → start),
+// easing to a stop at the tip. Never touches the unfilled circle.
+function startRingSweep() {
+  stopRingSweep();
+  const comet = $('journalYearComet');
+  if (!comet || !state.unlocked) return;
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    comet.style.opacity = '0';
+    return;
+  }
+  const year = state.journalYear || yearOf(new Date());
+  const C = 188.5;
+  const L = C * yearProgress(year).pct / 100;
+  if (L < 2) { comet.style.opacity = '0'; return; }
+  comet.style.opacity = '1';
+  const len = Math.max(4, Math.min(18, L * 0.22));
+  comet.style.strokeDasharray = `${len} ${C - len}`;
+  const lo = len / 2 + 1;
+  const hi = Math.max(lo, L - len / 2 - 1);
+  const t0 = performance.now();
+  const step = (t) => {
+    if (!state.unlocked || state.journalYear !== year) { ringSweepRaf = 0; return; }
+    const m = (lo + hi) / 2 + (hi - lo) / 2 * Math.sin((t - t0) / 2400 * Math.PI * 2);
+    comet.style.strokeDashoffset = String(len / 2 - m);
+    ringSweepRaf = requestAnimationFrame(step);
+  };
+  ringSweepRaf = requestAnimationFrame(step);
+}
+async function renderYearProgress() {
+  if (!state.unlocked || !state.lifeOpen) return;
+  const year = state.journalYear || yearOf(new Date());
+  const yp = yearProgress(year);
+  const stats = $('yearProgressStats');
+  if (stats) stats.textContent = `${yp.passed} of ${yp.total} days · ${yp.remaining} left · ${yp.pct}%`;
+  const grid = $('yearWeeksGrid');
+  if (grid) {
+    grid.textContent = '';
+    const weeks = 53;
+    const doneWeeks = Math.min(weeks, Math.floor((yp.pct / 100) * weeks));
+    const nowWeek = Math.min(weeks - 1, doneWeeks);
+    for (let i = 0; i < weeks; i++) {
+      const d = document.createElement('span');
+      d.className = 'year-week' + (i < doneWeeks ? ' done' : '') + (i === nowWeek && year === yearOf(new Date()) ? ' now' : '');
+      grid.appendChild(d);
+    }
+  }
+  const life = await getLifeData();
+  const intro = $('lifeIntro');
+  const main = $('lifeMain');
+  if (!life) {
+    if (intro) setHidden('lifeIntro', false);
+    if (main) setHidden('lifeMain', true);
+    return;
+  }
+  if (intro) setHidden('lifeIntro', true);
+  if (main) setHidden('lifeMain', false);
+  const dobInp = $('lifeDobInput');
+  const expInp = $('lifeExpectancyInput');
+  if (dobInp && !dobInp.value) dobInp.value = life.dob;
+  if (expInp && (!expInp.value || expInp.value === '90')) expInp.value = String(life.expectancy);
+  const st = lifeStats(life.dob, life.expectancy);
+  if (!st) return;
+  const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+  set('lsLived', st.weeksLived.toLocaleString());
+  set('lsLeft', st.weeksRemaining.toLocaleString());
+  set('lsTotal', st.totalWeeks.toLocaleString());
+  set('lsTotalLabel', `total at ${life.expectancy} years`);
+  set('lsAge', String(st.ageYears));
+  set('lsPct', st.percent + '%');
+  set('lsBday', String(st.daysToNext));
+  set('lsEnds', st.weekendsLeft.toLocaleString());
+  // decade ruler (file logic: full past decades, partial current, glow on lit)
+  const dec = $('lifeDecades');
+  if (dec) {
+    dec.textContent = '';
+    const segs = Math.floor(life.expectancy / 10) + 1;
+    for (let d = 0; d < segs; d++) {
+      const start = d * 10;
+      const end = start + 10;
+      let fill = 0;
+      let lit = false;
+      if (st.exactAge >= end) { fill = 100; lit = true; }
+      else if (st.exactAge >= start) {
+        fill = Math.max(0, Math.min(100, Math.round(((st.exactAge - start) / 10) * 100)));
+        lit = true;
+      }
+      const seg = document.createElement('div');
+      seg.className = 'life-decade';
+      const bar = document.createElement('div');
+      bar.className = 'life-decade-bar';
+      const f = document.createElement('div');
+      f.className = 'life-decade-fill' + (lit ? ' lit' : '');
+      f.style.width = fill + '%';
+      bar.appendChild(f);
+      const lab = document.createElement('div');
+      lab.className = 'life-decade-lab';
+      lab.textContent = start + ' yrs';
+      seg.appendChild(bar);
+      seg.appendChild(lab);
+      dec.appendChild(seg);
+    }
+  }
+  // weeks grid (file: lived black, current emerald, future white, ring every 520)
+  const lwGrid = $('lifeWeeksGrid');
+  if (lwGrid) {
+    const key = life.dob + '|' + life.expectancy;
+    if (lwGrid.dataset.key !== key) {
+      lwGrid.dataset.key = key;
+      lwGrid.textContent = '';
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < st.totalWeeks; i++) {
+        const lived = i < st.weeksLived;
+        const cur = i === Math.max(0, st.weeksLived - 1);
+        const b = document.createElement('div');
+        b.className = 'lw-box' + (cur ? ' now' : lived ? ' done' : '') + (i % 520 === 0 ? ' decade' : '');
+        b.title = lived ? `week ${i + 1} lived` : `week ${i + 1}`;
+        frag.appendChild(b);
+      }
+      lwGrid.appendChild(frag);
+    }
+  }
+}
 async function renderJournal() {
   if (!state.unlocked) return;
   const year = state.journalYear || yearOf(new Date());
@@ -1494,6 +1750,24 @@ async function renderJournal() {
   const blob = await journalForYear(year);
   if (!state.unlocked || state.journalYear !== year) return;
   $('journalYearLabel').textContent = String(year);
+  const yp = yearProgress(year);
+  const ring = $('journalYearRing');
+  if (ring) {
+    // decade-bar charge: start empty, fill to pct on the 0.9s ease-out
+    const C = 188.5;
+    const target = C * (1 - yp.pct / 100);
+    ring.style.strokeDashoffset = String(C);
+    requestAnimationFrame(() => {
+      if (!state.unlocked || state.journalYear !== year) return;
+      ring.style.strokeDashoffset = String(target);
+    });
+  }
+  startRingSweep();
+  const btn = $('journalYearBtn');
+  if (btn) {
+    btn.title = `view year progress — ${yp.pct}% of ${year} passed`;
+    btn.setAttribute('aria-label', `view year progress — ${yp.pct}% of ${year} passed`);
+  }
   const streak = calcStreak(sortedDayKeys(blob));
   $('journalStreak').textContent = streak
     ? `${streak} day${streak === 1 ? '' : 's'} in a row`
@@ -1512,6 +1786,7 @@ async function renderJournal() {
   openJournalDay(journalEditKey);
   renderOnThisDay(blob, year);
   applyJournalSearch();
+  if (state.lifeOpen) renderYearProgress();
 }
 
 function applyJournalSearch() {
@@ -1528,12 +1803,37 @@ function applyJournalSearch() {
   });
 }
 
+// v-tabs indicator — one shared pill slides behind the active tab (Phase 1 kit).
+// Positions from layout (offsetLeft/offsetWidth), so it re-seats after fonts
+// settle, on resize, and every tab switch. Skips when hidden (zero width).
+function activeTabBtn() {
+  if (state.secretsTab) return $('secretsTabBtn');
+  if (state.journalTab) return $('journalTabBtn');
+  return $('vaultTabBtn');
+}
+function setTabsSelected() {
+  const map = [['vaultTabBtn', !state.journalTab && !state.secretsTab], ['journalTabBtn', state.journalTab], ['secretsTabBtn', state.secretsTab]];
+  for (const [id, on] of map) {
+    const b = $(id);
+    if (b) b.setAttribute('aria-selected', String(!!on));
+  }
+}
+function placeTabsIndicator(animate) {
+  const wrap = $('vaultTabs');
+  const ind = $('vaultTabsInd');
+  if (!wrap || !ind) return;
+  const el = activeTabBtn();
+  if (!el || !el.offsetWidth) return;
+  if (animate === false) ind.style.transitionDuration = '0ms';
+  ind.style.width = el.offsetWidth + 'px';
+  ind.style.transform = 'translateX(' + (el.offsetLeft - 3) + 'px)';
+  if (animate === false) requestAnimationFrame(() => { ind.style.transitionDuration = ''; });
+}
 function showJournalTab() {
   state.journalTab = true;
   state.secretsTab = false;
-  $('vaultTabBtn').classList.remove('on');
-  $('journalTabBtn').classList.add('on');
-  const st = $('secretsTabBtn'); if (st) st.classList.remove('on');
+  setTabsSelected();
+  placeTabsIndicator();
   setHidden('vaultPane', true);
   setHidden('journalPane', false);
   setHidden('secretsPane', true);
@@ -1546,9 +1846,9 @@ function showJournalTab() {
 function showVaultTab() {
   state.journalTab = false;
   state.secretsTab = false;
-  $('vaultTabBtn').classList.add('on');
-  $('journalTabBtn').classList.remove('on');
-  const st = $('secretsTabBtn'); if (st) st.classList.remove('on');
+  stopRingSweep();
+  setTabsSelected();
+  placeTabsIndicator();
   setHidden('vaultPane', false);
   setHidden('journalPane', true);
   setHidden('secretsPane', true);
@@ -1559,9 +1859,9 @@ function showVaultTab() {
 function showSecretsTab() {
   state.secretsTab = true;
   state.journalTab = false;
-  $('vaultTabBtn').classList.remove('on');
-  $('journalTabBtn').classList.remove('on');
-  const st = $('secretsTabBtn'); if (st) st.classList.add('on');
+  stopRingSweep();
+  setTabsSelected();
+  placeTabsIndicator();
   setHidden('vaultPane', true);
   setHidden('journalPane', true);
   setHidden('secretsPane', false);
@@ -2294,6 +2594,23 @@ function wire() {
   $('vaultTabBtn').addEventListener('click', showVaultTab);
   $('journalTabBtn').addEventListener('click', showJournalTab);
   const stBtn = $('secretsTabBtn'); if (stBtn) stBtn.addEventListener('click', showSecretsTab);
+  // the button carries data-action but lives outside #sidebarTray, so the
+  // delegated click never reached it — wire it directly (Ctrl+I already worked)
+  const addBtn = $('addFilesBtn');
+  if (addBtn) addBtn.addEventListener('click', () => runAction('add-files'));
+  // v-tabs: re-seat the sliding pill after fonts settle + on resize (both snap, like the kit); arrows move between tabs
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => { setTabsSelected(); placeTabsIndicator(false); });
+  }
+  window.addEventListener('resize', () => { placeTabsIndicator(false); });
+  const tablist = $('vaultTabs');
+  if (tablist) tablist.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    cycleTabs(e.key === 'ArrowRight' ? 1 : -1);
+    const btn = activeTabBtn();
+    if (btn) btn.focus();
+  });
   $('journalSaveBtn').addEventListener('click', async () => {
     const key = journalEditKey || todayKey();
     const year = yearKey(key);
@@ -2356,6 +2673,43 @@ function wire() {
     state.journalYear = (state.journalYear || yearOf(new Date())) + 1;
     journalEditKey = null;
     renderJournal();
+  });
+  const yearBtn = $('journalYearBtn');
+  if (yearBtn) yearBtn.addEventListener('click', () => toggleYearProgress());
+  const yearClose = $('yearProgressClose');
+  if (yearClose) yearClose.addEventListener('click', () => toggleYearProgress(false));
+  const lifeViz = $('lifeVisualizeBtn');
+  if (lifeViz) lifeViz.addEventListener('click', async () => {
+    const dob = $('lifeDobIntro').value;
+    if (!dob) { toast('enter a date of birth'); return; }
+    await saveLifeData(dob, 90);
+    toast('saved encrypted');
+    renderYearProgress();
+  });
+  const lifeDob = $('lifeDobInput');
+  if (lifeDob) lifeDob.addEventListener('change', async () => {
+    const cur = await getLifeData();
+    if (!lifeDob.value) return;
+    await saveLifeData(lifeDob.value, (cur && cur.expectancy) || $('lifeExpectancyInput').value || 90);
+    renderYearProgress();
+  });
+  const lifeExp = $('lifeExpectancyInput');
+  if (lifeExp) lifeExp.addEventListener('change', async () => {
+    const cur = await getLifeData();
+    if (!cur) return;
+    const n = Math.max(1, Math.min(130, parseInt(lifeExp.value || '0', 10) || 90));
+    lifeExp.value = String(n);
+    await saveLifeData(cur.dob, n);
+    renderYearProgress();
+  });
+  const lifeClear = $('lifeClearBtn');
+  if (lifeClear) lifeClear.addEventListener('click', async () => {
+    if (!confirm('remove date of birth from this vault?')) return;
+    await clearLifeData();
+    if ($('lifeDobInput')) $('lifeDobInput').value = '';
+    if ($('lifeExpectancyInput')) $('lifeExpectancyInput').value = '90';
+    toast('removed');
+    renderYearProgress();
   });
   $('photoInput').addEventListener('change', (e) => {
     handleFiles([...e.target.files]);
@@ -2656,6 +3010,10 @@ function wire() {
       }
       if (state.galleryMode) { e.preventDefault(); toggleGallery(); return; }
       if (isSettingsOpen()) { e.preventDefault(); show('unlocked'); return; }
+      if (state.lifeOpen) {
+        const yp = $('journalYearProgress');
+        if (yp && !yp.classList.contains('hidden')) { e.preventDefault(); toggleYearProgress(false); return; }
+      }
       // clear search if focused or has query
       const ae = document.activeElement;
       const aeTag = (ae && ae.tagName || '').toLowerCase();
@@ -2665,6 +3023,7 @@ function wire() {
         if (ae.id === 'secretsSearchInput') { e.preventDefault(); state.secretsQuery = ''; ae.value = ''; renderSecrets(); ae.blur(); return; }
         if (ae.id === 'journalEntry') { e.preventDefault(); ae.blur(); return; }
         if (['secretsLabel','secretsUsername','secretsSecret','secretsUrl','secretsNotes'].includes(ae.id)) { e.preventDefault(); ae.blur(); return; }
+        if (['lifeDobIntro','lifeDobInput','lifeExpectancyInput'].includes(ae.id)) { e.preventDefault(); ae.blur(); if (state.lifeOpen) toggleYearProgress(false); return; }
       }
       if (state.searchQuery) { e.preventDefault(); clearSearch(); renderGrid(); return; }
       const jq = $('journalSearchInput');
