@@ -1024,6 +1024,7 @@ body.theme-mono .v-tabs{ background:rgba(0,0,0,0.06); }
 .journal-year-ring-comet{
   fill:none; stroke:#e5383b; stroke-width:5; stroke-linecap:round;
   filter:drop-shadow(0 0 4px rgba(229,56,59,0.9));
+  opacity:0; /* JS reveals it once the sweep starts — avoids a full glowing ring flash */
 }
 @media (prefers-reduced-motion: reduce){ .journal-year-ring-fill{ transition:none; } }
 body.theme-mono .journal-year-ring-fill{ stroke:#111; }
