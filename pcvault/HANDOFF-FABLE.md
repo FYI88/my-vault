@@ -63,7 +63,7 @@ Polish pass over Vault grid, Journal, Secrets, tabs, and viewer chrome: spacing 
 
 ## 7. Done when (15 min verify)
 
-1. `node --check` clean plus harness `BOOT OK`
+1. `node --check` clean plus harness `BOOT OK` (plus `smoke.mjs` 25/25 in `C:/Users/HP/AppData/Local/Temp/opencode/` — boot, pills, import plus originals offer, photo kind, viewer open plus Esc close, journal save, secret save plus decrypt, life save, tab shortcuts, wrong-passphrase reject, full lock wipe)
 2. Unlock, add file, write journal entry, add secret, set DOB — all persist after relock
 3. `Ctrl+1/2/3`, `Ctrl+Tab`, `Esc` stack, arrows in viewer all still work
 4. Cream plus mono look intentional, no emoji anywhere in UI
@@ -96,4 +96,16 @@ Polish pass over Vault grid, Journal, Secrets, tabs, and viewer chrome: spacing 
 - `.vault-pills` wraps, so 5-pill rows (font picker) stack instead of squeezing.
 - Inner-scroller experiment reverted by owner: `body` scrolls again, `.wrap` is back to padding-only, glass plus both `scrollTo` calls use `window` again. Win-chrome controls keep their scrollbar clearance offset.
 - Deviations from the paste: `enterWithDek` and `handleSeedDone` kept their adopt and tamper tails with `unlockBeat()` inserted (no wholesale tail swap); `reducedMotion()` guards `matchMedia` for non-browser harnesses; `shake()` guards `el.animate`; `#secretsPane .vault-input` left-align rule skipped (base `.vault-input` is already left); leftover v1 `.sidebar-tray:not(.hidden)` stagger selectors left dead but harmless.
+
+## 11. Originals (delete-after-import v1, uncommitted)
+
+- Settings `Originals` card (`#originalsPills`, Keep default): after each import batch the app re-reads the vault file from disk and trial-decrypts every new record (`verifyRecordsFromDisk`). Any failure stops everything and names the file.
+- Confirm plus result are native main-process dialogs with the honest label (permanent, no recycle bin, does not defeat SSD recovery). Main refuses paths resolving to the vault file itself (`main.js`, `vault:confirmDeleteOriginals` plus `vault:deleteOriginals`, bridged in `preload.js`).
+- Only files imported this session are ever offered (`state.pendingOriginals`, wiped on `lock()`); source paths come from Electron `file.path`, never touch disk. Mode switch back to Keep clears the list.
+- Kind detection is extension-based (`EXT_MIME`); unknown extensions import as `doc` (icon only, never renders). Keep the map current — `jfif`/`pjpeg`/`avif`/`heic` gaps caused exactly that.
+
+## 12. Motion toggle (uncommitted)
+
+- Settings `Motion` card (`#motionPills`, System default): `LS_MOTION` in `localStorage`, `body.reduce-motion` class mirrors the OS media-query kill-list (plus `.v-tabs-ind`, ring fill, decade fill). `reducedMotion()` is the single gate for JS motion (sweep, shake, beat, exits); `applyMotion()` runs at boot.
+- Sandbox lesson: the renderer runs with `sandbox: true`, so `File.path` is always empty there. `+ add files` opens a main-process dialog (`vault:pickFiles`) that returns real paths; bytes cross the bridge and import runs with a parallel paths array. Hidden input plus drag-drop stay as fallbacks that import without paths and are never offered for deletion.
 

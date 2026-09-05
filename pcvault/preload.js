@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('vaultAPI', {
   pickFolder: () => ipcRenderer.invoke('vault:pickFolder'),
   pickVaultFile: () => ipcRenderer.invoke('vault:pickVaultFile'),
+  pickFiles: () => ipcRenderer.invoke('vault:pickFiles'),
   saveCopyAs: (suggestedName) => ipcRenderer.invoke('vault:saveCopyAs', suggestedName),
   saveFileAs: (suggestedName) => ipcRenderer.invoke('vault:saveFileAs', suggestedName),
   writeFile: (p, bytes) => ipcRenderer.invoke('vault:writeFile', p, bytes),
@@ -21,6 +22,10 @@ contextBridge.exposeInMainWorld('vaultAPI', {
   pickBackground: () => ipcRenderer.invoke('vault:pickBackground'),
   clearBackground: () => ipcRenderer.invoke('vault:clearBackground'),
   getBackground: () => ipcRenderer.invoke('vault:getBackground'),
+
+  // Delete originals after verified import (Settings → Originals).
+  confirmDeleteOriginals: (files) => ipcRenderer.invoke('vault:confirmDeleteOriginals', files),
+  deleteOriginals: (paths) => ipcRenderer.invoke('vault:deleteOriginals', paths),
 
   // Frameless window controls (the page draws its own traffic lights).
   windowControls: {

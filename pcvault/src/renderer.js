@@ -25,6 +25,8 @@ const LS_CHROME = 'pcvault.chrome'; // 'mac' (default) or 'win' — titlebar con
 const LS_THEME = 'pcvault.theme'; // 'cream' (default) or 'mono' — the whole-app look
 const LS_FONT = 'pcvault.font'; // optional local font override; 'default' follows the theme
 const LS_GALLERY = 'pcvault.galleryStyle'; // legacy machine-local fallback — the choice now rides in the vault file
+const LS_ORIGINALS = 'pcvault.originals'; // 'keep' (default) or 'delete' — offer to delete originals after verified import
+const LS_MOTION = 'pcvault.motion'; // 'system' (default) follows the OS, or 'full' / 'reduced'
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
 // lucide-style inline icons (the phone app's `ic()` helper, reduced to what this UI uses)
@@ -69,6 +71,7 @@ const state = {
   lifeCache: null,      // { dob, expectancy } — plaintext, wiped on lock (never localStorage)
   lifeOpen: false,      // year-progress sub-page open inside Journal
   newIds: new Set(),    // ids added this session — rise in once, then the grid is settled
+  pendingOriginals: [], // { id, path, name } imported this session — offered for deletion, wiped on lock
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
@@ -230,7 +233,32 @@ function setHidden(id, hidden) { $(id).classList.toggle('hidden', hidden); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function reducedMotion() {
+  // Manual setting wins; otherwise follow the OS. Covers the Fable motion
+  // layer and the pre-Fable animations (ring sweep, shake, unlock beat) alike.
+  try {
+    const saved = localStorage.getItem(LS_MOTION);
+    if (saved === 'reduced') return true;
+    if (saved === 'full') return false;
+  } catch {}
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+function motionChoice() {
+  try {
+    const saved = localStorage.getItem(LS_MOTION);
+    if (saved === 'full' || saved === 'reduced') return saved;
+  } catch {}
+  return 'system';
+}
+function applyMotion() {
+  let forced = false;
+  try { forced = localStorage.getItem(LS_MOTION) === 'reduced'; } catch {}
+  document.body.classList.toggle('reduce-motion', forced);
+}
+function renderMotionPills() {
+  const mode = motionChoice();
+  document.querySelectorAll('#motionPills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.motion === mode);
+  });
 }
 
 // Web Animations API on purpose: it never touches the CSS `animation` property,
@@ -277,10 +305,12 @@ function refreshPathLines() {
 function openSettings() {
   refreshPathLines();
   renderIdlePills();
+  renderOriginalsPills();
   renderThemePills();
   renderFontPills();
   renderBgPills();
   renderChromePills();
+  renderMotionPills();
   renderGalleryPills(); // gallery style now lives in the vault file — re-read on every open
   setErr('changeErr', ''); setOk('changeOk', '');
   setErr('rotateErr', '');
@@ -292,7 +322,7 @@ function revealVaultFile() {
   toast(state.path);
 }
 const ACTIONS = {
-  'add-files': () => { const inp = $('photoInput'); if (inp) inp.click(); },
+  'add-files': () => { addFilesViaDialog(); },
   gallery: toggleGallery,
   settings: openSettings,
   lock: () => lock(),
@@ -617,6 +647,7 @@ function lock() {
   state.secretsFilter = 'all';
   state.secretsTab = false;
   editingSecretId = null;
+  state.pendingOriginals = [];
   if ($('secretsSearchInput')) $('secretsSearchInput').value = '';
   if ($('secretsLabel')) $('secretsLabel').value = '';
   if ($('secretsUsername')) $('secretsUsername').value = '';
@@ -687,9 +718,12 @@ function resetIdle() {
 
 // ---- add files (photos get EXIF-stripped; videos + docs are stored as-is) ----
 const EXT_MIME = {
-  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', jpe: 'image/jpeg', jfif: 'image/jpeg', pjpeg: 'image/jpeg', pjp: 'image/jpeg',
+  png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+  tif: 'image/tiff', tiff: 'image/tiff', avif: 'image/avif', heic: 'image/heic', heif: 'image/heif', ico: 'image/x-icon',
   mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', m4v: 'video/mp4', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
-  mp3: 'audio/mpeg', wav: 'audio/wav',
+  ogv: 'video/ogg', '3gp': 'video/3gpp',
+  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', m4a: 'audio/mp4', flac: 'audio/flac', opus: 'audio/opus',
   pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', csv: 'text/csv', json: 'application/json', html: 'text/html',
   doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -773,12 +807,45 @@ async function encryptFile(kind, mime, name, bytes) {
 // a clear message instead of a silent spike.
 const MAX_IMPORT_BYTES = 2 * 1024 ** 3; // ~2 GB per file
 
-async function handleFiles(files) {
+// Add-files dialog flow: main returns real disk paths (the sandboxed renderer
+// gets no File.path), bytes come back over the bridge, then the normal import
+// path runs with a parallel paths array so the originals offer knows them.
+// The hidden input + drag-drop stay as fallbacks — those files import fine,
+// they just carry no path and are never offered for deletion.
+async function addFilesViaDialog() {
+  if (!state.unlocked) return;
+  if (!window.vaultAPI || !window.vaultAPI.pickFiles) { const inp = $('photoInput'); if (inp) inp.click(); return; }
+  let paths = null;
+  try { paths = await window.vaultAPI.pickFiles(); } catch { return; }
+  if (!paths || !paths.length) return;
+  const files = [];
+  const srcPaths = [];
+  let unreadable = 0;
+  for (const p of paths) {
+    try {
+      const bytes = new Uint8Array(await window.vaultAPI.readFile(p));
+      const name = String(p).split(/[\\/]/).pop() || String(p);
+      files.push(new File([bytes], name, { type: mimeFromName(name) }));
+      srcPaths.push(p);
+    } catch {
+      unreadable++;
+    }
+  }
+  if (!files.length) { if (unreadable) toast("couldn't read those files"); return; }
+  await handleFiles(files, srcPaths);
+  if (unreadable) toast(`${unreadable} couldn't be read`);
+}
+
+async function handleFiles(files, srcPaths) {
   if (!state.unlocked || !files.length) return;
   let added = 0;
   let skipped = 0;    // could not be read
   let skippedBig = 0; // over the size guard
+  const imported = []; // { id, path, name } — source paths for the originals offer (dialog flow only)
+  let idx = 0;
   for (const file of files) {
+    const srcPath = (srcPaths && srcPaths[idx]) || file.path;
+    idx++;
     if (file.size > MAX_IMPORT_BYTES) {
       skippedBig++;
       continue;
@@ -791,12 +858,14 @@ async function handleFiles(files) {
         const bytes = new Uint8Array(await stripped.arrayBuffer());
         const rec = await encryptFile('photo', 'image/jpeg', file.name, bytes);
         state.items.push(rec); state.newIds.add(rec.id);
+        if (srcPath) imported.push({ id: rec.id, path: srcPath, name: file.name });
       } else {
         // videos + docs keep their original bytes (no transcoding, no re-encode)
         const bytes = new Uint8Array(await file.arrayBuffer());
         const kind = mime.startsWith('video/') ? 'video' : 'doc';
         const rec = await encryptFile(kind, mime, file.name, bytes);
         state.items.push(rec); state.newIds.add(rec.id);
+        if (srcPath) imported.push({ id: rec.id, path: srcPath, name: file.name });
       }
       added++;
     } catch (err) {
@@ -806,6 +875,7 @@ async function handleFiles(files) {
   if (added) {
     await saveVault();
     renderGrid();
+    state.pendingOriginals.push(...imported);
   }
   const word = added === 1 ? 'file' : 'files';
   const bits = [];
@@ -813,6 +883,61 @@ async function handleFiles(files) {
   if (skippedBig) bits.push(`${skippedBig} over 2 GB skipped`);
   if (skipped) bits.push(`${skipped} couldn't be read`);
   if (bits.length) toast(bits.join(', '));
+  if (imported.length) {
+    try { await maybeOfferOriginalsDelete(); } catch { /* offer is best-effort — imports already saved */ }
+  }
+}
+
+// Re-read the vault file from disk and trial-decrypt every new record.
+// Returns the bad file's name, or null when all verify. Nothing is deleted
+// unless this passes — the vault must prove it holds good copies first.
+async function verifyRecordsFromDisk(files) {
+  try {
+    const bytes = await window.vaultAPI.readFile(state.path);
+    const parsed = parseVault(bytes);
+    if (!parsed) return 'vault file';
+    for (const f of files) {
+      const rec = parsed.items.find((r) => r.id === f.id);
+      if (!rec) return f.name;
+      try {
+        const itemKey = await unwrapItemKey(state.dek, rec);
+        const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+        const ok = plain.length === rec.size;
+        vaultWipeRaw(plain);
+        if (!ok) return f.name;
+      } catch {
+        return f.name;
+      }
+    }
+    return null;
+  } catch {
+    return 'vault file';
+  }
+}
+
+async function maybeOfferOriginalsDelete() {
+  if (!state.unlocked || !state.dek) return;
+  if (originalsMode() !== 'delete') return;
+  const seen = new Set();
+  const files = [];
+  for (const f of state.pendingOriginals) {
+    if (!f.path || seen.has(f.path)) continue;
+    seen.add(f.path);
+    files.push(f);
+  }
+  if (!files.length) return;
+  if (!window.vaultAPI || !window.vaultAPI.confirmDeleteOriginals) return; // browser preview
+  const bad = await verifyRecordsFromDisk(files);
+  if (bad) { toast(`kept originals: could not verify ${bad}`); return; }
+  let go = null;
+  try { go = await window.vaultAPI.confirmDeleteOriginals(files.map((f) => f.path)); } catch { return; }
+  if (!go || !go.confirmed) return;
+  let out = [];
+  try { out = await window.vaultAPI.deleteOriginals(files.map((f) => f.path)); } catch { toast("couldn't delete originals"); return; }
+  const dead = new Set((out || []).filter((r) => r && r.ok).map((r) => r.path));
+  state.pendingOriginals = state.pendingOriginals.filter((f) => !dead.has(f.path));
+  const n = dead.size;
+  toast(n ? `${n} original${n === 1 ? '' : 's'} deleted from disk` : 'originals kept');
 }
 
 // ---- drag-and-drop reordering (native HTML5 DnD) ----
@@ -2438,6 +2563,16 @@ function renderIdlePills() {
   });
 }
 
+function originalsMode() {
+  return localStorage.getItem(LS_ORIGINALS) === 'delete' ? 'delete' : 'keep';
+}
+function renderOriginalsPills() {
+  const mode = originalsMode();
+  document.querySelectorAll('#originalsPills .vault-pill').forEach((p) => {
+    p.classList.toggle('on', p.dataset.orig === mode);
+  });
+}
+
 // ---- background picker (wormhole vs particles vs custom image/video) ----
 function bgChoice() {
   const v = localStorage.getItem(LS_BG);
@@ -2906,6 +3041,14 @@ function wire() {
       toast(p.dataset.min === '0' ? 'auto-lock off' : `auto-lock: ${p.dataset.min} min`);
     });
   });
+  document.querySelectorAll('#originalsPills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      localStorage.setItem(LS_ORIGINALS, p.dataset.orig);
+      if (p.dataset.orig !== 'delete') state.pendingOriginals = [];
+      renderOriginalsPills();
+      toast(p.dataset.orig === 'delete' ? 'originals: offer delete after import' : 'originals: keep');
+    });
+  });
   document.querySelectorAll('#themePills .vault-pill').forEach((p) => {
     p.addEventListener('click', () => {
       localStorage.setItem(LS_THEME, p.dataset.theme);
@@ -2967,6 +3110,14 @@ function wire() {
       applyChrome(p.dataset.chrome);
       renderChromePills();
       toast(p.dataset.chrome === 'win' ? 'window chrome: windows' : 'window chrome: mac dots');
+    });
+  });
+  document.querySelectorAll('#motionPills .vault-pill').forEach((p) => {
+    p.addEventListener('click', () => {
+      localStorage.setItem(LS_MOTION, p.dataset.motion);
+      applyMotion();
+      renderMotionPills();
+      toast(p.dataset.motion === 'reduced' ? 'motion: reduced' : p.dataset.motion === 'full' ? 'motion: full' : 'motion: follows system');
     });
   });
   document.querySelectorAll('#galleryStylePills .vault-pill').forEach((p) => {
@@ -3234,10 +3385,12 @@ async function boot() {
   renderFontPills();
   renderBgPills();
   renderChromePills();
+  renderMotionPills();
   renderGalleryPills();
   applyTheme(themeChoice());
   applyFont(fontChoice());
   applyChrome(chromeChoice());
+  applyMotion();
   ensureIO();
   mountBackground();
   if (!window.vaultAPI) {

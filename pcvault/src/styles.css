@@ -1454,3 +1454,58 @@ body.auth-screen .vault-sec-card{ background:color-mix(in srgb, var(--card) 88%,
   .viewer-top.chrome-hidden, .viewer-bottom.chrome-hidden{ transform:none; }
   .vault-photo-cell img{ opacity:1; }
 }
+
+/* manual reduced motion (Settings → motion → reduced) — mirrors the OS query above */
+body.reduce-motion .screen.leaving,
+body.reduce-motion .vault-screen,
+body.reduce-motion .vault-screen > *,
+body.reduce-motion .vault-form > *,
+body.reduce-motion .vault-seed-chip,
+body.reduce-motion.unlocking .vault-screen,
+body.reduce-motion .vault-photo-cell,
+body.reduce-motion .vault-photo-cell.is-new,
+body.reduce-motion .vault-photo-cell.is-loading .ph::before,
+body.reduce-motion .phantom-gallery,
+body.reduce-motion .gallery-exit,
+body.reduce-motion .item-overlay,
+body.reduce-motion .item-overlay.closing,
+body.reduce-motion .viewer-stage > *,
+body.reduce-motion #itemDocInfo,
+body.reduce-motion .viewer-hud,
+body.reduce-motion .viewer-play::before,
+body.reduce-motion .viewer-err,
+body.reduce-motion #toast.show.bump,
+body.reduce-motion .journal-card,
+body.reduce-motion .vault-sec-card,
+body.reduce-motion .calendar-month,
+body.reduce-motion .cal-day.today,
+body.reduce-motion .journal-mood.on,
+body.reduce-motion .secrets-row,
+body.reduce-motion .shortcuts-help,
+body.reduce-motion .shortcuts-help-card,
+body.reduce-motion #vaultPane,
+body.reduce-motion .add-btn.busy::after{ animation:none !important; }
+body.reduce-motion .add-btn::after{ display:none; }
+body.reduce-motion #authBg,
+body.reduce-motion #authBgMedia,
+body.reduce-motion .sidebar-tray,
+body.reduce-motion .sidebar-tray .icon-btn,
+body.reduce-motion .vault-meter i,
+body.reduce-motion .vault-photo-cell img,
+body.reduce-motion .v-tabs-ind,
+body.reduce-motion .journal-year-ring-fill,
+body.reduce-motion .life-decade-fill{ transition:none; }
+body.reduce-motion.unlocking #authBg,
+body.reduce-motion.unlocking #authBgMedia{ filter:none; transform:none; }
+body.reduce-motion .add-btn:hover,
+body.reduce-motion .cal-day:hover,
+body.reduce-motion .journal-entry-row:hover,
+body.reduce-motion .journal-year-wrap:hover,
+body.reduce-motion .gallery-exit:hover,
+body.reduce-motion .vault-photo-cell:hover img,
+body.reduce-motion .vault-photo-cell:hover .cell-media,
+body.reduce-motion .sidebar-tray.collapsed,
+body.reduce-motion .sidebar-tray.collapsed .icon-btn,
+body.reduce-motion .viewer-top.chrome-hidden,
+body.reduce-motion .viewer-bottom.chrome-hidden{ transform:none; }
+body.reduce-motion .vault-photo-cell img{ opacity:1; }

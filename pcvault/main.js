@@ -158,6 +158,7 @@ const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
 let vaultPath = null;     // the one vault file main will read/write
 let lastCopyDst = null;   // backup destination from the last saveCopyAs dialog
 let lastExportDst = null; // export destination from the last saveFileAs dialog
+let allowedImportPaths = new Set(); // picked via vault:pickFiles, readable once
 
 // Paths may use either separator style; normalize before comparing.
 function samePath(a, b) {
@@ -211,6 +212,19 @@ ipcMain.handle('vault:pickVaultFile', async () => {
   return r.filePaths[0];
 });
 
+// Pick files to import. Returns real disk paths — the sandboxed renderer
+// never sees them (its File objects carry no path), and the delete-originals
+// offer needs them, so picking happens here.
+ipcMain.handle('vault:pickFiles', async () => {
+  const r = await dialog.showOpenDialog(win, {
+    title: 'Add files to your vault',
+    properties: ['openFile', 'multiSelections'],
+  });
+  if (r.canceled || !r.filePaths.length) return [];
+  for (const p of r.filePaths) allowedImportPaths.add(path.normalize(p));
+  return r.filePaths;
+});
+
 // Save-as copy (backup) target.
 ipcMain.handle('vault:saveCopyAs', async (_e, suggestedName) => {
   const r = await dialog.showSaveDialog(win, {
@@ -246,9 +260,12 @@ ipcMain.handle('vault:writeFile', async (_e, filePath, bytes) => {
 
 // Read a whole file as bytes.
 ipcMain.handle('vault:readFile', async (_e, filePath) => {
-  if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');
-  const buf = await fsp.readFile(filePath);
-  return new Uint8Array(buf);
+  const norm = path.normalize(filePath);
+  if (samePath(filePath, vaultPath) || allowedImportPaths.has(norm)) {
+    const buf = await fsp.readFile(filePath);
+    return new Uint8Array(buf);
+  }
+  throw new Error('forbidden path');
 });
 
 // Atomic write: temp file in the same dir + rename, so a crash mid-write never
@@ -373,6 +390,55 @@ ipcMain.handle('vault:getBackground', async () => {
   } catch (e) {
     return null;
   }
+});
+
+// ---- delete originals after verified import (Settings → Originals) ----
+// The renderer offers this only after a decrypt-from-disk check passes, and
+// only for files imported this session. Deletion is permanent (no recycle
+// bin). Honest label everywhere: reduces traces, does not defeat recovery.
+ipcMain.handle('vault:confirmDeleteOriginals', async (_e, files) => {
+  const list = [...new Set((files || []).filter((p) => typeof p === 'string' && p))];
+  if (!list.length) return { confirmed: false };
+  const shown = list.slice(0, 20).map((p) => `• ${p}`).join('\n');
+  const more = list.length > 20 ? `\n… and ${list.length - 20} more` : '';
+  const r = await dialog.showMessageBox(win, {
+    type: 'question',
+    buttons: ['Delete originals', 'Keep'],
+    defaultId: 1,
+    cancelId: 1,
+    message: `Delete ${list.length} original file(s) from this disk?`,
+    detail: `${shown}${more}\n\nThe vault already holds verified copies. Deletion is permanent (no recycle bin). It frees space and reduces traces, but does not defeat recovery tools on SSDs.`,
+  });
+  return { confirmed: r.response === 0 };
+});
+
+ipcMain.handle('vault:deleteOriginals', async (_e, paths) => {
+  const list = [...new Set((paths || []).filter((p) => typeof p === 'string' && p))];
+  const results = [];
+  let vaultResolved = null;
+  try { if (vaultPath) vaultResolved = path.resolve(vaultPath); } catch (e) { /* compare fails open below */ }
+  for (const p of list) {
+    try {
+      if (vaultResolved && path.resolve(p) === vaultResolved) {
+        results.push({ path: p, ok: false, reason: 'vault file — refused' });
+        continue;
+      }
+      await fsp.unlink(p);
+      results.push({ path: p, ok: true });
+    } catch (err) {
+      results.push({ path: p, ok: false, reason: err && err.code === 'ENOENT' ? 'already gone' : 'delete failed' });
+    }
+  }
+  const okN = results.filter((r) => r.ok).length;
+  const kept = results.filter((r) => !r.ok);
+  const lines = kept.slice(0, 10).map((r) => `• kept: ${r.path} (${r.reason})`).join('\n');
+  await dialog.showMessageBox(win, {
+    type: kept.length ? 'warning' : 'info',
+    buttons: ['OK'],
+    message: `${okN} deleted, ${kept.length} kept`,
+    detail: lines || 'All originals deleted from this disk.',
+  });
+  return results;
 });
 
 loadBgPath();
