@@ -2,16 +2,17 @@
 
 # My Vault
 
-**Offline zero-knowledge encrypted vault for photos, videos, documents, and journal entries.**
+**Offline zero-knowledge encrypted vault for photos, videos, documents, journal entries, and secrets.**
 
 **Windows desktop app (Electron + Tauri), built for private local-first storage.**
 
-One encrypted file holds everything — photos, videos, documents, PDFs, and encrypted journals.  
+One encrypted file holds everything — photos, videos, documents, PDFs, encrypted journals, and secrets.  
 *Nothing ever leaves your PC. No cloud. No network. Just you and your vault.*
 
 <br/>
 
-![Status](https://img.shields.io/badge/Status-Work%20in%20Progress-3b2d35?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Stable-107c41?style=for-the-badge)
+![Offline](https://img.shields.io/badge/Offline-No%20network-107c41?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078d4?style=for-the-badge&logo=windows&logoColor=white)
 ![Tauri](https://img.shields.io/badge/Tauri-v2%20(Rust)-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
 ![Electron](https://img.shields.io/badge/Electron-43.0-47848f?style=for-the-badge&logo=electron&logoColor=white)
@@ -27,6 +28,15 @@ One encrypted file holds everything — photos, videos, documents, PDFs, and enc
 ![My Vault lock screen](docs/images/lock-screen.png)
 
 ## Who Is This For
+
+Anyone who wants private, offline-first storage for personal photos, journals, and secrets — no accounts, no cloud, one encrypted file.
+
+## Security Architecture
+
+```text
+Passphrase ──→ PBKDF2-SHA-256 (600,000 iterations) ──→ KEK ──┐
+                                                             ├──→ wraps DEK (32-byte AES-256-GCM key)
+Recovery Seed ──→ BIP-39 (12 words) ──→ PBKDF2 ──→ Seed KEK ──┘
 
 DEK ──→ wraps each file's unique 256-bit item key
               │
@@ -48,11 +58,12 @@ npm ci && npm start
 
 ## Key Features (TL;DR)
 
-- Zero-knowledge vault: single encrypted container for media and journals.
+- Zero-knowledge vault: single encrypted container for media, journals, and secrets.
 - Local-first desktop app: Electron + optional lightweight Tauri build.
 - Strong crypto defaults: PBKDF2 (600k), AES-256-GCM, BIP-39 recovery.
-- UX features: media viewer, masonry grid, encrypted journal, Phantom 3D gallery.
-- Safety-first development: CONTRIBUTING and SECURITY policies in repo.
+- UX features: media viewer, masonry grid, encrypted journal, secrets vault, Phantom 3D gallery.
+- Keyboard-first: full shortcut map (`Ctrl+?`), tab cycling, `Esc` back-stack.
+- Honest extras: delete-originals after verified import, motion toggle, screenshot shield.
 
 ---
 
@@ -70,7 +81,11 @@ See `FUTURE_USES.md` for the roadmap note and security model.
 | Feature Module | Technical Specification |
 |----------------|-------------------------|
 | **Immersive Media Viewer** | Full-stage viewer with scroll-wheel zooming, double-click focus, drag-to-pan, `←`/`→` arrow key navigation, `F` key fullscreen, video play overlay, item counter (`1 of N`), and auto-hiding glassmorphic controls. |
-| **Encrypted Daily Journal** | Living garden view powered by encrypted annual JSON blobs. Track daily entries, moods, habit streaks, instant search, and "On This Day" memory throwbacks. |
+| **Encrypted Daily Journal** | Calendar year view over encrypted annual JSON blobs — daily entries, mood icons, streaks, instant search, "On This Day" throwbacks, plus a year-progress ring with an encrypted life-in-weeks view. |
+| **Secrets Vault** | Per-row encrypted logins, API keys, SSH keys, phones, cards, and notes. Masked by default, eye-to-reveal, copy auto-clears in 30 s, wiped on lock. |
+| **Keyboard Shortcuts** | Full map under `Ctrl+?`: `Ctrl+1/2/3` tabs, `Ctrl+Tab` cycling, `Ctrl+,` settings, `Ctrl+L` lock, `Esc` back-stack, viewer `←/→/F`, journal save and year hop. |
+| **Originals Cleanup** | Optional delete-after-verified-import: the vault re-reads itself from disk and trial-decrypts every new record before offering to unlink originals, with a per-file report. |
+| **Motion & Privacy** | Reduced-motion toggle (System/Full/Reduced), sliding tab pill, staggered entrances, plus an optional screenshot shield that blinds capture tools. |
 | **Interactive Themes** | Toggle between **Constellation Particles** (mouse-interactive particle gravity) and **Dynamic Canvas Wormhole** background rendering with settings customization. |
 | **Phantom 3D Gallery** | Infinite draggable 3D arc perspective gallery with inertia physics, custom cream vault palette (`#fbf6f3`), and press-to-zoom. Press `G` to toggle. |
 | **In-App Document Engine** | Native offline **pdf.js** rendering with page controls and zoom + rich in-app plaintext editor for `.txt`, `.md`, `.json`, `.csv`, `.js`, `.css`, and `.html`. |
@@ -94,8 +109,11 @@ DEK (Data Encryption Key)
   │     └─ Photos re-encoded through canvas to strip EXIF & GPS metadata
   │
   └── Journal Records (Yearly Blobs)
-        └─ Wrapped in per-year AES-256-GCM keys
-        └─ Decrypted in-memory only; never written to disk unencrypted
+  │     └─ Wrapped in per-year AES-256-GCM keys
+  │     └─ Decrypted in-memory only; never written to disk unencrypted
+  │
+  └── Secret Records (Secrets + Life DOB)
+        └─ One encrypted record per secret; masked UI, wiped on lock
 ```
 
 - **Non-extractable WebCrypto keys**: All keys are held in `SubtleCrypto` memory contexts and never exposed to JavaScript scope or disk.
@@ -156,7 +174,7 @@ npx tauri build
 ### 5. Test Suite Verification
 ```bash
 npm test
-# → 27/27 test suite passing (18 WebCrypto + 9 Container format tests)
+# → 41/41 test suite passing (18 WebCrypto + 9 Container + 14 Journal tests)
 ```
 
 ---
@@ -167,6 +185,7 @@ npm test
 pcvault/
 ├── main.js                  # Electron main process (secure app:// protocol, trusted IPC)
 ├── preload.js               # Electron contextBridge (window.vaultAPI)
+├── HANDOFF-FABLE.md         # UI handoff notes for contributors
 ├── server.mjs               # Dev server with CSP & security headers
 ├── package.json             # Build targets & scripts
 ├── build/                   # App icons (SVG, PNG, ICO)
@@ -177,8 +196,9 @@ pcvault/
 │   ├── vault-crypto.mjs     # WebCrypto engine (PBKDF2, AES-GCM, BIP-39)
 │   ├── container.mjs        # .cvault container format encoder/decoder
 │   ├── journal.mjs          # Encrypted daily journal & streak manager
-│   ├── garden.mjs           # Living garden visualizer & procedural canvas
 │   ├── phantom-gallery.mjs  # 3D infinite draggable gallery physics engine
+│   ├── phantom-gallery-v2.mjs # Infinite gallery wall variant
+│   ├── drift-wall.mjs       # Drifting gallery wall variant
 │   ├── particles.mjs        # Interactive constellation particle engine
 │   ├── wormhole.mjs         # Dynamic canvas wormhole background renderer
 │   ├── tauri-bridge.js      # Maps window.vaultAPI → Tauri invoke commands
@@ -191,7 +211,8 @@ pcvault/
 │   └── capabilities/        # Tauri permissions manifest
 └── test/
     ├── crypto.test.mjs      # 18 cryptography unit tests
-    └── container.test.mjs   # 9 vault format unit tests
+    ├── container.test.mjs   # 9 vault format unit tests
+    └── journal.test.mjs     # 14 journal logic unit tests
 ```
 
 ---
