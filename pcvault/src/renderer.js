@@ -27,6 +27,9 @@ const LS_FONT = 'pcvault.font'; // optional local font override; 'default' follo
 const LS_GALLERY = 'pcvault.galleryStyle'; // legacy machine-local fallback — the choice now rides in the vault file
 const LS_ORIGINALS = 'pcvault.originals'; // 'keep' (default) or 'delete' — offer to delete originals after verified import
 const LS_MOTION = 'pcvault.motion'; // 'system' (default) follows the OS, or 'full' / 'reduced'
+const LS_SECGROUPS = 'pcvault.secGroups'; // JSON { look, protect, vault } — collapsed settings groups
+const LS_PGADV = 'pcvault.pgAdv'; // '1' shows phantom grid numbers behind the advanced toggle
+const LS_SHIELD = 'pcvault.shield'; // 'on' blinds capture tools, anything else (default) leaves them working
 const IDLE_OPTIONS = [0, 1, 5, 15];
 
 // lucide-style inline icons (the phone app's `ic()` helper, reduced to what this UI uses)
@@ -305,12 +308,13 @@ function refreshPathLines() {
 function openSettings() {
   refreshPathLines();
   renderIdlePills();
-  renderOriginalsPills();
+  renderOriginalsSwitch();
   renderThemePills();
   renderFontPills();
   renderBgPills();
-  renderChromePills();
+  renderGroups();
   renderMotionPills();
+  renderShieldSwitch();
   renderGalleryPills(); // gallery style now lives in the vault file — re-read on every open
   setErr('changeErr', ''); setOk('changeOk', '');
   setErr('rotateErr', '');
@@ -1446,7 +1450,12 @@ function renderGalleryPills() {
     p.classList.toggle('on', p.dataset.gallery === choice);
   });
   const cfg = document.getElementById('pgGridSettings');
-  if (cfg) cfg.classList.toggle('hidden', choice !== 'phantom-v2');
+  if (cfg) cfg.classList.toggle('hidden', !(choice === 'phantom-v2' && pgAdvancedOpen()));
+  const tog = document.getElementById('pgAdvancedToggle');
+  if (tog) {
+    tog.classList.toggle('hidden', choice !== 'phantom-v2');
+    tog.setAttribute('aria-expanded', String(pgAdvancedOpen()));
+  }
   renderPgGridSettingsInputs();
 }
 
@@ -2566,11 +2575,12 @@ function renderIdlePills() {
 function originalsMode() {
   return localStorage.getItem(LS_ORIGINALS) === 'delete' ? 'delete' : 'keep';
 }
-function renderOriginalsPills() {
-  const mode = originalsMode();
-  document.querySelectorAll('#originalsPills .vault-pill').forEach((p) => {
-    p.classList.toggle('on', p.dataset.orig === mode);
-  });
+function renderOriginalsSwitch() {
+  const on = originalsMode() === 'delete';
+  const sw = $('originalsSwitch');
+  if (sw) sw.setAttribute('aria-checked', String(on));
+  const st = $('originalsState');
+  if (st) st.textContent = on ? 'delete' : 'keep';
 }
 
 // ---- background picker (wormhole vs particles vs custom image/video) ----
@@ -2682,18 +2692,50 @@ function renderFontPills() {
 
 // ---- window-chrome picker (mac traffic lights vs compact windows controls) ----
 function chromeChoice() {
-  return localStorage.getItem(LS_CHROME) === 'win' ? 'win' : 'mac';
+  const saved = localStorage.getItem(LS_CHROME);
+  if (saved === 'win' || saved === 'mac') return saved;
+  return 'win'; // Windows-first app; the picker card is gone, old picks still respected
 }
 
 function applyChrome(style) {
   document.body.classList.toggle('chrome-win', style === 'win');
 }
 
-function renderChromePills() {
-  const choice = chromeChoice();
-  document.querySelectorAll('#chromePills .vault-pill').forEach((p) => {
-    p.classList.toggle('on', p.dataset.chrome === choice);
+function groupOpen(name) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_SECGROUPS) || '{}');
+    if (typeof saved[name] === 'boolean') return saved[name];
+  } catch {}
+  return name !== 'vault'; // danger group ships collapsed
+}
+function renderGroups() {
+  document.querySelectorAll('.set-group-head').forEach((h) => {
+    const name = h.dataset.group;
+    if (!name) return;
+    const bodyId = 'groupBody' + name[0].toUpperCase() + name.slice(1);
+    if (!$(bodyId)) return;
+    const open = groupOpen(name);
+    h.setAttribute('aria-expanded', String(open));
+    setHidden(bodyId, !open);
   });
+}
+function pgAdvancedOpen() {
+  try { return localStorage.getItem(LS_PGADV) === '1'; } catch { return false; }
+}
+
+function shieldOn() {
+  try { return localStorage.getItem(LS_SHIELD) === 'on'; } catch { return false; }
+}
+function renderShieldSwitch() {
+  const on = shieldOn();
+  const sw = $('shieldSwitch');
+  if (sw) sw.setAttribute('aria-checked', String(on));
+  const st = $('shieldState');
+  if (st) st.textContent = on ? 'on' : 'off';
+}
+async function applyShield() {
+  if (!window.vaultAPI || !window.vaultAPI.setShield) return;
+  try { await window.vaultAPI.setShield(shieldOn()); } catch { /* boot must never fail on this */ }
 }
 
 // Mount the selected background controller on #authBg. Call whenever the choice
@@ -3041,13 +3083,13 @@ function wire() {
       toast(p.dataset.min === '0' ? 'auto-lock off' : `auto-lock: ${p.dataset.min} min`);
     });
   });
-  document.querySelectorAll('#originalsPills .vault-pill').forEach((p) => {
-    p.addEventListener('click', () => {
-      localStorage.setItem(LS_ORIGINALS, p.dataset.orig);
-      if (p.dataset.orig !== 'delete') state.pendingOriginals = [];
-      renderOriginalsPills();
-      toast(p.dataset.orig === 'delete' ? 'originals: offer delete after import' : 'originals: keep');
-    });
+  const origSw = $('originalsSwitch');
+  if (origSw) origSw.addEventListener('click', () => {
+    const on = originalsMode() !== 'delete';
+    localStorage.setItem(LS_ORIGINALS, on ? 'delete' : 'keep');
+    if (!on) state.pendingOriginals = [];
+    renderOriginalsSwitch();
+    toast(on ? 'originals: offer delete after import' : 'originals: keep');
   });
   document.querySelectorAll('#themePills .vault-pill').forEach((p) => {
     p.addEventListener('click', () => {
@@ -3104,12 +3146,26 @@ function wire() {
     mountBackground();
     toast('background: wormhole');
   });
-  document.querySelectorAll('#chromePills .vault-pill').forEach((p) => {
-    p.addEventListener('click', () => {
-      localStorage.setItem(LS_CHROME, p.dataset.chrome);
-      applyChrome(p.dataset.chrome);
-      renderChromePills();
-      toast(p.dataset.chrome === 'win' ? 'window chrome: windows' : 'window chrome: mac dots');
+  const shSw = $('shieldSwitch');
+  if (shSw) shSw.addEventListener('click', async () => {
+    const on = !shieldOn();
+    try { localStorage.setItem(LS_SHIELD, on ? 'on' : 'off'); } catch {}
+    renderShieldSwitch();
+    await applyShield();
+    toast(on ? 'shield: on — captures omit this window' : 'shield: off');
+  });
+  document.querySelectorAll('.set-group-head').forEach((h) => {
+    h.addEventListener('click', () => {
+      const name = h.dataset.group;
+      const bodyId = 'groupBody' + name[0].toUpperCase() + name.slice(1);
+      if (!$(bodyId)) return;
+      const open = !groupOpen(name);
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem(LS_SECGROUPS) || '{}'); } catch {}
+      saved[name] = open;
+      try { localStorage.setItem(LS_SECGROUPS, JSON.stringify(saved)); } catch {}
+      h.setAttribute('aria-expanded', String(open));
+      setHidden(bodyId, !open);
     });
   });
   document.querySelectorAll('#motionPills .vault-pill').forEach((p) => {
@@ -3163,6 +3219,11 @@ function wire() {
     $g('pgColsInput').addEventListener(ev, applyPgGridChange);
     $g('pgRowsInput').addEventListener(ev, applyPgGridChange);
     $g('pgScaleInput').addEventListener(ev, applyPgGridChange);
+  });
+  const pgAdv = $('pgAdvancedToggle');
+  if (pgAdv) pgAdv.addEventListener('click', () => {
+    try { localStorage.setItem(LS_PGADV, pgAdvancedOpen() ? '0' : '1'); } catch {}
+    renderGalleryPills();
   });
   $('vaultPathLine').addEventListener('click', () => window.vaultAPI.reveal(state.path));
   $('revealBtn').addEventListener('click', () => window.vaultAPI.reveal(state.path));
@@ -3384,13 +3445,15 @@ async function boot() {
   renderThemePills();
   renderFontPills();
   renderBgPills();
-  renderChromePills();
+  renderGroups();
   renderMotionPills();
+  renderShieldSwitch();
   renderGalleryPills();
   applyTheme(themeChoice());
   applyFont(fontChoice());
   applyChrome(chromeChoice());
   applyMotion();
+  applyShield();
   ensureIO();
   mountBackground();
   if (!window.vaultAPI) {

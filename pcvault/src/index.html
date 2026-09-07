@@ -401,51 +401,12 @@
 
   <!-- settings -->
   <section id="screen-settings" class="screen">
-    <div class="vault-sec-card">
-      <h3 class="vault-sec-title">change passphrase</h3>
-      <p class="vault-sub">enter your recovery words to confirm you can still get back in.</p>
-      <form id="changeForm" class="vault-form" autocomplete="off">
-        <input type="password" id="changeCur" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
-        <input type="password" id="changeNew" class="vault-input" data-meter="changeMeter" placeholder="new passphrase" autocomplete="new-password" required>
-        <div class="vault-meter" id="changeMeter"><i></i><i></i><i></i><i></i></div>
-        <input type="password" id="changeNew2" class="vault-input" placeholder="repeat the new one" autocomplete="new-password" required>
-        <textarea id="changeSeed" rows="2" class="vault-input vault-seed-input" placeholder="your recovery words" required></textarea>
-        <p class="vault-error" id="changeErr"></p>
-        <p class="vault-ok" id="changeOk"></p>
-        <button type="submit" class="add-btn vault-btn">change passphrase</button>
-      </form>
-    </div>
-
-    <div class="vault-sec-card">
-      <h3 class="vault-sec-title">new recovery words</h3>
-      <p class="vault-sub">make a fresh set of recovery words. the old ones stop working once you save the new ones.</p>
-      <form id="rotateForm" class="vault-form" autocomplete="off">
-        <input type="password" id="rotatePass" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
-        <p class="vault-error" id="rotateErr"></p>
-        <button type="submit" class="add-btn vault-btn">make new words</button>
-      </form>
-    </div>
-
-    <div class="vault-sec-card">
-      <h3 class="vault-sec-title">auto-lock</h3>
-      <p class="vault-sub">the vault locks itself after you walk away.</p>
-      <div class="vault-pills" id="idlePills">
-        <button class="vault-pill" data-min="0">off</button>
-        <button class="vault-pill" data-min="1">1 min</button>
-        <button class="vault-pill" data-min="5">5 min</button>
-        <button class="vault-pill" data-min="15">15 min</button>
-      </div>
-    </div>
-
-    <div class="vault-sec-card">
-      <h3 class="vault-sec-title">originals</h3>
-      <p class="vault-sub">after verified import, offer to delete the originals from this disk. reduces traces, does not defeat recovery tools.</p>
-      <div class="vault-pills" id="originalsPills">
-        <button class="vault-pill" data-orig="keep">keep</button>
-        <button class="vault-pill" data-orig="delete">delete</button>
-      </div>
-    </div>
-
+    <section class="set-group" id="groupLook">
+      <button class="set-group-head" data-group="look" aria-expanded="true">
+        <span class="set-group-title">appearance</span>
+        <svg class="ic set-group-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="set-group-body" id="groupBodyLook">
     <div class="vault-sec-card">
       <h3 class="vault-sec-title">theme</h3>
       <p class="vault-sub">the look of the whole vault.</p>
@@ -453,11 +414,7 @@
         <button class="vault-pill" data-theme="cream">cream</button>
         <button class="vault-pill" data-theme="mono">mono</button>
       </div>
-    </div>
-
-    <div class="vault-sec-card">
-      <h3 class="vault-sec-title">font</h3>
-      <p class="vault-sub">choose the voice of the vault. this stays on this computer.</p>
+      <p class="vault-sub pg-font-label">typeface — stays on this computer.</p>
       <div class="vault-pills" id="fontPills">
         <button class="vault-pill" data-font="default">theme default</button>
         <button class="vault-pill" data-font="cormorant">cormorant</button>
@@ -490,6 +447,7 @@
         <button class="vault-pill" data-gallery="phantom-v2">phantom v4</button>
         <button class="vault-pill" data-gallery="drift">drift</button>
       </div>
+      <button class="link pg-advanced-toggle hidden" id="pgAdvancedToggle" aria-expanded="false">advanced grid options</button>
       <div class="pg-grid-settings hidden" id="pgGridSettings">
         <div class="pg-setting-row">
           <span class="pg-setting-label">grid</span>
@@ -506,15 +464,6 @@
     </div>
 
     <div class="vault-sec-card">
-      <h3 class="vault-sec-title">window chrome</h3>
-      <p class="vault-sub">how the controls in the top bar look.</p>
-      <div class="vault-pills" id="chromePills">
-        <button class="vault-pill" data-chrome="mac">mac dots</button>
-        <button class="vault-pill" data-chrome="win">windows</button>
-      </div>
-    </div>
-
-    <div class="vault-sec-card">
       <h3 class="vault-sec-title">motion</h3>
       <p class="vault-sub">full motion, or calm everything down. system follows your OS setting.</p>
       <div class="vault-pills" id="motionPills">
@@ -524,7 +473,77 @@
       </div>
     </div>
 
+      </div>
+    </section>
+    <section class="set-group" id="groupProtect">
+      <button class="set-group-head" data-group="protect" aria-expanded="true">
+        <span class="set-group-title">protection</span>
+        <svg class="ic set-group-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="set-group-body" id="groupBodyProtect">
     <div class="vault-sec-card">
+      <h3 class="vault-sec-title">auto-lock</h3>
+      <p class="vault-sub">the vault locks itself after you walk away.</p>
+      <div class="vault-pills" id="idlePills">
+        <button class="vault-pill" data-min="0">off</button>
+        <button class="vault-pill" data-min="1">1 min</button>
+        <button class="vault-pill" data-min="5">5 min</button>
+        <button class="vault-pill" data-min="15">15 min</button>
+      </div>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">originals</h3>
+      <p class="vault-sub">after verified import, offer to delete the originals from this disk. reduces traces, does not defeat recovery tools.</p>
+      <div class="switch-row">
+        <button class="switch" id="originalsSwitch" role="switch" aria-checked="false" aria-label="delete originals after import"><span class="switch-knob"></span></button>
+        <span class="switch-state" id="originalsState">keep</span>
+      </div>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">privacy</h3>
+      <p class="vault-sub">shield blinds screenshots, recordings, and screen shares of this window. cameras, HDMI splitters, and kernel scrapers still see it.</p>
+      <div class="switch-row">
+        <button class="switch" id="shieldSwitch" role="switch" aria-checked="false" aria-label="screenshot shield"><span class="switch-knob"></span></button>
+        <span class="switch-state" id="shieldState">off</span>
+      </div>
+    </div>
+
+      </div>
+    </section>
+    <section class="set-group" id="groupVault">
+      <button class="set-group-head" data-group="vault" aria-expanded="false">
+        <span class="set-group-title">vault and recovery</span>
+        <svg class="ic set-group-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="set-group-body hidden" id="groupBodyVault">
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">change passphrase</h3>
+      <p class="vault-sub">enter your recovery words to confirm you can still get back in.</p>
+      <form id="changeForm" class="vault-form" autocomplete="off">
+        <input type="password" id="changeCur" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
+        <input type="password" id="changeNew" class="vault-input" data-meter="changeMeter" placeholder="new passphrase" autocomplete="new-password" required>
+        <div class="vault-meter" id="changeMeter"><i></i><i></i><i></i><i></i></div>
+        <input type="password" id="changeNew2" class="vault-input" placeholder="repeat the new one" autocomplete="new-password" required>
+        <textarea id="changeSeed" rows="2" class="vault-input vault-seed-input" placeholder="your recovery words" required></textarea>
+        <p class="vault-error" id="changeErr"></p>
+        <p class="vault-ok" id="changeOk"></p>
+        <button type="submit" class="add-btn vault-btn">change passphrase</button>
+      </form>
+    </div>
+
+    <div class="vault-sec-card">
+      <h3 class="vault-sec-title">new recovery words</h3>
+      <p class="vault-sub">make a fresh set of recovery words. the old ones stop working once you save the new ones.</p>
+      <form id="rotateForm" class="vault-form" autocomplete="off">
+        <input type="password" id="rotatePass" class="vault-input" placeholder="current passphrase" autocomplete="current-password" required>
+        <p class="vault-error" id="rotateErr"></p>
+        <button type="submit" class="add-btn vault-btn">make new words</button>
+      </form>
+    </div>
+      </div>
+    <div class="vault-sec-card" id="vaultFileCard">
       <h3 class="vault-sec-title">your vault file</h3>
       <p class="vault-fileline" id="settingsPathLine"></p>
       <div class="vault-btn-row">
@@ -533,6 +552,7 @@
       </div>
       <p class="vault-ok" id="backupOk"></p>
     </div>
+    </section>
   </section>
 
 </div>

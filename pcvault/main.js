@@ -148,6 +148,14 @@ ipcMain.handle('win:getState', () => ({
   focused: !!win && win.isFocused(),
 }));
 
+// Screenshot shield (Settings → Privacy). Content protection blinds capture
+// tools (Snipping, PrintScreen, Game Bar, OBS display) — the display itself is
+// unaffected, and it cannot stop cameras, HDMI splitters, or kernel scrapers.
+ipcMain.handle('shield:set', (_e, on) => {
+  if (win) win.setContentProtection(!!on);
+  return true;
+});
+
 // ---- Vault file IPC ---------------------------------------------------------
 // Trusted-path model: every path the renderer can hand us must have been minted
 // by one of our own dialogs (or derived from the folder it picked). The renderer

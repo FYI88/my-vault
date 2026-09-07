@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld('vaultAPI', {
   confirmDeleteOriginals: (files) => ipcRenderer.invoke('vault:confirmDeleteOriginals', files),
   deleteOriginals: (paths) => ipcRenderer.invoke('vault:deleteOriginals', paths),
 
+  // Screenshot shield (Settings → Privacy).
+  setShield: (on) => ipcRenderer.invoke('shield:set', on),
+
   // Frameless window controls (the page draws its own traffic lights).
   windowControls: {
     minimize: () => ipcRenderer.send('win:minimize'),

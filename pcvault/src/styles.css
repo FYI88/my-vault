@@ -532,6 +532,53 @@ body.theme-mono .vault-btn-small{ font-family:'GC Beluga Mono',monospace; }
 .vault-sec-card .vault-input{ text-align:left; }
 .vault-sec-card .vault-sub{ margin-bottom:0.4rem; }
 
+/* ----- settings groups (quiet collapsible sections, danger last) ----- */
+#screen-settings{ padding-bottom:1.5rem; }
+.set-group{ width:100%; max-width:560px; margin:1rem auto 0; }
+.set-group:first-child{ margin-top:0.2rem; }
+.set-group-head{
+  width:100%; display:flex; align-items:center; justify-content:space-between;
+  background:none; border:none; padding:0.35rem 0.2rem; cursor:pointer;
+  color:var(--text-soft); border-radius:8px;
+}
+.set-group-title{
+  font-family:'JetBrains Mono',monospace; font-size:0.62rem; text-transform:uppercase;
+  letter-spacing:0.09em;
+}
+.set-group-head:hover .set-group-title{ color:var(--mauve-dark); }
+.set-group-chev{ width:15px; height:15px; transition:transform var(--t-med) var(--ease); }
+.set-group-head[aria-expanded="false"] .set-group-chev{ transform:rotate(-90deg); }
+.set-group-body{ display:flex; flex-direction:column; }
+/* binary choices are switches; 3+ options stay pills */
+.switch-row{ display:flex; align-items:center; gap:0.6rem; }
+.switch{
+  width:52px; height:30px; flex:none; border-radius:999px; cursor:pointer; padding:0;
+  border:1px solid var(--border); background:var(--bg); position:relative;
+  transition:background var(--t-med) var(--ease), border-color var(--t-med) var(--ease);
+}
+.switch-knob{
+  position:absolute; top:2px; left:2px; width:24px; height:24px; border-radius:50%;
+  background:var(--card); box-shadow:var(--e1);
+  transition:transform var(--t-med) var(--ease-spring);
+}
+.switch[aria-checked="true"]{ background:var(--sage-dark); border-color:var(--sage-dark); }
+.switch[aria-checked="true"] .switch-knob{ transform:translateX(22px); }
+.switch:focus-visible{ outline:2px solid var(--mauve-dark); outline-offset:2px; }
+.switch-state{
+  font-family:'JetBrains Mono',monospace; font-size:0.62rem; text-transform:uppercase;
+  letter-spacing:0.05em; color:var(--text-soft);
+}
+body.theme-mono .switch[aria-checked="true"]{ background:#555; border-color:#555; }
+body.theme-mono .switch-knob{ background:#fff; }
+.pg-font-label{ margin-top:0.6rem; }
+.pg-advanced-toggle{ margin-top:0.6rem; align-self:flex-start; }
+@media (prefers-reduced-motion: reduce){
+  .set-group-chev, .switch, .switch-knob{ transition:none; }
+}
+body.reduce-motion .set-group-chev,
+body.reduce-motion .switch,
+body.reduce-motion .switch-knob{ transition:none; }
+
 .vault-pills{ display:flex; gap:0.45rem; width:100%; flex-wrap:wrap; }
 .vault-pill{
   flex:1; border:1px solid var(--border); border-radius:20px; padding:0.42rem 0.2rem;
