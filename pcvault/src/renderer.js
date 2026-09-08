@@ -2054,6 +2054,35 @@ function placeTabsIndicator(animate) {
   ind.style.transform = 'translateX(' + (el.offsetLeft - 3) + 'px)';
   if (animate === false) requestAnimationFrame(() => { ind.style.transitionDuration = ''; });
 }
+// Generic sliding segmented control (same pill mechanic as .v-tabs).
+// Returns { select, place } or null when the markup is absent.
+function wireSegBar(wrapId, indId, onPick) {
+  const wrap = $(wrapId);
+  const ind = $(indId);
+  if (!wrap || !ind) return null;
+  const tabs = Array.from(wrap.querySelectorAll('.v-tab'));
+  function place(el, animate) {
+    if (!el || !el.offsetWidth) return;
+    if (animate === false) ind.style.transitionDuration = '0ms';
+    ind.style.width = el.offsetWidth + 'px';
+    ind.style.transform = 'translateX(' + (el.offsetLeft - 3) + 'px)';
+    if (animate === false) requestAnimationFrame(() => { ind.style.transitionDuration = ''; });
+  }
+  function select(el, animate) {
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(t === el)));
+    place(el, animate);
+    if (onPick) onPick(el);
+  }
+  tabs.forEach((t) => t.addEventListener('click', () => select(t, true)));
+  return { select, place };
+}
+let secretsFilterSeg = null;
+function placeSecretsSegs() {
+  const wrap = $('secretsFilterTabs');
+  if (!wrap || !secretsFilterSeg) return;
+  const cur = wrap.querySelector('.v-tab[aria-selected="true"]');
+  if (cur) secretsFilterSeg.place(cur, false);
+}
 function showJournalTab() {
   state.journalTab = true;
   state.secretsTab = false;
@@ -2092,6 +2121,7 @@ function showSecretsTab() {
   setHidden('secretsPane', false);
   if ($('addFilesBtn')) setHidden('addFilesBtn', true);
   if ($('galleryToggleBtn')) setHidden('galleryToggleBtn', true);
+  requestAnimationFrame(() => { placeSecretsSegs(); });
   renderSecrets();
 }
 
@@ -2876,9 +2906,9 @@ function wire() {
   if (addBtn) addBtn.addEventListener('click', () => runAction('add-files'));
   // v-tabs: re-seat the sliding pill after fonts settle + on resize (both snap, like the kit); arrows move between tabs
   if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => { setTabsSelected(); placeTabsIndicator(false); });
+    document.fonts.ready.then(() => { setTabsSelected(); placeTabsIndicator(false); placeSecretsSegs(); });
   }
-  window.addEventListener('resize', () => { placeTabsIndicator(false); });
+  window.addEventListener('resize', () => { placeTabsIndicator(false); placeSecretsSegs(); });
   const tablist = $('vaultTabs');
   if (tablist) tablist.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -2900,13 +2930,9 @@ function wire() {
   if (ss) ss.addEventListener('input', () => { state.secretsQuery = ss.value.trim().toLowerCase(); renderSecrets(); });
   const ssc = $('secretsSearchClear');
   if (ssc) ssc.addEventListener('click', () => { state.secretsQuery = ''; if (ss) ss.value = ''; renderSecrets(); });
-  document.querySelectorAll('#secretsFilterPills .vault-pill').forEach((b) => {
-    b.addEventListener('click', () => {
-      document.querySelectorAll('#secretsFilterPills .vault-pill').forEach((p) => p.classList.remove('on'));
-      b.classList.add('on');
-      state.secretsFilter = b.dataset.cat || 'all';
-      renderSecrets();
-    });
+  secretsFilterSeg = wireSegBar('secretsFilterTabs', 'secretsFilterInd', (el) => {
+    state.secretsFilter = (el && el.dataset.cat) || 'all';
+    renderSecrets();
   });
   document.querySelectorAll('#secretsCategoryPills .vault-pill').forEach((b) => {
     b.addEventListener('click', () => {

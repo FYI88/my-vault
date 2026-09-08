@@ -285,18 +285,18 @@
         </div>
         <span class="vault-fileline" id="secretsCount"></span>
       </div>
-      <div class="vault-pills secrets-filter" id="secretsFilterPills">
-        <button class="vault-pill on" data-cat="all">all</button>
-        <button class="vault-pill" data-cat="login">login</button>
-        <button class="vault-pill" data-cat="api">api</button>
-        <button class="vault-pill" data-cat="ssh">ssh</button>
-        <button class="vault-pill" data-cat="phone">phone</button>
-        <button class="vault-pill" data-cat="card">card</button>
-        <button class="vault-pill" data-cat="note">note</button>
+      <div class="v-tabs secrets-seg" id="secretsFilterTabs" role="tablist" aria-label="filter secrets">
+        <span class="v-tabs-ind" id="secretsFilterInd" aria-hidden="true"></span>
+        <button class="v-tab" role="tab" data-cat="all" aria-selected="true">all</button>
+        <button class="v-tab" role="tab" data-cat="login" aria-selected="false">login</button>
+        <button class="v-tab" role="tab" data-cat="api" aria-selected="false">api</button>
+        <button class="v-tab" role="tab" data-cat="ssh" aria-selected="false">ssh</button>
+        <button class="v-tab" role="tab" data-cat="phone" aria-selected="false">phone</button>
+        <button class="v-tab" role="tab" data-cat="card" aria-selected="false">card</button>
+        <button class="v-tab" role="tab" data-cat="note" aria-selected="false">note</button>
       </div>
       <section class="journal-card secrets-composer">
         <p class="vault-sub secrets-intro">add a secret — encrypted like everything else, wiped on lock</p>
-        <input id="secretsLabel" class="vault-input" type="text" placeholder="label — e.g. GitHub, Wi-Fi, Bank" autocomplete="off">
         <div class="vault-pills" id="secretsCategoryPills">
           <button class="vault-pill on" data-cat="login">login</button>
           <button class="vault-pill" data-cat="api">api</button>
@@ -305,13 +305,24 @@
           <button class="vault-pill" data-cat="card">card</button>
           <button class="vault-pill" data-cat="note">note</button>
         </div>
-        <input id="secretsUsername" class="vault-input" type="text" placeholder="username / phone / identifier" autocomplete="off">
-        <div class="secrets-secret-row">
-          <input id="secretsSecret" class="vault-input" type="password" placeholder="secret — password, token, key, number" autocomplete="off">
-          <button id="secretsRevealBtn" class="icon-btn" aria-label="reveal" title="reveal (hold)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <div class="journal-search secret-field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.83z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          <input id="secretsLabel" class="journal-search-input" type="text" placeholder="label" title="e.g. GitHub, Wi-Fi, Bank" autocomplete="off" spellcheck="false">
         </div>
-        <input id="secretsUrl" class="vault-input" type="text" placeholder="url (optional)" autocomplete="off">
-        <textarea id="secretsNotes" class="vault-input" rows="2" placeholder="notes (optional)"></textarea>
+        <div class="journal-search secret-field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input id="secretsUsername" class="journal-search-input" type="text" placeholder="username" title="username, phone, or identifier" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="journal-search secret-field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          <input id="secretsSecret" class="journal-search-input" type="password" placeholder="secret" title="password, token, key, or number" autocomplete="off" spellcheck="false">
+          <button id="secretsRevealBtn" class="secret-eye" aria-label="reveal" title="reveal (hold)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <div class="journal-search secret-field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <input id="secretsUrl" class="journal-search-input" type="text" placeholder="url" title="optional link" autocomplete="off" spellcheck="false">
+        </div>
+        <textarea id="secretsNotes" class="vault-input secrets-notes-field" rows="2" placeholder="notes" title="optional notes"></textarea>
         <div class="secrets-actions">
           <button id="secretsSaveBtn" class="add-btn">save secret</button>
           <button id="secretsCancelBtn" class="add-btn ghost hidden">cancel</button>
