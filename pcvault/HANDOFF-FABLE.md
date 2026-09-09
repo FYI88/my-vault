@@ -106,10 +106,17 @@ Polish pass over Vault grid, Journal, Secrets, tabs, and viewer chrome: spacing 
 - Only files imported this session are ever offered (`state.pendingOriginals`, wiped on `lock()`); source paths come from Electron `file.path`, never touch disk. Mode switch back to Keep clears the list.
 - Kind detection is extension-based (`EXT_MIME`); unknown extensions import as `doc` (icon only, never renders). Keep the map current — `jfif`/`pjpeg`/`avif`/`heic` gaps caused exactly that.
 
-## 12. Motion toggle plus screenshot shield (uncommitted)
+## 12. Motion toggle plus screenshot shield
 
 - Settings `Privacy` card (`#shieldPills`, default off): `LS_SHIELD` in `localStorage`, `win.setContentProtection()` via `shield:set` bridge, applied at boot plus live on toggle. Blinds capture tools only — cameras, HDMI, kernel scrapers unaffected, documented in the card note.
-
 - Settings `Motion` card (`#motionPills`, System default): `LS_MOTION` in `localStorage`, `body.reduce-motion` class mirrors the OS media-query kill-list (plus `.v-tabs-ind`, ring fill, decade fill). `reducedMotion()` is the single gate for JS motion (sweep, shake, beat, exits); `applyMotion()` runs at boot.
 - Sandbox lesson: the renderer runs with `sandbox: true`, so `File.path` is always empty there. `+ add files` opens a main-process dialog (`vault:pickFiles`) that returns real paths; bytes cross the bridge and import runs with a parallel paths array. Hidden input plus drag-drop stay as fallbacks that import without paths and are never offered for deletion.
+
+## 13. Gallery hydration v2 (uncommitted, phantom-first)
+
+- `populateGallery` runs a pool of 5 parallel decrypt plus thumb jobs instead of one serial loop; stale runs die via `galleryHydrateSeq`.
+- Queue is photos first, videos after with a 6 s cap plus one full-budget idle retry; damaged videos stay dark and never retry.
+- Gallery thumbs render at 320 px (`thumbUrl(rec, max)`, grid keeps 480) through the shared memory-only `thumbCache`; non-tile record kinds no longer burn decrypt cycles.
+- Batches yield to the event loop so the wall keeps animating; lock, exit, or reopen aborts mid-flight.
+- Progress pill (`#galleryProgress`, top-center of the stage): `decrypting N of M` plus fill, `videos…` phase label, hides on complete plus exit plus lock. Counts come from a pending-set so damaged files cannot stall it at 99%. `populateGallery` is exported for the harness.
 

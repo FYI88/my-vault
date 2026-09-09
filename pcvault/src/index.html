@@ -157,6 +157,10 @@
       <p class="vault-fileline hidden" id="searchCount"></p>
       <div class="vault-photo-grid" id="grid"></div>
       <div id="phantomGallery" class="phantom-gallery hidden"></div>
+      <div id="galleryProgress" class="gallery-progress hidden" role="status" aria-live="polite">
+        <span id="galleryProgressLabel">decrypting</span>
+        <span class="gallery-progress-track" aria-hidden="true"><span id="galleryProgressFill"></span></span>
+      </div>
       <button id="galleryExitBtn" class="gallery-exit hidden" aria-label="exit gallery view" title="exit gallery (Esc)">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span>exit gallery</span>

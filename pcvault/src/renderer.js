@@ -676,6 +676,7 @@ function lock() {
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
   $('grid').classList.remove('settled'); state.newIds.clear();
   if ($('secretsList')) $('secretsList').classList.remove('settled');
+  hideGalleryProgress();
   destroyGallery();
   state.galleryMode = false;
   if ($('galleryToggleBtn')) $('galleryToggleBtn').classList.remove('on');
@@ -1558,27 +1559,106 @@ async function buildGalleryItems() {
   });
 }
 
+let galleryHydrateSeq = 0; // stale-run guard — a reopened gallery drops the old queue
+const GALLERY_POOL = 5;      // parallel decrypt+thumb jobs (was: serial, one at a time)
+const GALLERY_THUMB_MAX = 320; // gallery tiles are small; the grid keeps 480
+const VIDEO_BUDGET_MS = 6000;  // per-video cap on the first pass; slow videos retry on idle
+
+function renderGalleryProgress(done, total, phase) {
+  const pill = $('galleryProgress');
+  if (!pill) return;
+  if (!state.galleryMode || total <= 0 || done >= total) { setHidden('galleryProgress', true); return; }
+  setHidden('galleryProgress', false);
+  const label = $('galleryProgressLabel');
+  if (label) label.textContent = (phase === 'videos' ? 'decrypting videos ' : 'decrypting ') + done + ' of ' + total;
+  const fill = $('galleryProgressFill');
+  if (fill) fill.style.width = Math.round((done / total) * 100) + '%';
+}
+function hideGalleryProgress() { setHidden('galleryProgress', true); }
+
 // Populate the active gallery and hydrate any thumbnails that only the grid has
 // touched. Mutating each item's thumbUrl in place (the gallery reads the array)
 // avoids a rebuild — same approach both controllers support.
 async function populateGallery() {
   if (!state.galleryStyle || !state.unlocked || !state.galleryMode) return;
+  const seq = ++galleryHydrateSeq;
   const items = await buildGalleryItems();
-  if (!state.unlocked || !state.galleryMode) return;
+  if (!state.unlocked || !state.galleryMode || seq !== galleryHydrateSeq) { hideGalleryProgress(); return; }
   state.galleryItems = items;
   state.galleryStyle.setItems(items);
-  const missing = state.items.filter((rec) => rec.kind !== 'doc' && !state.thumbCache.has(rec.id));
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const alive = () => state.unlocked && state.galleryMode && seq === galleryHydrateSeq;
   let hydrated = false;
-  for (const rec of missing) {
+  const publish = (id, url) => {
+    state.thumbCache.set(id, url);
+    const it = byId.get(id);
+    if (it) { it.thumbUrl = url; hydrated = true; }
+  };
+  async function runPool(recs, worker) {
+    let i = 0;
+    const runners = Array.from({ length: Math.min(GALLERY_POOL, recs.length) }, async () => {
+      while (alive()) {
+        const rec = recs[i++];
+        if (!rec) return;
+        try { await worker(rec); } catch { /* dark tile, same as before */ }
+        await new Promise((r) => setTimeout(r, 0)); // yield — the wall keeps animating
+      }
+    });
+    await Promise.all(runners);
+  }
+  async function videoWithBudget(rec, ms) {
+    let timer = 0;
     try {
-      const url = rec.kind === 'video' ? await videoThumbUrl(rec) : await thumbUrl(rec);
-      if (!state.unlocked || !state.galleryMode) return; // locked or left mid-hydrate
-      state.thumbCache.set(rec.id, url);
-      const it = items.find((i) => i.id === rec.id);
-      if (it) { it.thumbUrl = url; hydrated = true; }
-    } catch (err) {
-      // damaged record — the tile stays dark, same as the grid's "can't open"
+      const job = videoThumbUrl(rec);
+      const cap = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('video budget')), ms); });
+      return await Promise.race([job, cap]);
+    } finally { clearTimeout(timer); }
+  }
+  // The gallery shows photos and videos only — journals, secrets, and life
+  // records never reach a tile, so they no longer burn decrypt cycles here.
+  const missing = state.items.filter((r) => (r.kind === 'photo' || r.kind === 'video') && !state.thumbCache.has(r.id));
+  const photos = missing.filter((r) => r.kind === 'photo');
+  const videos = missing.filter((r) => r.kind === 'video');
+  const pending = new Set(missing.map((r) => r.id));
+  const total = missing.length;
+  const bump = (id, phase) => {
+    pending.delete(id);
+    renderGalleryProgress(total - pending.size, total, phase);
+  };
+  renderGalleryProgress(0, total, 'photos');
+  await runPool(photos, async (rec) => {
+    try {
+      const url = await thumbUrl(rec, GALLERY_THUMB_MAX);
+      if (!alive()) return;
+      publish(rec.id, url);
+    } finally {
+      bump(rec.id, 'photos');
     }
+  });
+  if (!alive()) { hideGalleryProgress(); return; }
+  const slowVideos = [];
+  await runPool(videos, async (rec) => {
+    try {
+      const url = await videoWithBudget(rec, VIDEO_BUDGET_MS);
+      if (!alive()) return;
+      publish(rec.id, url);
+    } catch (err) {
+      if (err && err.message === 'video budget') slowVideos.push(rec);
+      // damaged videos stay dark, never retried
+    } finally {
+      bump(rec.id, 'videos');
+    }
+  });
+  // Slow videos get one full-budget retry on idle — a bad video never blocks photos.
+  for (const rec of slowVideos) {
+    if (!alive()) { hideGalleryProgress(); return; }
+    await new Promise((r) => setTimeout(r, 0));
+    if (!alive()) { hideGalleryProgress(); return; }
+    try {
+      const url = await videoThumbUrl(rec);
+      if (!alive()) { hideGalleryProgress(); return; }
+      publish(rec.id, url);
+    } catch { /* stays dark */ }
   }
   // Phantom gallery re-reads each item's thumbUrl every frame, so an in-place
   // mutation shows immediately without a rebuild. The drift wall bakes img.src
@@ -1586,6 +1666,7 @@ async function populateGallery() {
   // until a rebuild — rebuild it once after hydration so they appear. (Skip
   // phantom: rebuilding would also reset the user's scroll/zoom.)
   if (hydrated && state.galleryKind === 'drift') {
+    if (!alive()) { hideGalleryProgress(); return; }
     state.galleryStyle.setItems(items);
   }
 }
@@ -1602,6 +1683,8 @@ function toggleGallery() {
   if (state.galleryMode) {
     ensureGalleryController();
     populateGallery();
+  } else {
+    hideGalleryProgress();
   }
 }
 
@@ -2192,7 +2275,7 @@ async function renderGrid() {
   if (state.galleryMode && state.galleryStyle) populateGallery();
 }
 
-async function thumbUrl(rec) {
+async function thumbUrl(rec, max = 480) {
   const itemKey = await unwrapItemKey(state.dek, rec);
   const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
   let blob;
@@ -2202,7 +2285,6 @@ async function thumbUrl(rec) {
     vaultWipeRaw(plain);
   }
   const bmp = await createImageBitmap(blob);
-  const max = 480;
   const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(bmp.width * scale));
@@ -3512,4 +3594,4 @@ boot().catch((err) => {
 
 // minimal test surface for the browser-based integration harness
 // (same module instance — importing this URL again returns these without re-running boot)
-export { state, handleFiles, openItem, lock };
+export { state, handleFiles, openItem, lock, populateGallery };

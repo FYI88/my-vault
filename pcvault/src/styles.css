@@ -1431,6 +1431,19 @@ body.theme-mono.unlocking #authBg, body.theme-mono.unlocking #authBgMedia{ filte
 .phantom-gallery{ animation:viewerFade 320ms var(--ease-out); }
 .gallery-exit{ animation:hudUp 420ms var(--ease-out) 120ms backwards; transition:background var(--t-med) var(--ease), transform var(--t-med) var(--ease-out), box-shadow var(--t-med) var(--ease-out); }
 .gallery-exit:hover{ transform:translateY(-2px); box-shadow:0 12px 30px rgba(0,0,0,.42); }
+.gallery-progress{
+  position:fixed; top:calc(34px + 0.7rem); left:50%; transform:translateX(-50%); z-index:900;
+  display:flex; align-items:center; gap:0.55rem; pointer-events:none; white-space:nowrap;
+  background:rgba(22,22,26,0.72); border:1px solid rgba(255,255,255,0.09);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  color:#d8d2da; font-family:'JetBrains Mono',monospace; font-size:0.62rem; letter-spacing:0.05em;
+  padding:0.45rem 0.85rem; border-radius:999px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.35);
+}
+.gallery-progress-track{ display:block; width:5.5rem; height:4px; border-radius:999px; background:rgba(255,255,255,0.14); overflow:hidden; }
+.gallery-progress-track > span{ display:block; height:100%; width:0%; background:var(--mauve); border-radius:999px; transition:width 190ms var(--ease); }
+@media (prefers-reduced-motion: reduce){ .gallery-progress-track > span{ transition:none; } }
+body.reduce-motion .gallery-progress-track > span{ transition:none; }
 
 /* ---- item viewer: media settles in (directional on ←/→), HUD slides, fade out ---- */
 .item-overlay{ animation:viewerFade 240ms var(--ease-out); }
