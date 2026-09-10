@@ -118,6 +118,21 @@ Polish pass over Vault grid, Journal, Secrets, tabs, and viewer chrome: spacing 
 - Queue is photos first, videos after with a 6 s cap plus one full-budget idle retry; damaged videos stay dark and never retry.
 - Gallery thumbs render at 320 px (`thumbUrl(rec, max)`, grid keeps 480) through the shared memory-only `thumbCache`; non-tile record kinds no longer burn decrypt cycles.
 - Batches yield to the event loop so the wall keeps animating; lock, exit, or reopen aborts mid-flight.
+
+## 14. Security fixes batch 1 (uncommitted)
+
+- Save guards: journal, secret, and life saves re-check unlocked plus key after encrypting and abort before touching items, cache, or disk.
+- Lock scrub: secrets plus journal lists emptied, viewer title plus date cleared, passphrase plus recovery fields cleared. Smoke asserts all three DOM wipes (`32/32`).
+- Links plus windows: secret URLs render only for `http(s)`; main denies popups and opens web links in the OS browser.
+- Delete grants single-use: confirm stores the exact normalized list, delete honors only its intersection then burns it; vault file refused by resolve.
 - Latency batch (uncommitted): id-to-record `Map` for grid hydration (O(1) per cell), 150 ms debounce on vault plus journal search, 6-wide pool for name decrypts. Shipped direct, no toggle — same pixels, suite-guarded.
 - Progress pill (`#galleryProgress`, top-center of the stage): `decrypting N of M` plus fill, `videos…` phase label, hides on complete plus exit plus lock. Counts come from a pending-set so damaged files cannot stall it at 99%. `populateGallery` is exported for the harness.
+
+## 15. Security fixes batch 2 (uncommitted)
+
+- Rotation stages on a renderer-side manifest copy; live swaps only on confirm; lock drops the staged copy. Staging lives in the renderer (not the crypto module) because the suite pins `rotateSeed` in-place semantics.
+- Replacements encrypt first and swap after (journal, secret, life); a crash mid-save keeps the old record, never a hole.
+- Tamper checks full payload bytes for every sampled record plus names; test with `photo` but no `photoLen` field still trips.
+- Composer reveal is press-and-hold (the follow-up click is swallowed); keyboard toggling preserved.
+- Smoke proves the lock DOM scrub (`32/32`); suites `41/41`.
 

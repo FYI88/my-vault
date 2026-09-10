@@ -59,6 +59,7 @@ const state = {
   searchQuery: '',       // lowercased live query
   pendingDek: null,   // held between "create" and "I've saved them"
   rotatePhrase: null,// rotation in progress — old words die only on save
+  rotateStaged: null,// staged manifest — swaps live only on confirm
   idleTimer: null,
   galleryMode: false, // full-screen gallery view
   galleryStyle: null, // controller for the active gallery style (phantom/phantom-v2/drift)
@@ -545,6 +546,8 @@ function showSeed(phrase, rotating) {
 
 async function handleSeedDone() {
   if (state.rotatePhrase) {
+    if (state.rotateStaged) state.manifest = state.rotateStaged.manifest;
+    state.rotateStaged = null;
     state.rotatePhrase = null;
     await saveVault(); // the old words stop working from this save onward
     toast('new recovery words saved. the old ones no longer work.');
@@ -639,6 +642,7 @@ function lock() {
   state.unlocked = false;
   state.pendingDek = null;
   state.rotatePhrase = null;
+  state.rotateStaged = null;
   currentItemId = null;
   currentItemKind = null;
   state.urls.forEach((u) => URL.revokeObjectURL(u));
@@ -665,6 +669,12 @@ function lock() {
   if ($('secretsSecret')) { $('secretsSecret').value = ''; $('secretsSecret').type = 'password'; }
   if ($('secretsUrl')) $('secretsUrl').value = '';
   if ($('secretsNotes')) $('secretsNotes').value = '';
+  // scrub rendered plaintext too — list rows hold labels, notes, and closures
+  const sList = $('secretsList');
+  if (sList) sList.textContent = '';
+  const jList = $('journalEntryList');
+  if (jList) jList.textContent = '';
+  if ($('seedRecoveryInput')) $('seedRecoveryInput').value = '';
   clearTimeout(clipboardClearTimer);
   clipboardClearTimer = null;
   // life — wipe DOB plaintext, close sub-page, clear inputs (never localStorage)
@@ -690,6 +700,10 @@ function lock() {
   setHidden('phantomGallery', true);
   if ($('galleryExitBtn')) setHidden('galleryExitBtn', true);
   showOverlay('itemOverlay', false);
+  $('itemTitle').textContent = ''; $('itemTitle').title = '';
+  $('itemDate').textContent = '';
+  if ($('docName')) { $('docName').textContent = ''; $('docName').title = ''; }
+  if ($('docMeta')) $('docMeta').textContent = '';
   $('itemImg').removeAttribute('src');
   setHidden('itemImg', true);
   setHidden('viewerPlay', true);
@@ -707,6 +721,11 @@ function lock() {
   $('itemTextContent').textContent = '';
   setHidden('itemText', true);
   $('unlockPass').value = '';
+  if ($('changeCur')) $('changeCur').value = '';
+  if ($('changeNew')) $('changeNew').value = '';
+  if ($('changeNew2')) $('changeNew2').value = '';
+  if ($('changeSeed')) $('changeSeed').value = '';
+  if ($('rotatePass')) $('rotatePass').value = '';
   show('locked');
   resetIdle();
 }
@@ -1187,12 +1206,13 @@ async function saveSecret() {
   if (!secret && category !== 'note') { toast('secret is required'); $('secretsSecret').focus(); return; }
   const payload = JSON.stringify({ label, category, username, secret, url, notes, updatedAt: Date.now() });
   const bytes = new TextEncoder().encode(payload);
+  const rec = await encryptFile('secret', SECRET_MIME, label, bytes);
+  if (!state.unlocked || !state.dek) return; // locked mid-encrypt — never write post-lock
   if (editingSecretId) {
-    // replace existing record
+    // replace existing record — only now that the replacement exists
     state.items = state.items.filter((r) => r.id !== editingSecretId);
     state.secretsCache.delete(editingSecretId);
   }
-  const rec = await encryptFile('secret', SECRET_MIME, label, bytes);
   // keep kind consistent for filtering
   rec.kind = 'secret';
   state.items.push(rec);
@@ -1278,7 +1298,7 @@ async function renderSecrets() {
     const meta = document.createElement('div');
     meta.className = 'secrets-meta';
     if (val.username) { const s = document.createElement('span'); s.textContent = val.username; s.title = val.username; meta.appendChild(s); }
-    if (val.url) { const a = document.createElement('a'); a.href = val.url; a.textContent = val.url; a.target = '_blank'; a.rel = 'noopener'; a.className = 'secrets-url'; meta.appendChild(a); }
+    if (val.url && /^(https?:\/\/)/i.test(val.url)) { const a = document.createElement('a'); a.href = val.url; a.textContent = val.url; a.target = '_blank'; a.rel = 'noopener'; a.className = 'secrets-url'; meta.appendChild(a); }
     const actions = document.createElement('div');
     actions.className = 'secrets-actions-row';
     const copyUser = document.createElement('button'); copyUser.className = 'icon-btn small'; copyUser.title = 'copy username'; copyUser.textContent = 'user';
@@ -1358,9 +1378,10 @@ async function saveLifeData(dob, expectancy) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) { toast('pick a valid date of birth'); return; }
   const payload = JSON.stringify({ dob, expectancy: exp });
   const bytes = new TextEncoder().encode(payload);
-  state.items = state.items.filter((r) => r.kind !== 'life');
   if (state.lifeCache && state.lifeCache.dob === dob && state.lifeCache.expectancy === exp) return;
   const rec = await encryptFile('life', LIFE_MIME, LIFE_NAME, bytes);
+  if (!state.unlocked || !state.dek) return; // locked mid-encrypt — never write post-lock
+  state.items = state.items.filter((r) => r.kind !== 'life');
   rec.kind = 'life';
   state.items.push(rec);
   state.lifeCache = { dob, expectancy: exp };
@@ -1763,10 +1784,13 @@ async function saveJournalEntry(year, key, text, mood) {
   } else {
     blob.days[key] = { text: (text || '').trim(), mood: mood || '', updatedAt: Date.now() };
   }
-  // replace the year record wholesale — the old ciphertext and its wrapped key die
-  state.items = state.items.filter((r) => !(r.kind === 'journal' && r.year === year));
+  // replace the year record wholesale — the old ciphertext and its wrapped key die.
+  // Encrypt first, swap after: a crash between the two can only leave the old
+  // record in place, never a hole.
   const bytes = new TextEncoder().encode(serializeYear(blob));
   const rec = await encryptFile('journal', JOURNAL_MIME, String(year), bytes);
+  if (!state.unlocked || !state.dek) return; // locked mid-encrypt — never write post-lock
+  state.items = state.items.filter((r) => !(r.kind === 'journal' && r.year === year));
   rec.year = year;
   state.items.push(rec);
   state.journalCache.set(year, blob);
@@ -2695,12 +2719,14 @@ async function handleRotate(e) {
   e.preventDefault();
   setErr('rotateErr', '');
   const pass = $('rotatePass').value;
-  const r = await rotateSeed(state.manifest, pass);
+  // rotate on a copy — the live manifest swaps only on explicit confirm,
+  // so a crash or lock before saving leaves the old words working
+  const r = await rotateSeed(JSON.parse(JSON.stringify(state.manifest)), pass);
   if (!r.ok) {
     setErr('rotateErr', r.err);
     return;
   }
-  state.manifest = r.manifest;
+  state.rotateStaged = { manifest: r.manifest, phrase: r.phrase };
   state.rotatePhrase = r.phrase;
   $('rotatePass').value = '';
   showSeed(r.phrase, true);
@@ -3058,11 +3084,17 @@ function wire() {
   if (secCancel) secCancel.addEventListener('click', () => { clearSecretsForm(); toast('canceled'); });
   const secReveal = $('secretsRevealBtn');
   if (secReveal) {
+    // press-and-hold to peek; the click that follows a hold is swallowed so a
+    // peek always ends hidden, while keyboard clicks still toggle
+    let revealHeld = false;
     secReveal.addEventListener('pointerdown', () => { const inp = $('secretsSecret'); if (inp) inp.type = 'text'; });
     const hide = () => { const inp = $('secretsSecret'); if (inp) inp.type = 'password'; };
-    secReveal.addEventListener('pointerup', hide);
+    secReveal.addEventListener('pointerup', () => { hide(); revealHeld = true; });
     secReveal.addEventListener('pointerleave', hide);
-    secReveal.addEventListener('click', () => { const inp = $('secretsSecret'); if (inp) inp.type = inp.type === 'password' ? 'text' : 'password'; });
+    secReveal.addEventListener('click', () => {
+      if (revealHeld) { revealHeld = false; return; }
+      const inp = $('secretsSecret'); if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
   }
   // Enter in secrets form saves
   ['secretsLabel','secretsUsername','secretsSecret','secretsUrl'].forEach((id) => {

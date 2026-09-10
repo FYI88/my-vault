@@ -214,6 +214,7 @@ export async function rotateSeed(manifest, pass) {
   } catch (e) {
     return { ok: false, err: 'current passphrase is wrong' };
   }
+
   const phrase = await bip39Generate();
   const saltS = crypto.getRandomValues(new Uint8Array(16));
   const kekS = await deriveKey(phrase, saltS);
@@ -293,12 +294,13 @@ export async function tamperSample(manifest, dek, items) {
   for (const rec of sample) {
     try {
       const itemKey = await unwrapItemKey(dek, rec);
-      // photos are checked on their actual bytes (same as the phone vault) — a
-      // flipped byte anywhere in the ciphertext trips the check
-      if (rec.kind === 'photo' && rec.photo) {
+      // every sampled record proves its full payload (same as the phone vault
+      // for photos) - a flipped byte anywhere in the ciphertext trips the check
+      if (rec.photo && rec.photo.length) {
         const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
-        vaultWipeRaw(plain); // SEC-007 — zero the sampled plaintext, don't leave it to GC
-      } else await decText(itemKey, { iv: rec.nameIv, data: rec.name });
+        vaultWipeRaw(plain); // SEC-007 - zero the sampled plaintext, don't leave it to GC
+      }
+      await decText(itemKey, { iv: rec.nameIv, data: rec.name });
     } catch (e) {
       return { tampered: true, tamperIdx: nextIdx };
     }

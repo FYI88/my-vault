@@ -80,6 +80,11 @@ function createWindow() {
   }
 
   win.on('closed', () => { win = null; });
+  // No popups, no embedded untrusted pages — web links open in the OS browser.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) { try { shell.openExternal(url); } catch (e) { /* best-effort */ } }
+    return { action: 'deny' };
+  });
 
   // Push window state to the renderer so the traffic lights can react:
   // the green dot swaps to the restore glyph while maximized, and all three
@@ -166,7 +171,8 @@ const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
 let vaultPath = null;     // the one vault file main will read/write
 let lastCopyDst = null;   // backup destination from the last saveCopyAs dialog
 let lastExportDst = null; // export destination from the last saveFileAs dialog
-let allowedImportPaths = new Set(); // picked via vault:pickFiles, readable once
+let allowedImportPaths = new Set(); // picked via vault:pickFiles, consumed on read
+let confirmedDeletePaths = new Set(); // confirmed via dialog, single-use — burned by deleteOriginals
 
 // Paths may use either separator style; normalize before comparing.
 function samePath(a, b) {
@@ -417,11 +423,19 @@ ipcMain.handle('vault:confirmDeleteOriginals', async (_e, files) => {
     message: `Delete ${list.length} original file(s) from this disk?`,
     detail: `${shown}${more}\n\nThe vault already holds verified copies. Deletion is permanent (no recycle bin). It frees space and reduces traces, but does not defeat recovery tools on SSDs.`,
   });
-  return { confirmed: r.response === 0 };
+  const confirmed = r.response === 0;
+  // Remember exactly what was confirmed — delete honors only this list, once.
+  confirmedDeletePaths = new Set(confirmed ? list.map((p) => path.normalize(p)) : []);
+  for (const p of confirmedDeletePaths) allowedImportPaths.delete(p);
+  return { confirmed };
 });
 
 ipcMain.handle('vault:deleteOriginals', async (_e, paths) => {
-  const list = [...new Set((paths || []).filter((p) => typeof p === 'string' && p))];
+  // Honor only the confirmed set (single-use); anything else is refused even
+  // if the renderer asks — the confirm dialog is the authorization, not the call.
+  const asked = new Set((paths || []).filter((p) => typeof p === 'string' && p).map((p) => path.normalize(p)));
+  const list = [...confirmedDeletePaths].filter((p) => asked.has(p));
+  confirmedDeletePaths = new Set();
   const results = [];
   let vaultResolved = null;
   try { if (vaultPath) vaultResolved = path.resolve(vaultPath); } catch (e) { /* compare fails open below */ }
