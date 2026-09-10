@@ -235,6 +235,13 @@ function toast(msg) {
 function setHidden(id, hidden) { $(id).classList.toggle('hidden', hidden); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function debounce(fn, ms) {
+  let t = 0;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
 function reducedMotion() {
   // Manual setting wins; otherwise follow the OS. Covers the Fable motion
   // layer and the pre-Fable animations (ring sweep, shake, unlock beat) alike.
@@ -1059,17 +1066,24 @@ function wireReorder() {
 function ensureNames() {
   if (!state.namesReady) {
     state.namesReady = (async () => {
-      for (const rec of state.items) {
-        if (!state.unlocked) return; // locked mid-decrypt — drop the plaintext index
-        try {
-          const itemKey = await unwrapItemKey(state.dek, rec);
-          const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });
-          if (!state.unlocked) return; // never cache a name after lock wipes the index
-          state.nameCache.set(rec.id, name);
-        } catch (e) {
-          state.nameCache.set(rec.id, ''); // tampered/damaged — won't match anything
+      const recs = state.items.slice();
+      const POOL = 6;
+      let i = 0;
+      const runners = Array.from({ length: Math.min(POOL, recs.length) }, async () => {
+        while (state.unlocked) {
+          const rec = recs[i++];
+          if (!rec) return;
+          try {
+            const itemKey = await unwrapItemKey(state.dek, rec);
+            const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });
+            if (!state.unlocked) return; // never cache a name after lock wipes the index
+            state.nameCache.set(rec.id, name);
+          } catch (e) {
+            state.nameCache.set(rec.id, ''); // tampered/damaged — won't match anything
+          }
         }
-      }
+      });
+      await Promise.all(runners);
     })();
   }
   return state.namesReady;
@@ -1078,6 +1092,21 @@ function ensureNames() {
 // Journal + Secrets + Life are not files — the grid, search, and gallery all skip them.
 function vaultItems() {
   return state.items.filter((r) => r.kind !== 'journal' && r.kind !== 'secret' && r.kind !== 'life');
+}
+
+// id → record without the O(n) scan (grid hydration hits this per cell).
+// Safe because every mutation either reassigns state.items (filter paths) or
+// changes its length (push paths); reorder keeps the same object refs.
+let itemMapCache = null;
+let itemMapRef = null;
+let itemMapN = -1;
+function itemById(id) {
+  if (!itemMapCache || itemMapRef !== state.items || itemMapN !== state.items.length) {
+    itemMapCache = new Map(state.items.map((r) => [r.id, r]));
+    itemMapRef = state.items;
+    itemMapN = state.items.length;
+  }
+  return itemMapCache.get(id);
 }
 
 async function filteredItems() {
@@ -2216,7 +2245,7 @@ function ensureIO() {
       for (const ent of entries) {
         if (ent.isIntersecting) {
           const cell = ent.target;
-          hydrateCell(cell, state.items.find((r) => r.id === cell.dataset.id));
+          hydrateCell(cell, itemById(cell.dataset.id));
           gridIO.unobserve(cell);
         }
       }
@@ -2952,10 +2981,11 @@ function wire() {
   });
   $('seedRecoveryForm').addEventListener('submit', handleSeedRecovery);
 
+  const debouncedGrid = debounce(() => { renderGrid(); }, 150);
   $('searchInput').addEventListener('input', () => {
     state.searchQuery = $('searchInput').value.trim().toLowerCase();
     $('searchRow').classList.toggle('has-query', !!state.searchQuery);
-    renderGrid();
+    debouncedGrid();
   });
   $('searchClear').addEventListener('click', () => {
     clearSearch();
@@ -3042,7 +3072,7 @@ function wire() {
   document.querySelectorAll('#journalMoodRow .journal-mood').forEach((b) => {
     b.addEventListener('click', () => setMoodSelection(b.dataset.mood));
   });
-  $('journalSearchInput').addEventListener('input', applyJournalSearch);
+  $('journalSearchInput').addEventListener('input', debounce(applyJournalSearch, 150));
   $('journalSearchClear').addEventListener('click', () => {
     $('journalSearchInput').value = '';
     applyJournalSearch();
