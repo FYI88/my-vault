@@ -985,48 +985,55 @@ body.theme-mono .v-tabs{ background:rgba(0,0,0,0.06); }
 .journal-toolbar{
   display:flex; align-items:center; gap:0.4rem; width:100%;
 }
-.journal-year{
-  font-family:'DM Serif Display',serif; font-style:italic; font-size:1.25rem;
-  font-weight:400; color:var(--rose-dark); letter-spacing:0.6px; margin:0; line-height:1;
-  background:transparent; border:none; padding:0; min-width:5ch; text-align:center; box-shadow:none;
+button.journal-hero-year{ background:none; border:none; padding:0; cursor:pointer; }
+button.journal-hero-year:hover{ color:var(--mauve-dark); }
+button.journal-hero-year:focus-visible{ outline:2px solid var(--mauve-dark); outline-offset:4px; }
+.journal-hero{ margin:0.2rem 0 0.1rem; }
+.journal-hero-top{ display:flex; align-items:baseline; gap:0.8rem; flex-wrap:wrap; }
+.journal-hero-year{
+  font-family:'DM Serif Display',serif; font-style:italic; font-weight:400;
+  font-size:2.6rem; line-height:1; color:var(--rose-dark); letter-spacing:0.5px; margin:0;
 }
-.journal-year-wrap{
-  background:none; background-color:transparent; border:none; outline:none; box-shadow:none;
-  padding:0.15rem; cursor:pointer;
-  position:relative; width:4.6rem; height:4.6rem;
-  display:flex; align-items:center; justify-content:center;
-  border-radius:50%;
-  -webkit-appearance:none; appearance:none;
+.journal-hero .journal-streak{ margin:0; }
+.journal-hero .meridian{ padding:0.9rem 0 2rem; }
+.meridian{ padding:1.1rem 0 2.4rem; }
+.rail{ position:relative; height:1px; background:var(--border); }
+.rail-fill{
+  position:absolute; inset:0 auto 0 0; width:var(--p, 0%);
+  background:linear-gradient(90deg, rgba(122,95,116,0.25), var(--mauve-dark));
+  transition:width 1.1s var(--ease);
 }
-.journal-year-wrap:focus, .journal-year-wrap:focus-visible, .journal-year-wrap:active{
-  outline:none; border:none; box-shadow:none; background:none; background-color:transparent;
+.rail-tick{ position:absolute; top:-4px; width:1px; height:5px; background:var(--border-strong); }
+.rail-name{
+  position:absolute; top:14px; transform:translateX(-50%); white-space:nowrap;
+  font-family:'JetBrains Mono',monospace; font-size:0.55rem; text-transform:uppercase;
+  letter-spacing:0.08em; color:var(--text-soft); transition:color 0.5s var(--ease);
 }
-.journal-year-wrap:hover .journal-year{ color:var(--mauve-dark); }
-.journal-year-ring{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
-.journal-year-ring-bg{
-  fill:none; stroke:var(--border); stroke-width:5;
+.rail-name.done{ color:var(--mauve-dark); }
+.marker{ position:absolute; left:var(--p, 0%); top:0; transition:left 1.1s var(--ease); }
+.marker i{
+  position:absolute; left:-0.5px; bottom:0; width:1px; height:34px;
+  background:linear-gradient(to top, var(--rose-dark), rgba(196,123,131,0));
 }
-/* flat blood-black progress arc — no glow; the comet pulse rides on top of it */
-.journal-year-ring-fill{
-  fill:none; stroke:#5c0909; stroke-width:5; stroke-linecap:round;
-  stroke-dasharray:188.5; stroke-dashoffset:188.5;
-  filter:none;
-  transition:stroke-dashoffset 0.9s ease-out;
+.marker b{
+  position:absolute; left:-2.5px; top:-2px; width:5px; height:5px;
+  border-radius:50%; background:var(--rose-dark);
 }
-/* loading pulse confined to the filled arc — a bright segment sweeping
-   start-to-tip and back, never the whole circle */
-.journal-year-ring-comet{
-  fill:none; stroke:#e5383b; stroke-width:5; stroke-linecap:round;
-  filter:drop-shadow(0 0 4px rgba(229,56,59,0.9));
-  opacity:0; /* JS reveals it once the sweep starts — avoids a full glowing ring flash */
+.marker em{
+  position:absolute; bottom:42px; left:0; transform:translateX(-50%);
+  font-style:normal; font-family:'JetBrains Mono',monospace; font-size:0.55rem;
+  letter-spacing:0.08em; color:var(--rose-dark); white-space:nowrap;
 }
-@media (prefers-reduced-motion: reduce){ .journal-year-ring-fill{ transition:none; } }
-body.theme-mono .journal-year-ring-fill{ stroke:#111; }
-body.theme-mono .journal-year-ring-comet{ stroke:#000; filter:drop-shadow(0 0 3px rgba(0,0,0,0.45)); }
+.meridian.is-edge .marker{ opacity:0; }
+@media (prefers-reduced-motion: reduce){ .rail-fill, .marker{ transition:none; } }
+body.reduce-motion .rail-fill,
+body.reduce-motion .marker{ transition:none; }
+
 .year-weeks-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(10px,1fr)); gap:6px; margin-top:0.7rem; }
 .year-week{ aspect-ratio:1/1; border-radius:2px; background:#fff; border:1px solid rgba(0,0,0,0.2); }
 .year-week.done{ background:#000; border-color:#000; }
 .year-week.now{ background:#6ee7b7; border-color:#000; }
+.year-week{ transition:background var(--t-slow) var(--ease), border-color var(--t-slow) var(--ease); }
 .life-title{
   font-family:'DM Serif Display',serif; font-style:italic; font-weight:400;
   font-size:1.05rem; color:var(--mauve-dark); margin:0 0 0.2rem; letter-spacing:0.3px;
@@ -1511,7 +1518,7 @@ body.auth-screen .vault-sec-card{ background:color-mix(in srgb, var(--card) 88%,
   .add-btn::after{ display:none; }
   #authBg, #authBgMedia, .sidebar-tray, .sidebar-tray .icon-btn, .vault-meter i, .vault-photo-cell img{ transition:none; }
   body.unlocking #authBg, body.unlocking #authBgMedia{ filter:none; transform:none; }
-  .add-btn:hover, .cal-day:hover, .journal-entry-row:hover, .journal-year-wrap:hover, .gallery-exit:hover,
+  .add-btn:hover, .cal-day:hover, .journal-entry-row:hover, .gallery-exit:hover,
   .vault-photo-cell:hover img, .vault-photo-cell:hover .cell-media, .sidebar-tray.collapsed, .sidebar-tray.collapsed .icon-btn,
   .viewer-top.chrome-hidden, .viewer-bottom.chrome-hidden{ transform:none; }
   .vault-photo-cell img{ opacity:1; }
@@ -1555,14 +1562,14 @@ body.reduce-motion .sidebar-tray .icon-btn,
 body.reduce-motion .vault-meter i,
 body.reduce-motion .vault-photo-cell img,
 body.reduce-motion .v-tabs-ind,
-body.reduce-motion .journal-year-ring-fill,
+body.reduce-motion .journal-year-fill,
+body.reduce-motion .journal-year-dot,
 body.reduce-motion .life-decade-fill{ transition:none; }
 body.reduce-motion.unlocking #authBg,
 body.reduce-motion.unlocking #authBgMedia{ filter:none; transform:none; }
 body.reduce-motion .add-btn:hover,
 body.reduce-motion .cal-day:hover,
 body.reduce-motion .journal-entry-row:hover,
-body.reduce-motion .journal-year-wrap:hover,
 body.reduce-motion .gallery-exit:hover,
 body.reduce-motion .vault-photo-cell:hover img,
 body.reduce-motion .vault-photo-cell:hover .cell-media,

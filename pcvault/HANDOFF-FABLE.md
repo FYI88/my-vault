@@ -68,6 +68,7 @@ Polish pass over Vault grid, Journal, Secrets, tabs, and viewer chrome: spacing 
 3. `Ctrl+1/2/3`, `Ctrl+Tab`, `Esc` stack, arrows in viewer all still work
 4. Cream plus mono look intentional, no emoji anywhere in UI
 5. Commit message style: `style: ...` or `fix: ...`, one concern per commit. Do not push — owner pushes.
+6. Push policy: `review` remote (`VNNS719/vaultreview`) is live; `origin` (FYI88) is backup only — never push or fetch it unless the owner names it.
 
 ## 8. Already applied (do not redo)
 
@@ -92,7 +93,8 @@ Polish pass over Vault grid, Journal, Secrets, tabs, and viewer chrome: spacing 
 - Dead CSS deleted: `.item-stage` block, mono leftovers, `.page-actions`, `.vault-hint`, `.hover-sim`, `.doc-meta-line`, `.vault-head-spacer`, `.cal-month-label`, one duplicate `#galleryToggleBtn.on`, `.sidebar-tray.hidden` base. Kept `.viewer-stage` selectors inside the old mono pdf-scroll rule.
 - V1 motion layer replaced wholesale by v2 (do not re-add v1). V2 pairs with the classes above; reduced-motion kills all of it.
 - Win-chrome controls sit clear of the full-height body scrollbar (`.title-right` offset, 10 px cream / 6 px mono).
-- Year-weeks grid mirrors the life grid: small auto-fill 10 px boxes, lived black, current emerald, future white.
+- Year toolbar button is a mini-meridian under the label: 1 px track, mauve gradient fill, rose today-dot, charge on render. The ring plus comet are gone with zero references left. The 53-dot year grid stays in the progress section.
+- Journal hero (reversible): big serif year button plus arrows plus full meridian rail with month ticks, names, and dated today-marker; streak demoted beneath. Toolbar trio (prev, year button, next, mini-meridian) deleted with zero references left; prev, next, and toggle wiring reused via kept IDs.
 - Secrets chrome unified (uncommitted): filter row is a sliding `.v-tabs` control with a hidden scrollbar; composer category is plain pills again (slider kept only under search); composer inputs are journal-search bars with glyphs and one-word placeholders. No `secretsFilterPills`, `secrets-secret-row`, or `secretsCatTabs` references remain.
 - Settings overhaul (uncommitted): grouped collapsible cards, binary switches replace binary pills (3+ options stay pills), chrome card cut, font folded into theme, gallery numbers under Advanced, backup pinned outside the collapsed danger body, `#screen-settings` bottom air.
 - `.vault-pills` wraps, so 5-pill rows (font picker) stack instead of squeezing.

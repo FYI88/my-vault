@@ -82,7 +82,6 @@ let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the over
 let toastTimer = null;
 let editingSecretId = null; // null = new secret, else id of secret being edited
 let clipboardClearTimer = null;
-let ringSweepRaf = 0; // year-ring comet loop id
 
 // ---- immersive viewer (full-bleed stage + floating chrome) ----
 let viewerZoom = 1;          // photo zoom factor (1 = fit)
@@ -245,7 +244,7 @@ function debounce(fn, ms) {
 }
 function reducedMotion() {
   // Manual setting wins; otherwise follow the OS. Covers the Fable motion
-  // layer and the pre-Fable animations (ring sweep, shake, unlock beat) alike.
+  // layer and the pre-Fable animations (shake, unlock beat) alike.
   try {
     const saved = localStorage.getItem(LS_MOTION);
     if (saved === 'reduced') return true;
@@ -678,7 +677,6 @@ function lock() {
   clearTimeout(clipboardClearTimer);
   clipboardClearTimer = null;
   // life — wipe DOB plaintext, close sub-page, clear inputs (never localStorage)
-  stopRingSweep();
   state.lifeCache = null;
   state.lifeOpen = false;
   if ($('lifeDobIntro')) $('lifeDobIntro').value = '';
@@ -1978,38 +1976,6 @@ function toggleYearProgress(force) {
   setHidden('journalYearProgress', !state.lifeOpen);
   if (state.lifeOpen) renderYearProgress();
 }
-function stopRingSweep() {
-  if (ringSweepRaf) cancelAnimationFrame(ringSweepRaf);
-  ringSweepRaf = 0;
-}
-// Comet pulse ping-pongs inside the filled arc only (start → tip → start),
-// easing to a stop at the tip. Never touches the unfilled circle.
-function startRingSweep() {
-  stopRingSweep();
-  const comet = $('journalYearComet');
-  if (!comet || !state.unlocked) return;
-  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    comet.style.opacity = '0';
-    return;
-  }
-  const year = state.journalYear || yearOf(new Date());
-  const C = 188.5;
-  const L = C * yearProgress(year).pct / 100;
-  if (L < 2) { comet.style.opacity = '0'; return; }
-  comet.style.opacity = '1';
-  const len = Math.max(4, Math.min(18, L * 0.22));
-  comet.style.strokeDasharray = `${len} ${C - len}`;
-  const lo = len / 2 + 1;
-  const hi = Math.max(lo, L - len / 2 - 1);
-  const t0 = performance.now();
-  const step = (t) => {
-    if (!state.unlocked || state.journalYear !== year) { ringSweepRaf = 0; return; }
-    const m = (lo + hi) / 2 + (hi - lo) / 2 * Math.sin((t - t0) / 2400 * Math.PI * 2);
-    comet.style.strokeDashoffset = String(len / 2 - m);
-    ringSweepRaf = requestAnimationFrame(step);
-  };
-  ringSweepRaf = requestAnimationFrame(step);
-}
 async function renderYearProgress() {
   if (!state.unlocked || !state.lifeOpen) return;
   const year = state.journalYear || yearOf(new Date());
@@ -2104,28 +2070,46 @@ async function renderYearProgress() {
     }
   }
 }
+const HERO_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function drawHeroMeridian(year, yp) {
+  const rail = $('journalRail');
+  if (!rail) return;
+  rail.querySelectorAll('.rail-tick,.rail-name').forEach((el) => el.remove());
+  for (let m = 0; m < 12; m++) {
+    const dim = new Date(year, m + 1, 0).getDate();
+    const start = Math.round((new Date(year, m, 1) - new Date(year, 0, 1)) / 86400000) / yp.total * 100;
+    const mid = start + (dim / 2) / yp.total * 100;
+    const tick = document.createElement('div');
+    tick.className = 'rail-tick';
+    tick.style.left = start + '%';
+    rail.appendChild(tick);
+    const name = document.createElement('div');
+    name.className = 'rail-name' + (mid < yp.pct ? ' done' : '');
+    name.style.left = mid + '%';
+    name.textContent = HERO_MONTHS[m];
+    rail.appendChild(name);
+  }
+  rail.style.setProperty('--p', yp.pct + '%');
+  const now = new Date();
+  const mer = $('journalMeridian');
+  if (mer) mer.classList.toggle('is-edge', year !== now.getFullYear());
+  const marker = $('journalMarker');
+  if (marker) {
+    setHidden('journalMarker', year !== now.getFullYear());
+    const lab = $('journalMarkerLabel');
+    if (lab) lab.textContent = now.getDate() + ' ' + HERO_MONTHS[now.getMonth()];
+  }
+}
 async function renderJournal() {
   if (!state.unlocked) return;
   const year = state.journalYear || yearOf(new Date());
   state.journalYear = year;
   const blob = await journalForYear(year);
   if (!state.unlocked || state.journalYear !== year) return;
-  $('journalYearLabel').textContent = String(year);
   const yp = yearProgress(year);
-  const ring = $('journalYearRing');
-  if (ring) {
-    // decade-bar charge: start empty, fill to pct on the 0.9s ease-out
-    const C = 188.5;
-    const target = C * (1 - yp.pct / 100);
-    ring.style.strokeDashoffset = String(C);
-    requestAnimationFrame(() => {
-      if (!state.unlocked || state.journalYear !== year) return;
-      ring.style.strokeDashoffset = String(target);
-    });
-  }
-  startRingSweep();
   const btn = $('journalYearBtn');
   if (btn) {
+    btn.textContent = String(year);
     btn.title = `view year progress — ${yp.pct}% of ${year} passed`;
     btn.setAttribute('aria-label', `view year progress — ${yp.pct}% of ${year} passed`);
   }
@@ -2133,6 +2117,7 @@ async function renderJournal() {
   $('journalStreak').textContent = streak
     ? `${streak} day${streak === 1 ? '' : 's'} in a row`
     : 'write your first entry today';
+  drawHeroMeridian(year, yp);
   // default editor day: today for the current year, else the latest entry in that
   // year (or Jan 1) — it must stay inside the year being shown, or a save would
   // write the entry into the wrong year record.
@@ -2236,7 +2221,6 @@ function showJournalTab() {
 function showVaultTab() {
   state.journalTab = false;
   state.secretsTab = false;
-  stopRingSweep();
   setTabsSelected();
   placeTabsIndicator();
   setHidden('vaultPane', false);
@@ -2249,7 +2233,6 @@ function showVaultTab() {
 function showSecretsTab() {
   state.secretsTab = true;
   state.journalTab = false;
-  stopRingSweep();
   setTabsSelected();
   placeTabsIndicator();
   setHidden('vaultPane', true);

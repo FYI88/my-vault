@@ -176,20 +176,6 @@
     </div>
     <div id="journalPane" class="journal-pane hidden">
       <div class="journal-toolbar">
-        <button id="journalYearPrev" class="icon-btn" aria-label="previous year" title="previous year">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-        </button>
-        <button id="journalYearBtn" class="journal-year-wrap" aria-label="view year progress" title="view year progress">
-          <svg class="journal-year-ring" viewBox="0 0 72 72" aria-hidden="true">
-            <circle class="journal-year-ring-bg" cx="36" cy="36" r="30"></circle>
-            <circle id="journalYearRing" class="journal-year-ring-fill" cx="36" cy="36" r="30"></circle>
-            <circle id="journalYearComet" class="journal-year-ring-comet" cx="36" cy="36" r="30"></circle>
-          </svg>
-          <span id="journalYearLabel" class="journal-year"></span>
-        </button>
-        <button id="journalYearNext" class="icon-btn" aria-label="next year" title="next year">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
         <span class="journal-toolbar-gap"></span>
         <button id="journalExportBtn" class="icon-btn" aria-label="export this year as markdown" title="export this year as markdown">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -202,7 +188,27 @@
           </button>
         </div>
       </div>
-      <p class="journal-streak" id="journalStreak"></p>
+      <div class="journal-hero">
+        <div class="journal-hero-top">
+          <button id="journalYearPrev" class="icon-btn" aria-label="previous year" title="previous year">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <button id="journalYearBtn" class="journal-hero-year" aria-label="view year progress" title="view year progress"></button>
+          <button id="journalYearNext" class="icon-btn" aria-label="next year" title="next year">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <p class="journal-streak" id="journalStreak"></p>
+        </div>
+        <div class="meridian" id="journalMeridian">
+          <div class="rail" id="journalRail">
+            <div class="rail-fill"></div>
+            <div class="marker hidden" id="journalMarker">
+              <em id="journalMarkerLabel"></em>
+              <i></i><b></b>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <section id="journalYearProgress" class="journal-card hidden">
         <div class="journal-section-head">
