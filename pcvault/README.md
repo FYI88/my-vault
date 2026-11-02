@@ -9,7 +9,7 @@ One encrypted file holds everything — photos, videos, documents, PDFs, encrypt
 
 <br/>
 
-![Version](https://img.shields.io/badge/Version-2.1.0-107c41?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-V2%20in%20testing-d99b26?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078d4?style=for-the-badge&logo=windows&logoColor=white)
 ![Tauri](https://img.shields.io/badge/Tauri-v2%20(Rust)-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
 ![Electron](https://img.shields.io/badge/Electron-43.0-47848f?style=for-the-badge&logo=electron&logoColor=white)
@@ -20,6 +20,16 @@ One encrypted file holds everything — photos, videos, documents, PDFs, encrypt
 ---
 
 ## System Capabilities
+
+### Current branch: `updatingtoV2`
+
+This branch adds ordered saves, cancellation of stale decryption results on lock, file-only viewer navigation, immediate imported-filename search, viewer memory cleanup, and a shared two-job thumbnail limit. Electron also gains copied-secret cleanup on expiry/lock/normal quit, persistent background settings, and streamed integrity-cursor saves during unlock.
+
+Run `npm test` for **67 automated tests**, then `npm start` to try the desktop app. Fully quit an older instance before restarting. Live confirmation of the reported large-vault unlock freeze is still pending.
+
+Large vaults still require substantial memory during initial loading and ordinary data saves. Streamed unlock reduces memory/IPC copies but still copies the entire file on disk. It preserves the existing integrity checks and requires temporary disk space. The new clipboard and streamed-unlock handlers are Electron-only; Tauri retains full-save fallback and lacks the new clipboard handlers.
+
+See the [root README](../README.md#v2-reliability--performance-updates) for validation details and limitations.
 
 | Feature Module | Technical Specification |
 |----------------|-------------------------|
@@ -39,6 +49,9 @@ One encrypted file holds everything — photos, videos, documents, PDFs, encrypt
 
 ---
 
+## Security Architecture
+
+```text
 DEK ──→ wraps each file's unique 256-bit item key
               │
               ├── Photo: re-encoded through canvas (EXIF stripped)
@@ -48,15 +61,15 @@ DEK ──→ wraps each file's unique 256-bit item key
 ```
 
 - **Non-extractable WebCrypto keys**: All keys are held in `SubtleCrypto` memory contexts and never exposed to JavaScript scope or disk.
-- **Tamper Detection**: Deterministic round-robin sample check on unlock. Any byte flip prevents vault decryption.
-- **Zero Disk Leakage**: Files are decrypted on-the-fly into Blob URLs and revoked immediately upon navigation or lock.
+- **Tamper Detection**: Round-robin sampling checks up to three records on unlock, not the complete vault each time.
+- **In-memory previews**: Full-size viewer URLs are revoked on navigation/close or lock; thumbnail URLs remain until lock.
 - **Cryptographic Deletion**: Deleting a record destroys its unique AES key.
 
 ---
 
 ## Desktop Runtime Comparison
 
-The vault ships with **two interchangeable desktop backends** using the exact same HTML5/CSS3/JS renderer and crypto engine (`src/`).
+Two desktop backends share the renderer and crypto engine (`src/`); feature parity is incomplete. These historical measurements are not current large-vault benchmarks.
 
 | Benchmark Metric | **Electron 43 Shell** | **Tauri v2 (Rust) Shell** |
 |------------------|----------------------|---------------------------|
@@ -105,7 +118,7 @@ npx tauri build
 ### 5. Test Suite Verification
 ```bash
 npm test
-# → 41/41 test suite passing (18 WebCrypto + 9 Container + 14 Journal tests)
+# → 67 tests: 41 crypto/container/journal + 26 regression checks
 ```
 
 ---
@@ -116,6 +129,7 @@ npm test
 pcvault/
 ├── main.js                  # Electron main process (secure app:// protocol, trusted IPC)
 ├── preload.js               # Electron contextBridge (window.vaultAPI)
+├── vault-header.js          # Atomic streamed manifest replacement
 ├── HANDOFF-FABLE.md         # UI handoff notes for contributors
 ├── server.mjs               # Dev server with CSP & security headers
 ├── package.json             # Build targets & scripts
@@ -124,6 +138,8 @@ pcvault/
 │   ├── index.html           # Core HTML layout & viewer stage (shared by both shells)
 │   ├── styles.css           # Design tokens, media viewer HUD, & theme styling
 │   ├── renderer.js          # Main application lifecycle, viewer HUD, & event wiring
+│   ├── save-writer.mjs       # Ordered save queue
+│   ├── thumbnail-queue.mjs   # Shared thumbnail concurrency budget
 │   ├── vault-crypto.mjs     # WebCrypto engine (PBKDF2, AES-GCM, BIP-39)
 │   ├── container.mjs        # .cvault container format encoder/decoder
 │   ├── journal.mjs          # Encrypted daily journal & streak manager
@@ -169,5 +185,4 @@ All 10 security audit findings from August 2026 are **fully resolved**:
 
 ## License
 
-Built with **WebCrypto**, **Electron**, and **Tauri**.  
-*Private repository — for personal use.*
+PolyForm Noncommercial License 1.0.0. See [LICENSE](../LICENSE) for terms.
