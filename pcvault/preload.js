@@ -3,6 +3,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('vaultAPI', {
+  copySecret: (text) => ipcRenderer.invoke('clip:copySecret', text),
+  clearCopiedSecret: () => ipcRenderer.invoke('clip:clearSecret'),
   pickFolder: () => ipcRenderer.invoke('vault:pickFolder'),
   pickVaultFile: () => ipcRenderer.invoke('vault:pickVaultFile'),
   pickFiles: () => ipcRenderer.invoke('vault:pickFiles'),
@@ -11,6 +13,7 @@ contextBridge.exposeInMainWorld('vaultAPI', {
   writeFile: (p, bytes) => ipcRenderer.invoke('vault:writeFile', p, bytes),
   readFile: (p) => ipcRenderer.invoke('vault:readFile', p),
   writeFileAtomic: (p, bytes) => ipcRenderer.invoke('vault:writeFileAtomic', p, bytes),
+  writeManifestAtomic: (p, manifest) => ipcRenderer.invoke('vault:writeManifestAtomic', p, manifest),
   copyFile: (src, dst) => ipcRenderer.invoke('vault:copyFile', src, dst),
   reveal: (p) => ipcRenderer.invoke('vault:reveal', p),
   isDir: (p) => ipcRenderer.invoke('vault:isDir', p),

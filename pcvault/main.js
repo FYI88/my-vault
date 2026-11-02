@@ -1,6 +1,8 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, protocol, net, clipboard } = require('electron');
+const { createHash } = require('crypto');
+const { writeManifestAtomic } = require('./vault-header');
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
@@ -139,6 +141,31 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
+// Own the expiry in main so lock, renderer shutdown and quit cannot cancel it.
+// Retain a digest, not another plaintext password. Never clear a newer copy.
+let copiedSecretHash = null;
+let copiedSecretTimer = null;
+const clipboardHash = (text) => createHash('sha256').update(text).digest('hex');
+function clearCopiedSecret() {
+  clearTimeout(copiedSecretTimer);
+  copiedSecretTimer = null;
+  if (!copiedSecretHash) return;
+  try {
+    if (clipboardHash(clipboard.readText()) === copiedSecretHash) clipboard.clear();
+  } catch (e) { /* OS clipboard may be temporarily unavailable; best-effort */
+  } finally { copiedSecretHash = null; }
+}
+ipcMain.handle('clip:copySecret', (_e, text) => {
+  if (typeof text !== 'string') throw new Error('invalid clipboard text');
+  clearTimeout(copiedSecretTimer);
+  clipboard.writeText(text);
+  copiedSecretHash = clipboardHash(clipboard.readText());
+  copiedSecretTimer = setTimeout(clearCopiedSecret, 30000);
+  return true;
+});
+ipcMain.handle('clip:clearSecret', () => { clearCopiedSecret(); return true; });
+app.on('before-quit', clearCopiedSecret);
+
 // ---- window controls (frameless titlebar) ----------------------------------
 ipcMain.on('win:minimize', () => { if (win) win.minimize(); });
 ipcMain.on('win:toggleMaximize', () => {
@@ -185,9 +212,11 @@ function loadVaultPath() {
     if (typeof s.vaultPath === 'string' && s.vaultPath) vaultPath = s.vaultPath;
   } catch (e) { /* first run — no settings yet */ }
 }
-function saveVaultPath() {
+function saveSettings() {
   try {
-    fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ vaultPath }));
+    let previous = {};
+    try { previous = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')); } catch { /* first run */ }
+    fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ ...previous, vaultPath, bgFile: bgFilePath }));
   } catch (e) { /* best-effort — never fatal */ }
 }
 
@@ -197,7 +226,7 @@ function saveVaultPath() {
 ipcMain.handle('vault:getLastPath', () => vaultPath);
 ipcMain.handle('vault:forgetPath', () => {
   vaultPath = null;
-  saveVaultPath();
+  saveSettings();
   return true;
 });
 
@@ -209,7 +238,7 @@ ipcMain.handle('vault:pickFolder', async () => {
   });
   if (r.canceled || !r.filePaths.length) return null;
   vaultPath = path.join(r.filePaths[0], 'myvault.cvault');
-  saveVaultPath();
+  saveSettings();
   return r.filePaths[0];
 });
 
@@ -222,7 +251,7 @@ ipcMain.handle('vault:pickVaultFile', async () => {
   });
   if (r.canceled || !r.filePaths.length) return null;
   vaultPath = r.filePaths[0];
-  saveVaultPath();
+  saveSettings();
   return r.filePaths[0];
 });
 
@@ -345,11 +374,6 @@ function loadBgPath() {
     if (typeof s.bgFile === 'string' && s.bgFile) bgFilePath = s.bgFile;
   } catch (e) { /* first run — no settings yet */ }
 }
-function saveBgPath() {
-  try {
-    fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ vaultPath, bgFile: bgFilePath }));
-  } catch (e) { /* best-effort — never fatal */ }
-}
 
 // Pick an image or video to use as the lock-screen background. Copies it into
 // userData/background so the vault stays self-contained; returns the kind
@@ -373,7 +397,7 @@ ipcMain.handle('vault:pickBackground', async () => {
     const dst = path.join(BG_DIR(), `bg${ext}`);
     await fsp.copyFile(src, dst);
     bgFilePath = dst;
-    saveBgPath();
+    saveSettings();
     return kind;
   } catch (e) {
     return null;
@@ -383,7 +407,7 @@ ipcMain.handle('vault:pickBackground', async () => {
 // Remove the custom background (fall back to the animated ones).
 ipcMain.handle('vault:clearBackground', () => {
   bgFilePath = null;
-  saveBgPath();
+  saveSettings();
   return true;
 });
 
@@ -463,4 +487,8 @@ ipcMain.handle('vault:deleteOriginals', async (_e, paths) => {
   return results;
 });
 
-loadBgPath();
+ipcMain.handle('vault:writeManifestAtomic', async (_e, filePath, manifest) => {
+  if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');
+  await writeManifestAtomic(filePath, manifest);
+  return true;
+});

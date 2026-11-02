@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "node server.mjs",
-    "test": "node test/crypto.test.mjs && node test/container.test.mjs && node test/journal.test.mjs",
+    "test": "node test/crypto.test.mjs && node test/container.test.mjs && node test/journal.test.mjs && node --test test/save-writer.test.mjs test/renderer-session.test.mjs test/main-process.test.mjs test/vault-header.test.mjs test/thumbnail-queue.test.mjs",
     "dist": "electron-builder --win portable"
   },
   "build": {
@@ -18,6 +18,7 @@
     "productName": "My Vault",
     "files": [
       "main.js",
+      "vault-header.js",
       "preload.js",
       "src/**/*",
       "!node_modules"
