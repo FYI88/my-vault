@@ -3,6 +3,8 @@
 const { app, BrowserWindow, dialog, ipcMain, shell, protocol, net, clipboard } = require('electron');
 const { createHash } = require('crypto');
 const { writeManifestAtomic } = require('./vault-header');
+const { createVaultStore } = require('./vault-store');
+const vaultStore = createVaultStore();
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
@@ -18,7 +20,7 @@ protocol.registerSchemesAsPrivileged([
 // Full CSP. frame-ancestors only works as a response header (ignored in a meta
 // tag), so the app:// handler below delivers this header; the index.html meta
 // carries the rest for the dev-server/browser harness.
-const CSP_HEADER = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'";
+const CSP_HEADER = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; worker-src 'self'; font-src 'self'; connect-src 'self'";
 
 function mimeFor(p) {
   const ext = path.extname(p).toLowerCase();
@@ -145,6 +147,7 @@ app.on('window-all-closed', () => {
 // Retain a digest, not another plaintext password. Never clear a newer copy.
 let copiedSecretHash = null;
 let copiedSecretTimer = null;
+let copiedSecretRetries = 0;
 const clipboardHash = (text) => createHash('sha256').update(text).digest('hex');
 function clearCopiedSecret() {
   clearTimeout(copiedSecretTimer);
@@ -152,14 +155,22 @@ function clearCopiedSecret() {
   if (!copiedSecretHash) return;
   try {
     if (clipboardHash(clipboard.readText()) === copiedSecretHash) clipboard.clear();
-  } catch (e) { /* OS clipboard may be temporarily unavailable; best-effort */
-  } finally { copiedSecretHash = null; }
+    // Some clipboard providers fail without throwing. Verify before forgetting
+    // ownership; a temporarily busy OS clipboard must not disable expiration.
+    if (clipboardHash(clipboard.readText()) === copiedSecretHash) throw new Error('clipboard clear did not take effect');
+    copiedSecretHash = null;
+    copiedSecretRetries = 0;
+  } catch (e) {
+    if (copiedSecretRetries++ < 60) copiedSecretTimer = setTimeout(clearCopiedSecret, 1000);
+    // Keep the digest after retry exhaustion so lock/quit can try again.
+  }
 }
 ipcMain.handle('clip:copySecret', (_e, text) => {
   if (typeof text !== 'string') throw new Error('invalid clipboard text');
   clearTimeout(copiedSecretTimer);
   clipboard.writeText(text);
   copiedSecretHash = clipboardHash(clipboard.readText());
+  copiedSecretRetries = 0;
   copiedSecretTimer = setTimeout(clearCopiedSecret, 30000);
   return true;
 });
@@ -297,16 +308,36 @@ ipcMain.handle('vault:saveFileAs', async (_e, suggestedName) => {
 // Write an exported plaintext copy (explicit user action only).
 ipcMain.handle('vault:writeFile', async (_e, filePath, bytes) => {
   if (filePath !== lastExportDst) throw new Error('forbidden path');
-  await fsp.writeFile(filePath, Buffer.from(bytes));
+  await fsp.writeFile(filePath, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
   return true;
 });
 
 // Read a whole file as bytes.
+ipcMain.handle('vault:openIndexed', async (_e, filePath) => {
+  if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');
+  return vaultStore.open(filePath);
+});
+ipcMain.handle('vault:readRecordChunk', async (_e, token, id, offset, length) => {
+  if (!samePath(vaultStore.path(token), vaultPath)) throw new Error('forbidden path');
+  return vaultStore.read(token, id, offset, length);
+});
+ipcMain.handle('vault:saveIndexed', async (_e, token, manifest, records) => {
+  if (!samePath(vaultStore.path(token), vaultPath)) throw new Error('forbidden path');
+  return vaultStore.save(token, manifest, records);
+});
+ipcMain.handle('vault:importFileSize', async (_e, filePath) => {
+  if (!allowedImportPaths.has(path.normalize(filePath))) throw new Error('forbidden path');
+  const stat = await fsp.stat(filePath);
+  if (!stat.isFile()) throw new Error('not a file');
+  return stat.size;
+});
 ipcMain.handle('vault:readFile', async (_e, filePath) => {
   const norm = path.normalize(filePath);
   if (samePath(filePath, vaultPath) || allowedImportPaths.has(norm)) {
+    const stat = await fsp.stat(filePath);
+    if (stat.size > 2 ** 31 - 1) throw new Error('VAULT_TOO_LARGE: file exceeds the current 2 GiB reader limit');
     const buf = await fsp.readFile(filePath);
-    return new Uint8Array(buf);
+    return buf;
   }
   throw new Error('forbidden path');
 });
@@ -318,7 +349,7 @@ ipcMain.handle('vault:readFile', async (_e, filePath) => {
 ipcMain.handle('vault:writeFileAtomic', async (_e, filePath, bytes) => {
   if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');
   const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  const buf = Buffer.from(bytes);
+  const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   await fsp.writeFile(tmp, buf);
   try {
     await fsp.rename(tmp, filePath);

@@ -10,6 +10,9 @@ import {
 import { serializeVault, parseVault } from './container.mjs';
 import { createSaveWriter } from './save-writer.mjs';
 import { createThumbnailQueue } from './thumbnail-queue.mjs';
+import { readRecordBytes, checkIndexedIntegrity } from './record-access.mjs';
+import { verifyRecordInWorker } from './integrity-client.mjs';
+import { MAX_VAULT_BYTES, WARN_VAULT_BYTES, vaultByteLength, importFits } from './vault-limits.mjs';
 import { initWormhole } from './wormhole.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
@@ -54,6 +57,8 @@ const state = {
   dek: null,         // non-extractable CryptoKey — dropped on lock
   items: [],         // records; photo bytes are ciphertext, safe to hold
   unlocked: false,
+  loading: false,
+  storeToken: null,   // metadata-only Electron file session; no whole-file payload
   sessionId: 0,      // invalidates async plaintext work across lock/load/unlock
   urls: new Set(),     // object URLs to revoke on lock
   thumbCache: new Map(), // id → thumbnail object URL — re-render after a reorder stays instant
@@ -82,6 +87,7 @@ const state = {
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
+let integrityAbort = null;
 let toastTimer = null;
 let editingSecretId = null; // null = new secret, else id of secret being edited
 
@@ -466,29 +472,84 @@ function isHelpOpen() {
 
 // ---- vault file ----
 const writeVault = createSaveWriter(
-  (path, snapshot) => snapshot.manifest
-    ? window.vaultAPI.writeManifestAtomic(path, snapshot.manifest)
-    : window.vaultAPI.writeFileAtomic(path, snapshot.bytes),
+  async (path, snapshot) => {
+    if (snapshot.token) return window.vaultAPI.saveIndexed(snapshot.token, snapshot.manifest, snapshot.records);
+    if (snapshot.manifest) return window.vaultAPI.writeManifestAtomic(path, snapshot.manifest);
+    await window.vaultAPI.writeFileAtomic(path, snapshot.bytes);
+    // Creation uses the tiny empty-file path once, then adopts indexed I/O.
+    if (window.vaultAPI.openIndexed) return window.vaultAPI.openIndexed(path);
+  },
   () => toast("couldn't save the vault. changes are not saved; try again before closing."),
 );
 async function saveVault() {
   if (!state.path || !state.manifest) return;
+  const path = state.path;
+  const token = state.storeToken;
+  if (token) {
+    const items = state.items.slice();
+    const manifest = JSON.parse(JSON.stringify(state.manifest));
+    const records = items.map(({ photo, ...metadata }) => ({ metadata: JSON.parse(JSON.stringify(metadata)),
+      ...(photo !== undefined ? { photo } : {}) }));
+    const result = await writeVault(path, { token, manifest, records });
+    if (state.path === path && state.storeToken === token) {
+      // Queued snapshots hold their own references. Drop only the exact payload
+      // that this save committed; unsaved replacement records remain intact.
+      items.forEach((record, i) => { if (record.photo === records[i].photo) delete record.photo; });
+    }
+    return result;
+  }
   // Capture both together: a queued save must never read another vault's state.
   const bytes = serializeVault(state.manifest, state.items);
-  return writeVault(state.path, { bytes });
+  const result = await writeVault(path, { bytes });
+  if (result?.token && state.path === path && !state.storeToken) state.storeToken = result.token;
+  return result;
 }
 
 function saveManifest() {
+  if (state.storeToken) return saveVault();
   // Older bridges retain the compatible full-save path.
   if (!window.vaultAPI.writeManifestAtomic) return saveVault();
   return writeVault(state.path, { manifest: JSON.parse(JSON.stringify(state.manifest)) });
 }
 
+async function recordBytes(rec, valid = () => true, forceDisk = false) {
+  if (!state.storeToken || (!forceDisk && rec.photo !== undefined)) return rec.photo;
+  const token = state.storeToken;
+  const session = state.sessionId;
+  return readRecordBytes(rec,
+    (offset, length) => window.vaultAPI.readRecordChunk(token, rec.id, offset, length),
+    () => session === state.sessionId && token === state.storeToken && valid());
+}
+
+function decryptRecord(itemKey, rec, valid = () => true) {
+  return recordBytes(rec, valid).then((bytes) => {
+    if (!valid()) throw new Error('vault session ended');
+    return decBytes(itemKey, rec.photoIv, bytes);
+  });
+}
+
 async function tryLoad(path, silent) {
   lock(); // discard the previous session before reading a different vault
+  const session = state.sessionId;
+  state.path = null;
+  state.manifest = null;
+  state.items = [];
+  state.storeToken = null;
+  state.loading = true;
+  $('unlockBtn').disabled = true;
+  $('unlockStatus').textContent = 'loading your vault…';
   try {
-    const bytes = await window.vaultAPI.readFile(path);
-    const parsed = parseVault(bytes);
+    let parsed;
+    let byteLength;
+    if (window.vaultAPI.openIndexed) {
+      parsed = await window.vaultAPI.openIndexed(path);
+      byteLength = parsed.byteLength;
+    } else {
+      const bytes = await window.vaultAPI.readFile(path);
+      byteLength = bytes.byteLength;
+      parsed = parseVault(bytes);
+    }
+    if (session !== state.sessionId) return false;
     if (!parsed) {
       if (!silent) toast('that file does not look like a vault');
       return false;
@@ -496,6 +557,8 @@ async function tryLoad(path, silent) {
     state.path = path;
     state.manifest = parsed.manifest;
     state.items = parsed.items;
+    state.storeToken = parsed.token || null;
+    if (byteLength >= WARN_VAULT_BYTES) toast('vault nearly full. keep a backup; large imports may be refused.');
     refreshPathLines();
     setHidden('tamperWarn', true);
     $('unlockPass').value = '';
@@ -503,12 +566,23 @@ async function tryLoad(path, silent) {
     resetIdle();
     return true;
   } catch (err) {
+    if (session !== state.sessionId) return false;
+    if (/VAULT_TOO_LARGE|ERR_FS_FILE_TOO_LARGE|greater than 2 GiB/.test(String(err))) {
+      toast('this vault exceeds the current size limit. the file and its saved location have been kept.');
+      return false;
+    }
     if (silent) {
       await window.vaultAPI.forgetPath(); // stale bookmark — the file moved or died
     } else {
       toast("couldn't open that file");
     }
     return false;
+  } finally {
+    if (session === state.sessionId) {
+      state.loading = false;
+      $('unlockBtn').disabled = false;
+      $('unlockStatus').textContent = '';
+    }
   }
 }
 
@@ -544,6 +618,7 @@ async function handleCreate(e) {
     state.manifest = manifest;
     state.path = path;
     state.items = [];
+    state.storeToken = null;
     state.pendingDek = dek;
     await saveVault(); // the empty encrypted vault file exists on disk
     refreshPathLines();
@@ -598,7 +673,7 @@ async function handleSeedDone() {
 }
 
 // ---- unlock ----
-async function enterWithDek(dek, session = state.sessionId) {
+async function enterWithDek(dek, session = state.sessionId, stage = async () => {}) {
   if (session !== state.sessionId) return;
   // First unlock: fold the machine-local gallery pick into the vault file so it
   // travels with the .cvault from now on.
@@ -611,7 +686,24 @@ async function enterWithDek(dek, session = state.sessionId) {
   try { migratedLife = await adoptLifeFromLocalStorage(); } catch {}
   if (session !== state.sessionId) return;
   state.dek = null;
-  const r = await tamperSample(state.manifest, dek, state.items);
+  await stage('checking vault integrity…');
+  if (session !== state.sessionId) return;
+  let r;
+  if (state.storeToken && typeof Worker === 'function') {
+    const controller = new AbortController();
+    integrityAbort = controller;
+    const token = state.storeToken;
+    const valid = () => session === state.sessionId && token === state.storeToken;
+    try {
+      r = await checkIndexedIntegrity(state.manifest, dek, state.items, (rec) => recordBytes(rec), valid,
+        (rec) => verifyRecordInWorker(dek, rec,
+          (offset, length) => window.vaultAPI.readRecordChunk(token, rec.id, offset, length), valid, controller.signal));
+    } finally { if (integrityAbort === controller) integrityAbort = null; }
+  } else {
+    r = state.storeToken
+      ? await checkIndexedIntegrity(state.manifest, dek, state.items, (rec) => recordBytes(rec), () => session === state.sessionId)
+      : await tamperSample(state.manifest, dek, state.items);
+  }
   if (session !== state.sessionId) return;
   if (r.tampered) {
     setHidden('tamperWarn', false);
@@ -620,67 +712,132 @@ async function enterWithDek(dek, session = state.sessionId) {
     return;
   }
   state.manifest.tamperIdx = r.tamperIdx;
-  state.dek = dek;
-  state.unlocked = true;
   setHidden('tamperWarn', true);
   $('unlockPass').value = '';
   // Persist the integrity cursor without copying gigabytes through the UI/IPC.
   // A legacy life migration adds a record, so it still requires a full save.
+  await stage('saving vault state…');
+  if (session !== state.sessionId) return;
   if (migratedLife) await saveVault();
   else await saveManifest();
+  if (session !== state.sessionId) return;
+  state.dek = dek;
+  state.unlocked = true;
+  await stage('opening your vault…');
   if (!sessionActive(session)) return;
   await unlockBeat();
   if (!sessionActive(session)) return;
   renderGrid();
-  show('unlocked');
+  await show('unlocked');
   resetIdle();
 }
 
 let authBusy = false;
+let authRequest = null;
+function resetAuthStatus() {
+  const request = authRequest;
+  authRequest = null;
+  authBusy = false;
+  if ($('unlockStatus')) $('unlockStatus').textContent = '';
+  if (request) {
+    request.form.setAttribute('aria-busy', 'false');
+    setBusy(request.btn, false);
+    request.input.readOnly = false;
+  }
+}
+function beginAuth(form, input, btn) {
+  const request = { form, input, btn, session: state.sessionId };
+  authRequest = request;
+  authBusy = true;
+  form.setAttribute('aria-busy', 'true');
+  setBusy(btn, true);
+  input.readOnly = true;
+  return request;
+}
+function authCurrent(request) {
+  return authRequest === request && request.session === state.sessionId;
+}
+async function authStage(request, text) {
+  if (!authCurrent(request)) return;
+  $('unlockStatus').textContent = text;
+  // Yield for paint when visible, but never depend on animation frames: Windows
+  // suspends them for minimized/occluded windows. The timer is a fallback only.
+  await new Promise((resolve) => {
+    let frame;
+    let timer;
+    const done = () => {
+      clearTimeout(timer);
+      if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
+      resolve();
+    };
+    timer = setTimeout(done, 100);
+    frame = requestAnimationFrame(() => { frame = requestAnimationFrame(done); });
+  });
+}
 async function handleUnlock(e) {
   const session = state.sessionId;
   e.preventDefault();
-  if (authBusy) return;
-  authBusy = true;
+  if (authBusy || state.loading || !state.manifest) return;
   setErr('unlockErr', '');
   const inp = $('unlockPass');
-  setBusy($('unlockBtn'), true); inp.readOnly = true;
+  const request = beginAuth($('unlockForm'), inp, $('unlockBtn'));
   try {
+    await authStage(request, 'checking password…');
+    if (!authCurrent(request)) return;
     const raw = await unlockWithPass(state.manifest, inp.value);
+    if (!authCurrent(request)) { vaultWipeRaw(raw); return; }
     if (!raw) { setErr('unlockErr', 'wrong passphrase'); shake(inp); inp.select(); return; }
     const dek = await vaultImportAESKey(raw);
     vaultWipeRaw(raw);
-    await enterWithDek(dek, session);
+    await enterWithDek(dek, session, (text) => authStage(request, text));
+  } catch (err) {
+    if (authCurrent(request)) {
+      state.dek = null; state.unlocked = false;
+      setErr('unlockErr', "couldn't open the vault. check disk space and file access, then try again.");
+    }
   } finally {
-    setBusy($('unlockBtn'), false); inp.readOnly = false; authBusy = false;
+    if (authCurrent(request)) resetAuthStatus();
   }
 }
 
 async function handleSeedRecovery(e) {
   const session = state.sessionId;
   e.preventDefault();
-  if (authBusy) return;
-  authBusy = true;
+  if (authBusy || state.loading || !state.manifest) return;
   setErr('seedRecoveryErr', '');
   const inp = $('seedRecoveryInput');
   const btn = e.target.querySelector('button[type="submit"]');
-  setBusy(btn, true); inp.readOnly = true;
+  const request = beginAuth($('seedRecoveryForm'), inp, btn);
   try {
+    await authStage(request, 'checking recovery words…');
+    if (!authCurrent(request)) return;
     const raw = await unlockWithSeed(state.manifest, inp.value.trim());
+    if (!authCurrent(request)) { vaultWipeRaw(raw); return; }
     if (!raw) { setErr('seedRecoveryErr', "those words don't unlock this vault"); shake(inp); return; }
     const dek = await vaultImportAESKey(raw);
     vaultWipeRaw(raw);
     inp.value = '';
-    setHidden('seedRecoveryForm', true);
-    setHidden('seedRecoveryLink', false);
-    await enterWithDek(dek, session);
+    await enterWithDek(dek, session, (text) => authStage(request, text));
+    if (authCurrent(request) && state.unlocked) {
+      setHidden('seedRecoveryForm', true);
+      setHidden('seedRecoveryLink', false);
+    }
+  } catch (err) {
+    if (authCurrent(request)) {
+      state.dek = null; state.unlocked = false;
+      setErr('seedRecoveryErr', "couldn't open the vault. check disk space and file access, then try again.");
+    }
   } finally {
-    setBusy(btn, false); inp.readOnly = false; authBusy = false;
+    if (authCurrent(request)) resetAuthStatus();
   }
 }
 
 // ---- lock ----
 function lock() {
+  if (integrityAbort) { integrityAbort.abort(); integrityAbort = null; }
+  resetAuthStatus();
+  state.loading = false;
+  $('unlockBtn').disabled = false;
   state.sessionId++;
   viewerSeq++;
   galleryHydrateSeq++;
@@ -902,19 +1059,34 @@ async function addFilesViaDialog() {
   const files = [];
   const srcPaths = [];
   let unreadable = 0;
+  let refused = 0;
+  let projected = vaultByteLength(state.manifest, state.items);
   for (const p of paths) {
     try {
-      const bytes = new Uint8Array(await window.vaultAPI.readFile(p));
       const name = String(p).split(/[\\/]/).pop() || String(p);
+      if (!window.vaultAPI.importFileSize) {
+        refused++;
+        continue; // cannot safely preflight an older bridge
+      }
+      const size = await window.vaultAPI.importFileSize(p);
+      if (!importFits(projected, size, name)) { refused++; continue; }
+      const bytes = new Uint8Array(await window.vaultAPI.readFile(p));
+      if (!importFits(projected, bytes.length, name)) { refused++; continue; }
       files.push(new File([bytes], name, { type: mimeFromName(name) }));
       srcPaths.push(p);
+      projected += bytes.length + new TextEncoder().encode(name).length * 4 + 4096;
     } catch {
       unreadable++;
     }
   }
-  if (!files.length) { if (unreadable) toast("couldn't read those files"); return; }
+  if (!files.length) {
+    if (refused) toast('import refused: vault size limit or import size check unavailable. originals kept.');
+    else if (unreadable) toast("couldn't read those files");
+    return;
+  }
   await handleFiles(files, srcPaths);
   if (unreadable) toast(`${unreadable} couldn't be read`);
+  if (refused) toast(`${refused} skipped by the vault size guard. originals kept.`);
 }
 
 async function handleFiles(files, srcPaths) {
@@ -923,6 +1095,8 @@ async function handleFiles(files, srcPaths) {
   let added = 0;
   let skipped = 0;    // could not be read
   let skippedBig = 0; // over the size guard
+  let skippedCapacity = 0;
+  let currentBytes = vaultByteLength(state.manifest, state.items);
   const imported = []; // { id, path, name } — source paths for the originals offer (dialog flow only)
   let idx = 0;
   for (const file of files) {
@@ -933,6 +1107,7 @@ async function handleFiles(files, srcPaths) {
       skippedBig++;
       continue;
     }
+    if (!importFits(currentBytes, file.size, file.name)) { skippedCapacity++; continue; }
     try {
       const mime = file.type || mimeFromName(file.name);
       if (mime.startsWith('image/')) {
@@ -941,6 +1116,9 @@ async function handleFiles(files, srcPaths) {
         const bytes = new Uint8Array(await stripped.arrayBuffer());
         const rec = await encryptFile('photo', 'image/jpeg', file.name, bytes);
         if (!sessionActive(session)) return;
+        const nextBytes = vaultByteLength(state.manifest, [...state.items, rec]);
+        if (nextBytes > MAX_VAULT_BYTES) { skippedCapacity++; continue; }
+        currentBytes = nextBytes;
         state.items.push(rec); state.newIds.add(rec.id);
         state.nameCache.set(rec.id, file.name);
         if (srcPath) imported.push({ id: rec.id, path: srcPath, name: file.name });
@@ -950,6 +1128,9 @@ async function handleFiles(files, srcPaths) {
         const kind = mime.startsWith('video/') ? 'video' : 'doc';
         const rec = await encryptFile(kind, mime, file.name, bytes);
         if (!sessionActive(session)) return;
+        const nextBytes = vaultByteLength(state.manifest, [...state.items, rec]);
+        if (nextBytes > MAX_VAULT_BYTES) { skippedCapacity++; continue; }
+        currentBytes = nextBytes;
         state.items.push(rec); state.newIds.add(rec.id);
         state.nameCache.set(rec.id, file.name);
         if (srcPath) imported.push({ id: rec.id, path: srcPath, name: file.name });
@@ -969,6 +1150,7 @@ async function handleFiles(files, srcPaths) {
   const bits = [];
   if (added) bits.push(`${added} ${word} added to the vault`);
   if (skippedBig) bits.push(`${skippedBig} over 2 GB skipped`);
+  if (skippedCapacity) bits.push(`${skippedCapacity} skipped: vault size limit, originals kept`);
   if (skipped) bits.push(`${skipped} couldn't be read`);
   if (bits.length) toast(bits.join(', '));
   if (imported.length) {
@@ -980,16 +1162,17 @@ async function handleFiles(files, srcPaths) {
 // Returns the bad file's name, or null when all verify. Nothing is deleted
 // unless this passes — the vault must prove it holds good copies first.
 async function verifyRecordsFromDisk(files) {
+  const session = state.sessionId;
   try {
-    const bytes = await window.vaultAPI.readFile(state.path);
-    const parsed = parseVault(bytes);
+    // Indexed records read only their own committed bytes, never the whole file.
+    const parsed = state.storeToken ? { items: state.items } : parseVault(await window.vaultAPI.readFile(state.path));
     if (!parsed) return 'vault file';
     for (const f of files) {
       const rec = parsed.items.find((r) => r.id === f.id);
       if (!rec) return f.name;
       try {
         const itemKey = await unwrapItemKey(state.dek, rec);
-        const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+        const plain = await decBytes(itemKey, rec.photoIv, await recordBytes(rec, () => sessionActive(session), true));
         const ok = plain.length === rec.size;
         vaultWipeRaw(plain);
         if (!ok) return f.name;
@@ -1214,7 +1397,7 @@ async function decryptSecret(rec) {
   if (state.secretsCache.has(rec.id)) return state.secretsCache.get(rec.id);
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
-    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
     try {
       const txt = new TextDecoder().decode(plain);
       const obj = JSON.parse(txt);
@@ -1298,7 +1481,7 @@ function copyWithClear(text, label) {
   if (!text) return;
   if (!window.vaultAPI?.copySecret) { toast('copy is only available in the desktop app'); return; }
   window.vaultAPI.copySecret(text).then(() => {
-    toast(label + ' copied — clears in 30s');
+    toast(label + ' copied — paste clears in 30s; Windows history may retain it');
   }).catch(() => toast("couldn't copy"));
 }
 async function renderSecrets() {
@@ -1419,7 +1602,7 @@ async function getLifeData() {
   if (!rec) return null;
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
-    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
     try {
       const obj = JSON.parse(new TextDecoder().decode(plain));
       const dob = String(obj.dob || '');
@@ -1664,7 +1847,7 @@ async function buildGalleryItems() {
     const full = state.nameCache.get(rec.id) || '';
     return {
       id: rec.id,
-      thumbUrl: state.thumbCache.get(rec.id) || '',
+      thumbUrl: state.thumbCache.get(rec.id) || (rec.kind === 'video' && !canAutoThumbnail(rec) ? VIDEO_PLACEHOLDER_URL : ''),
       name: full,
       title: shortName(full),
       kind: rec.kind,
@@ -1677,6 +1860,13 @@ let galleryHydrateSeq = 0; // stale-run guard — a reopened gallery drops the o
 const GALLERY_POOL = 5;      // parallel decrypt+thumb jobs (was: serial, one at a time)
 const GALLERY_THUMB_MAX = 320; // gallery tiles are small; the grid keeps 480
 const VIDEO_BUDGET_MS = 6000;  // per-video cap on the first pass; slow videos retry on idle
+// A preview must not decrypt hundreds of MB just because a tile is visible.
+// Full playback is still available immediately when the user opens the tile.
+const AUTO_VIDEO_THUMB_BYTES = 32 * 1024 ** 2;
+const VIDEO_PLACEHOLDER_URL = new URL('./video-placeholder.svg', import.meta.url).href;
+function canAutoThumbnail(rec) {
+  return rec.kind === 'photo' || (rec.kind === 'video' && (rec.photoLen || rec.size || 0) <= AUTO_VIDEO_THUMB_BYTES);
+}
 
 function renderGalleryProgress(done, total, phase) {
   const pill = $('galleryProgress');
@@ -1730,7 +1920,7 @@ async function populateGallery() {
   }
   // The gallery shows photos and videos only — journals, secrets, and life
   // records never reach a tile, so they no longer burn decrypt cycles here.
-  const missing = state.items.filter((r) => (r.kind === 'photo' || r.kind === 'video') && !state.thumbCache.has(r.id));
+  const missing = state.items.filter((r) => canAutoThumbnail(r) && !state.thumbCache.has(r.id));
   const photos = missing.filter((r) => r.kind === 'photo');
   const videos = missing.filter((r) => r.kind === 'video');
   const pending = new Set(missing.map((r) => r.id));
@@ -1825,7 +2015,7 @@ async function journalForYear(year) {
   }
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
-    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
     try {
       const blob = parseYearJSON(new TextDecoder().decode(plain));
       if (!sessionActive(session)) return emptyYear(year);
@@ -2369,7 +2559,11 @@ async function renderGrid() {
       setCellMedia(media, cached, rec.kind, true);
     } else {
       media.innerHTML = `<div class="ph">${ic(icon)}</div>`;
-      if (rec.kind !== 'doc') { cell.classList.add('is-loading'); gridIO.observe(cell); }
+      if (canAutoThumbnail(rec)) { cell.classList.add('is-loading'); gridIO.observe(cell); }
+      else if (rec.kind === 'video') {
+        cell.title = 'open video to play — preview skipped to save memory';
+        media.innerHTML += `<div class="play-badge">${ic('play')}</div>`;
+      }
     }
     if (state.newIds.has(rec.id)) cell.classList.add('is-new');
     const name = state.nameCache.get(rec.id) || '';
@@ -2398,7 +2592,7 @@ function thumbUrl(rec, max = 480) {
 async function makePhotoThumb(rec, max) {
   const session = state.sessionId;
   const itemKey = await unwrapItemKey(state.dek, rec);
-  const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+  const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
   if (!sessionActive(session)) { vaultWipeRaw(plain); throw new Error('session ended'); }
   let blob;
   try {
@@ -2459,7 +2653,7 @@ function videoThumbUrl(rec) {
 async function makeVideoThumb(rec) {
   const session = state.sessionId;
   const itemKey = await unwrapItemKey(state.dek, rec);
-  const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+  const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
   if (!sessionActive(session)) { vaultWipeRaw(plain); throw new Error('session ended'); }
   let blob;
   try {
@@ -2675,7 +2869,7 @@ async function openItem(id, dir) {
     if (rec.kind !== 'photo' && rec.size != null) metaBits.push(fmtSize(rec.size));
     $('itemDate').textContent = metaBits.join(' · ');
     if (rec.kind === 'photo') {
-      const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+      const plain = await decryptRecord(itemKey, rec, alive);
       if (!alive()) { vaultWipeRaw(plain); return; }
       let blob;
       try {
@@ -2692,7 +2886,7 @@ async function openItem(id, dir) {
       if (!alive()) return;
       setHidden('itemImg', false);
     } else if (rec.kind === 'video') {
-      const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+      const plain = await decryptRecord(itemKey, rec, alive);
       if (!alive()) { vaultWipeRaw(plain); return; }
       let blob;
       try {
@@ -2708,7 +2902,7 @@ async function openItem(id, dir) {
       setHidden('viewerPlay', false); // paused → the big play button sits over the frame
     } else {
       // docs: PDF and text render in-app; everything else falls back to icon + export
-      const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+      const plain = await decryptRecord(itemKey, rec, alive);
       if (!alive()) { vaultWipeRaw(plain); return; }
       try {
         if (rec.mime === 'application/pdf') {
@@ -2755,7 +2949,7 @@ async function handleExport() {
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
     const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });
-    plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    plain = await decryptRecord(itemKey, rec, alive);
     if (!alive()) return;
     const dst = await window.vaultAPI.saveFileAs(name || 'export');
     if (!dst || !alive()) return;
@@ -3108,6 +3302,7 @@ function wire() {
     setErr('seedRecoveryErr', '');
   });
   $('seedRecoveryCancel').addEventListener('click', () => {
+    if (authBusy) lock();
     setHidden('seedRecoveryForm', true);
     setHidden('seedRecoveryLink', false);
     setErr('seedRecoveryErr', '');
