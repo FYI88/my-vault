@@ -1,6 +1,10 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, protocol, net, clipboard } = require('electron');
+const { createHash } = require('crypto');
+const { writeManifestAtomic } = require('./vault-header');
+const { createVaultStore } = require('./vault-store');
+const vaultStore = createVaultStore();
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
@@ -16,7 +20,7 @@ protocol.registerSchemesAsPrivileged([
 // Full CSP. frame-ancestors only works as a response header (ignored in a meta
 // tag), so the app:// handler below delivers this header; the index.html meta
 // carries the rest for the dev-server/browser harness.
-const CSP_HEADER = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'";
+const CSP_HEADER = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; worker-src 'self'; font-src 'self'; connect-src 'self'";
 
 function mimeFor(p) {
   const ext = path.extname(p).toLowerCase();
@@ -139,6 +143,40 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
+// Own the expiry in main so lock, renderer shutdown and quit cannot cancel it.
+// Retain a digest, not another plaintext password. Never clear a newer copy.
+let copiedSecretHash = null;
+let copiedSecretTimer = null;
+let copiedSecretRetries = 0;
+const clipboardHash = (text) => createHash('sha256').update(text).digest('hex');
+function clearCopiedSecret() {
+  clearTimeout(copiedSecretTimer);
+  copiedSecretTimer = null;
+  if (!copiedSecretHash) return;
+  try {
+    if (clipboardHash(clipboard.readText()) === copiedSecretHash) clipboard.clear();
+    // Some clipboard providers fail without throwing. Verify before forgetting
+    // ownership; a temporarily busy OS clipboard must not disable expiration.
+    if (clipboardHash(clipboard.readText()) === copiedSecretHash) throw new Error('clipboard clear did not take effect');
+    copiedSecretHash = null;
+    copiedSecretRetries = 0;
+  } catch (e) {
+    if (copiedSecretRetries++ < 60) copiedSecretTimer = setTimeout(clearCopiedSecret, 1000);
+    // Keep the digest after retry exhaustion so lock/quit can try again.
+  }
+}
+ipcMain.handle('clip:copySecret', (_e, text) => {
+  if (typeof text !== 'string') throw new Error('invalid clipboard text');
+  clearTimeout(copiedSecretTimer);
+  clipboard.writeText(text);
+  copiedSecretHash = clipboardHash(clipboard.readText());
+  copiedSecretRetries = 0;
+  copiedSecretTimer = setTimeout(clearCopiedSecret, 30000);
+  return true;
+});
+ipcMain.handle('clip:clearSecret', () => { clearCopiedSecret(); return true; });
+app.on('before-quit', clearCopiedSecret);
+
 // ---- window controls (frameless titlebar) ----------------------------------
 ipcMain.on('win:minimize', () => { if (win) win.minimize(); });
 ipcMain.on('win:toggleMaximize', () => {
@@ -185,9 +223,11 @@ function loadVaultPath() {
     if (typeof s.vaultPath === 'string' && s.vaultPath) vaultPath = s.vaultPath;
   } catch (e) { /* first run — no settings yet */ }
 }
-function saveVaultPath() {
+function saveSettings() {
   try {
-    fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ vaultPath }));
+    let previous = {};
+    try { previous = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')); } catch { /* first run */ }
+    fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ ...previous, vaultPath, bgFile: bgFilePath }));
   } catch (e) { /* best-effort — never fatal */ }
 }
 
@@ -197,7 +237,7 @@ function saveVaultPath() {
 ipcMain.handle('vault:getLastPath', () => vaultPath);
 ipcMain.handle('vault:forgetPath', () => {
   vaultPath = null;
-  saveVaultPath();
+  saveSettings();
   return true;
 });
 
@@ -209,7 +249,7 @@ ipcMain.handle('vault:pickFolder', async () => {
   });
   if (r.canceled || !r.filePaths.length) return null;
   vaultPath = path.join(r.filePaths[0], 'myvault.cvault');
-  saveVaultPath();
+  saveSettings();
   return r.filePaths[0];
 });
 
@@ -222,7 +262,7 @@ ipcMain.handle('vault:pickVaultFile', async () => {
   });
   if (r.canceled || !r.filePaths.length) return null;
   vaultPath = r.filePaths[0];
-  saveVaultPath();
+  saveSettings();
   return r.filePaths[0];
 });
 
@@ -268,16 +308,36 @@ ipcMain.handle('vault:saveFileAs', async (_e, suggestedName) => {
 // Write an exported plaintext copy (explicit user action only).
 ipcMain.handle('vault:writeFile', async (_e, filePath, bytes) => {
   if (filePath !== lastExportDst) throw new Error('forbidden path');
-  await fsp.writeFile(filePath, Buffer.from(bytes));
+  await fsp.writeFile(filePath, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
   return true;
 });
 
 // Read a whole file as bytes.
+ipcMain.handle('vault:openIndexed', async (_e, filePath) => {
+  if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');
+  return vaultStore.open(filePath);
+});
+ipcMain.handle('vault:readRecordChunk', async (_e, token, id, offset, length) => {
+  if (!samePath(vaultStore.path(token), vaultPath)) throw new Error('forbidden path');
+  return vaultStore.read(token, id, offset, length);
+});
+ipcMain.handle('vault:saveIndexed', async (_e, token, manifest, records) => {
+  if (!samePath(vaultStore.path(token), vaultPath)) throw new Error('forbidden path');
+  return vaultStore.save(token, manifest, records);
+});
+ipcMain.handle('vault:importFileSize', async (_e, filePath) => {
+  if (!allowedImportPaths.has(path.normalize(filePath))) throw new Error('forbidden path');
+  const stat = await fsp.stat(filePath);
+  if (!stat.isFile()) throw new Error('not a file');
+  return stat.size;
+});
 ipcMain.handle('vault:readFile', async (_e, filePath) => {
   const norm = path.normalize(filePath);
   if (samePath(filePath, vaultPath) || allowedImportPaths.has(norm)) {
+    const stat = await fsp.stat(filePath);
+    if (stat.size > 2 ** 31 - 1) throw new Error('VAULT_TOO_LARGE: file exceeds the current 2 GiB reader limit');
     const buf = await fsp.readFile(filePath);
-    return new Uint8Array(buf);
+    return buf;
   }
   throw new Error('forbidden path');
 });
@@ -289,7 +349,7 @@ ipcMain.handle('vault:readFile', async (_e, filePath) => {
 ipcMain.handle('vault:writeFileAtomic', async (_e, filePath, bytes) => {
   if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');
   const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  const buf = Buffer.from(bytes);
+  const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   await fsp.writeFile(tmp, buf);
   try {
     await fsp.rename(tmp, filePath);
@@ -345,11 +405,6 @@ function loadBgPath() {
     if (typeof s.bgFile === 'string' && s.bgFile) bgFilePath = s.bgFile;
   } catch (e) { /* first run — no settings yet */ }
 }
-function saveBgPath() {
-  try {
-    fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ vaultPath, bgFile: bgFilePath }));
-  } catch (e) { /* best-effort — never fatal */ }
-}
 
 // Pick an image or video to use as the lock-screen background. Copies it into
 // userData/background so the vault stays self-contained; returns the kind
@@ -373,7 +428,7 @@ ipcMain.handle('vault:pickBackground', async () => {
     const dst = path.join(BG_DIR(), `bg${ext}`);
     await fsp.copyFile(src, dst);
     bgFilePath = dst;
-    saveBgPath();
+    saveSettings();
     return kind;
   } catch (e) {
     return null;
@@ -383,7 +438,7 @@ ipcMain.handle('vault:pickBackground', async () => {
 // Remove the custom background (fall back to the animated ones).
 ipcMain.handle('vault:clearBackground', () => {
   bgFilePath = null;
-  saveBgPath();
+  saveSettings();
   return true;
 });
 
@@ -463,4 +518,8 @@ ipcMain.handle('vault:deleteOriginals', async (_e, paths) => {
   return results;
 });
 
-loadBgPath();
+ipcMain.handle('vault:writeManifestAtomic', async (_e, filePath, manifest) => {
+  if (!samePath(filePath, vaultPath)) throw new Error('forbidden path');
+  await writeManifestAtomic(filePath, manifest);
+  return true;
+});

@@ -101,17 +101,18 @@
       </div>
       <form id="unlockForm" class="vault-form" autocomplete="off">
         <input type="password" id="unlockPass" class="vault-input" placeholder="enter your passphrase" autocomplete="current-password" required>
-        <p class="vault-error" id="unlockErr"></p>
+        <p class="vault-error" id="unlockErr" role="alert"></p>
         <button type="submit" class="add-btn vault-btn" id="unlockBtn">unlock</button>
       </form>
       <button class="link" id="seedRecoveryLink">forgot your passphrase?</button>
       <form id="seedRecoveryForm" class="vault-form hidden" autocomplete="off">
         <p class="vault-sub">your recovery words, in order</p>
         <textarea id="seedRecoveryInput" rows="3" class="vault-input vault-seed-input" placeholder="word word word …"></textarea>
-        <p class="vault-error" id="seedRecoveryErr"></p>
+        <p class="vault-error" id="seedRecoveryErr" role="alert"></p>
         <button type="submit" class="add-btn vault-btn">unlock with my words</button>
         <button type="button" class="add-btn ghost vault-btn" id="seedRecoveryCancel">back</button>
       </form>
+      <p id="unlockStatus" class="vault-unlock-status" role="status" aria-live="polite" aria-atomic="true"></p>
       <p class="vault-fileline" id="lockedPathLine"></p>
     </div>
   </section>

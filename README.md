@@ -11,7 +11,7 @@ One encrypted file holds everything — photos, videos, documents, PDFs, encrypt
 
 <br/>
 
-![Status](https://img.shields.io/badge/Status-Stable-107c41?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-V2%20in%20testing-d99b26?style=for-the-badge)
 ![Offline](https://img.shields.io/badge/Offline-No%20network-107c41?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078d4?style=for-the-badge&logo=windows&logoColor=white)
 ![Tauri](https://img.shields.io/badge/Tauri-v2%20(Rust)-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
@@ -53,6 +53,24 @@ git clone https://github.com/FYI88/my-vault.git
 cd my-vault/pcvault
 npm ci && npm start
 ```
+
+To try the current fixes, run `git switch updatingtoV2` from the cloned repository before starting the app. Fully quit an older running instance first.
+
+## V2 Reliability & Performance Updates
+
+- Saves run in order, preventing older writes from overwriting newer changes.
+- Locking invalidates unfinished viewer/decryption work, including after a quick unlock.
+- File navigation excludes secrets, journal entries, and life records. Newly imported filenames are immediately searchable.
+- Full-size viewer media is released on navigation/close; grid and gallery share a two-job thumbnail limit.
+- Electron clears copied secrets after 30 seconds, on lock, or on normal quit when clipboard text still matches. Different newer text is preserved; OS clipboard history is not erased.
+- Background preferences survive changes to the selected vault path.
+- Electron unlock persists the integrity-check cursor through a streamed atomic copy instead of sending another complete vault buffer through the renderer/IPC. Password derivation and integrity sampling are unchanged.
+
+**Validation:** 67 automated tests pass. Renderer/main-process tests use simulated DOM, crypto delays, and Electron APIs; they do not replace live desktop testing. The reported large-vault unlock freeze has not yet been confirmed resolved in the running app.
+
+**Large-vault limits:** opening a vault and ordinary data saves still buffer the whole file. Streamed unlock still copies the whole file on disk and needs room for a temporary copy. Large integrity-check samples can also use substantial memory. A 256 MiB synthetic streamed-write check took about 1 second with roughly 38 MiB extra process memory on the development machine; this is not an end-to-end unlock benchmark.
+
+**Shell support:** these new clipboard and streamed-unlock handlers are Electron-specific. Tauri retains the full-save fallback and does not yet provide the new clipboard handlers; shared UI fixes apply to both shells.
 
 ---
 
@@ -117,15 +135,15 @@ DEK (Data Encryption Key)
 ```
 
 - **Non-extractable WebCrypto keys**: All keys are held in `SubtleCrypto` memory contexts and never exposed to JavaScript scope or disk.
-- **Tamper Detection**: Deterministic round-robin sample check on unlock. Any byte flip prevents vault decryption.
-- **Zero Disk Leakage**: Files are decrypted on-the-fly into Blob URLs and revoked immediately upon navigation or lock.
+- **Tamper Detection**: Deterministic round-robin sampling checks up to three records on unlock; it is not a complete vault scan on every unlock.
+- **In-memory previews**: Full-size viewer Blob URLs are revoked on navigation/close or lock; thumbnail URLs remain in memory until lock.
 - **Cryptographic Deletion**: Deleting a record destroys its unique AES key.
 
 ---
 
 ## Desktop Runtime Comparison
 
-The vault ships with **two interchangeable desktop backends** using the exact same HTML5/CSS3/JS renderer and crypto engine (`src/`).
+The vault includes two desktop backends sharing the renderer and crypto engine (`src/`). Feature parity is incomplete; see the V2 shell-support note above. The figures below are historical measurements, not current large-vault benchmarks.
 
 | Benchmark Metric | **Electron 43 Shell** | **Tauri v2 (Rust) Shell** |
 |------------------|----------------------|---------------------------|
@@ -174,7 +192,7 @@ npx tauri build
 ### 5. Test Suite Verification
 ```bash
 npm test
-# → 41/41 test suite passing (18 WebCrypto + 9 Container + 14 Journal tests)
+# → 67 tests: 41 crypto/container/journal + 26 regression checks
 ```
 
 ---
@@ -185,6 +203,7 @@ npm test
 pcvault/
 ├── main.js                  # Electron main process (secure app:// protocol, trusted IPC)
 ├── preload.js               # Electron contextBridge (window.vaultAPI)
+├── vault-header.js          # Atomic streamed manifest replacement
 ├── HANDOFF-FABLE.md         # UI handoff notes for contributors
 ├── server.mjs               # Dev server with CSP & security headers
 ├── package.json             # Build targets & scripts
@@ -193,6 +212,8 @@ pcvault/
 │   ├── index.html           # Core HTML layout & viewer stage (shared by both shells)
 │   ├── styles.css           # Design tokens, media viewer HUD, & theme styling
 │   ├── renderer.js          # Main application lifecycle, viewer HUD, & event wiring
+│   ├── save-writer.mjs       # Ordered save queue
+│   ├── thumbnail-queue.mjs   # Shared thumbnail concurrency budget
 │   ├── vault-crypto.mjs     # WebCrypto engine (PBKDF2, AES-GCM, BIP-39)
 │   ├── container.mjs        # .cvault container format encoder/decoder
 │   ├── journal.mjs          # Encrypted daily journal & streak manager

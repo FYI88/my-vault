@@ -8,6 +8,11 @@ import {
   vaultWipeRaw, vaultRandId,
 } from './vault-crypto.mjs';
 import { serializeVault, parseVault } from './container.mjs';
+import { createSaveWriter } from './save-writer.mjs';
+import { createThumbnailQueue } from './thumbnail-queue.mjs';
+import { readRecordBytes, checkIndexedIntegrity } from './record-access.mjs';
+import { verifyRecordInWorker } from './integrity-client.mjs';
+import { MAX_VAULT_BYTES, WARN_VAULT_BYTES, vaultByteLength, importFits } from './vault-limits.mjs';
 import { initWormhole } from './wormhole.mjs';
 import { initParticles } from './particles.mjs';
 import { createPhantomGallery } from './phantom-gallery.mjs';
@@ -52,6 +57,9 @@ const state = {
   dek: null,         // non-extractable CryptoKey — dropped on lock
   items: [],         // records; photo bytes are ciphertext, safe to hold
   unlocked: false,
+  loading: false,
+  storeToken: null,   // metadata-only Electron file session; no whole-file payload
+  sessionId: 0,      // invalidates async plaintext work across lock/load/unlock
   urls: new Set(),     // object URLs to revoke on lock
   thumbCache: new Map(), // id → thumbnail object URL — re-render after a reorder stays instant
   nameCache: new Map(),  // id → decrypted file name (search index) — plaintext, wiped on lock
@@ -79,9 +87,11 @@ const state = {
 };
 let currentItemId = null;
 let currentItemKind = null; // 'photo' | 'video' | 'doc' — which view the overlay shows
+let integrityAbort = null;
 let toastTimer = null;
 let editingSecretId = null; // null = new secret, else id of secret being edited
-let clipboardClearTimer = null;
+
+function sessionActive(id) { return state.unlocked && state.sessionId === id; }
 
 // ---- immersive viewer (full-bleed stage + floating chrome) ----
 let viewerZoom = 1;          // photo zoom factor (1 = fit)
@@ -128,10 +138,11 @@ function setViewerZoom(zoom, oxPct, oyPct) {
 }
 
 function viewerNav(delta) {
-  if (!state.unlocked || !currentItemId || !state.items.length) return;
-  const idx = state.items.findIndex((r) => r.id === currentItemId);
+  if (!state.unlocked || !currentItemId) return;
+  const files = vaultItems();
+  const idx = files.findIndex((r) => r.id === currentItemId);
   if (idx === -1) return;
-  const next = state.items[(idx + delta + state.items.length) % state.items.length];
+  const next = files[(idx + delta + files.length) % files.length];
   openItem(next.id, delta > 0 ? 'next' : 'prev');
 }
 
@@ -191,9 +202,18 @@ function showOverlay(id, visible) {
   $(id).classList.toggle('hidden', !visible);
 }
 let overlayClosing = false;
+let viewerUrl = null;
+function releaseViewerUrl() {
+  if (!viewerUrl) return;
+  URL.revokeObjectURL(viewerUrl);
+  state.urls.delete(viewerUrl);
+  viewerUrl = null;
+}
 function closeItemOverlay() {
   const ov = $('itemOverlay');
   if (ov.classList.contains('hidden') || overlayClosing) return;
+  currentItemId = null; // invalidate pending viewer work before the exit animation
+  viewerSeq++;
   const finish = () => {
     overlayClosing = false;
     ov.classList.remove('closing');
@@ -203,6 +223,8 @@ function closeItemOverlay() {
     closePdf();
     const video = $('itemVideo');
     video.pause(); video.removeAttribute('src'); video.load();
+    $('itemImg').removeAttribute('src');
+    releaseViewerUrl();
     setHidden('itemVideo', true);
     setHidden('itemImg', true);
     setHidden('itemDocInfo', true);
@@ -449,16 +471,85 @@ function isHelpOpen() {
 }
 
 // ---- vault file ----
+const writeVault = createSaveWriter(
+  async (path, snapshot) => {
+    if (snapshot.token) return window.vaultAPI.saveIndexed(snapshot.token, snapshot.manifest, snapshot.records);
+    if (snapshot.manifest) return window.vaultAPI.writeManifestAtomic(path, snapshot.manifest);
+    await window.vaultAPI.writeFileAtomic(path, snapshot.bytes);
+    // Creation uses the tiny empty-file path once, then adopts indexed I/O.
+    if (window.vaultAPI.openIndexed) return window.vaultAPI.openIndexed(path);
+  },
+  () => toast("couldn't save the vault. changes are not saved; try again before closing."),
+);
 async function saveVault() {
   if (!state.path || !state.manifest) return;
+  const path = state.path;
+  const token = state.storeToken;
+  if (token) {
+    const items = state.items.slice();
+    const manifest = JSON.parse(JSON.stringify(state.manifest));
+    const records = items.map(({ photo, ...metadata }) => ({ metadata: JSON.parse(JSON.stringify(metadata)),
+      ...(photo !== undefined ? { photo } : {}) }));
+    const result = await writeVault(path, { token, manifest, records });
+    if (state.path === path && state.storeToken === token) {
+      // Queued snapshots hold their own references. Drop only the exact payload
+      // that this save committed; unsaved replacement records remain intact.
+      items.forEach((record, i) => { if (record.photo === records[i].photo) delete record.photo; });
+    }
+    return result;
+  }
+  // Capture both together: a queued save must never read another vault's state.
   const bytes = serializeVault(state.manifest, state.items);
-  await window.vaultAPI.writeFileAtomic(state.path, bytes);
+  const result = await writeVault(path, { bytes });
+  if (result?.token && state.path === path && !state.storeToken) state.storeToken = result.token;
+  return result;
+}
+
+function saveManifest() {
+  if (state.storeToken) return saveVault();
+  // Older bridges retain the compatible full-save path.
+  if (!window.vaultAPI.writeManifestAtomic) return saveVault();
+  return writeVault(state.path, { manifest: JSON.parse(JSON.stringify(state.manifest)) });
+}
+
+async function recordBytes(rec, valid = () => true, forceDisk = false) {
+  if (!state.storeToken || (!forceDisk && rec.photo !== undefined)) return rec.photo;
+  const token = state.storeToken;
+  const session = state.sessionId;
+  return readRecordBytes(rec,
+    (offset, length) => window.vaultAPI.readRecordChunk(token, rec.id, offset, length),
+    () => session === state.sessionId && token === state.storeToken && valid());
+}
+
+function decryptRecord(itemKey, rec, valid = () => true) {
+  return recordBytes(rec, valid).then((bytes) => {
+    if (!valid()) throw new Error('vault session ended');
+    return decBytes(itemKey, rec.photoIv, bytes);
+  });
 }
 
 async function tryLoad(path, silent) {
+  lock(); // discard the previous session before reading a different vault
+  const session = state.sessionId;
+  state.path = null;
+  state.manifest = null;
+  state.items = [];
+  state.storeToken = null;
+  state.loading = true;
+  $('unlockBtn').disabled = true;
+  $('unlockStatus').textContent = 'loading your vault…';
   try {
-    const bytes = await window.vaultAPI.readFile(path);
-    const parsed = parseVault(bytes);
+    let parsed;
+    let byteLength;
+    if (window.vaultAPI.openIndexed) {
+      parsed = await window.vaultAPI.openIndexed(path);
+      byteLength = parsed.byteLength;
+    } else {
+      const bytes = await window.vaultAPI.readFile(path);
+      byteLength = bytes.byteLength;
+      parsed = parseVault(bytes);
+    }
+    if (session !== state.sessionId) return false;
     if (!parsed) {
       if (!silent) toast('that file does not look like a vault');
       return false;
@@ -466,6 +557,8 @@ async function tryLoad(path, silent) {
     state.path = path;
     state.manifest = parsed.manifest;
     state.items = parsed.items;
+    state.storeToken = parsed.token || null;
+    if (byteLength >= WARN_VAULT_BYTES) toast('vault nearly full. keep a backup; large imports may be refused.');
     refreshPathLines();
     setHidden('tamperWarn', true);
     $('unlockPass').value = '';
@@ -473,12 +566,23 @@ async function tryLoad(path, silent) {
     resetIdle();
     return true;
   } catch (err) {
+    if (session !== state.sessionId) return false;
+    if (/VAULT_TOO_LARGE|ERR_FS_FILE_TOO_LARGE|greater than 2 GiB/.test(String(err))) {
+      toast('this vault exceeds the current size limit. the file and its saved location have been kept.');
+      return false;
+    }
     if (silent) {
       await window.vaultAPI.forgetPath(); // stale bookmark — the file moved or died
     } else {
       toast("couldn't open that file");
     }
     return false;
+  } finally {
+    if (session === state.sessionId) {
+      state.loading = false;
+      $('unlockBtn').disabled = false;
+      $('unlockStatus').textContent = '';
+    }
   }
 }
 
@@ -514,6 +618,7 @@ async function handleCreate(e) {
     state.manifest = manifest;
     state.path = path;
     state.items = [];
+    state.storeToken = null;
     state.pendingDek = dek;
     await saveVault(); // the empty encrypted vault file exists on disk
     refreshPathLines();
@@ -544,6 +649,7 @@ function showSeed(phrase, rotating) {
 }
 
 async function handleSeedDone() {
+  const session = state.sessionId;
   if (state.rotatePhrase) {
     if (state.rotateStaged) state.manifest = state.rotateStaged.manifest;
     state.rotateStaged = null;
@@ -560,22 +666,45 @@ async function handleSeedDone() {
   }
   state.unlocked = true;
   await unlockBeat();
+  if (!sessionActive(session)) return;
   renderGrid();
   show('unlocked');
   resetIdle();
 }
 
 // ---- unlock ----
-async function enterWithDek(dek) {
+async function enterWithDek(dek, session = state.sessionId, stage = async () => {}) {
+  if (session !== state.sessionId) return;
   // First unlock: fold the machine-local gallery pick into the vault file so it
   // travels with the .cvault from now on.
-  if (adoptGalleryStyleIntoFile()) await saveVault();
+  adoptGalleryStyleIntoFile();
+  if (session !== state.sessionId) return;
   // Migrate any legacy localStorage life DOB into the encrypted record once.
   // Needs DEK first, so set a temp unlock flag for the encrypt path.
   state.dek = dek;
-  try { await adoptLifeFromLocalStorage(); } catch {}
+  let migratedLife = false;
+  try { migratedLife = await adoptLifeFromLocalStorage(); } catch {}
+  if (session !== state.sessionId) return;
   state.dek = null;
-  const r = await tamperSample(state.manifest, dek, state.items);
+  await stage('checking vault integrity…');
+  if (session !== state.sessionId) return;
+  let r;
+  if (state.storeToken && typeof Worker === 'function') {
+    const controller = new AbortController();
+    integrityAbort = controller;
+    const token = state.storeToken;
+    const valid = () => session === state.sessionId && token === state.storeToken;
+    try {
+      r = await checkIndexedIntegrity(state.manifest, dek, state.items, (rec) => recordBytes(rec), valid,
+        (rec) => verifyRecordInWorker(dek, rec,
+          (offset, length) => window.vaultAPI.readRecordChunk(token, rec.id, offset, length), valid, controller.signal));
+    } finally { if (integrityAbort === controller) integrityAbort = null; }
+  } else {
+    r = state.storeToken
+      ? await checkIndexedIntegrity(state.manifest, dek, state.items, (rec) => recordBytes(rec), () => session === state.sessionId)
+      : await tamperSample(state.manifest, dek, state.items);
+  }
+  if (session !== state.sessionId) return;
   if (r.tampered) {
     setHidden('tamperWarn', false);
     $('unlockPass').value = '';
@@ -583,60 +712,135 @@ async function enterWithDek(dek) {
     return;
   }
   state.manifest.tamperIdx = r.tamperIdx;
-  state.dek = dek;
-  state.unlocked = true;
   setHidden('tamperWarn', true);
   $('unlockPass').value = '';
-  await saveVault(); // persist the tamper cursor
+  // Persist the integrity cursor without copying gigabytes through the UI/IPC.
+  // A legacy life migration adds a record, so it still requires a full save.
+  await stage('saving vault state…');
+  if (session !== state.sessionId) return;
+  if (migratedLife) await saveVault();
+  else await saveManifest();
+  if (session !== state.sessionId) return;
+  state.dek = dek;
+  state.unlocked = true;
+  await stage('opening your vault…');
+  if (!sessionActive(session)) return;
   await unlockBeat();
+  if (!sessionActive(session)) return;
   renderGrid();
-  show('unlocked');
+  await show('unlocked');
   resetIdle();
 }
 
 let authBusy = false;
-async function handleUnlock(e) {
-  e.preventDefault();
-  if (authBusy) return;
+let authRequest = null;
+function resetAuthStatus() {
+  const request = authRequest;
+  authRequest = null;
+  authBusy = false;
+  if ($('unlockStatus')) $('unlockStatus').textContent = '';
+  if (request) {
+    request.form.setAttribute('aria-busy', 'false');
+    setBusy(request.btn, false);
+    request.input.readOnly = false;
+  }
+}
+function beginAuth(form, input, btn) {
+  const request = { form, input, btn, session: state.sessionId };
+  authRequest = request;
   authBusy = true;
+  form.setAttribute('aria-busy', 'true');
+  setBusy(btn, true);
+  input.readOnly = true;
+  return request;
+}
+function authCurrent(request) {
+  return authRequest === request && request.session === state.sessionId;
+}
+async function authStage(request, text) {
+  if (!authCurrent(request)) return;
+  $('unlockStatus').textContent = text;
+  // Yield for paint when visible, but never depend on animation frames: Windows
+  // suspends them for minimized/occluded windows. The timer is a fallback only.
+  await new Promise((resolve) => {
+    let frame;
+    let timer;
+    const done = () => {
+      clearTimeout(timer);
+      if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
+      resolve();
+    };
+    timer = setTimeout(done, 100);
+    frame = requestAnimationFrame(() => { frame = requestAnimationFrame(done); });
+  });
+}
+async function handleUnlock(e) {
+  const session = state.sessionId;
+  e.preventDefault();
+  if (authBusy || state.loading || !state.manifest) return;
   setErr('unlockErr', '');
   const inp = $('unlockPass');
-  setBusy($('unlockBtn'), true); inp.readOnly = true;
+  const request = beginAuth($('unlockForm'), inp, $('unlockBtn'));
   try {
+    await authStage(request, 'checking password…');
+    if (!authCurrent(request)) return;
     const raw = await unlockWithPass(state.manifest, inp.value);
+    if (!authCurrent(request)) { vaultWipeRaw(raw); return; }
     if (!raw) { setErr('unlockErr', 'wrong passphrase'); shake(inp); inp.select(); return; }
     const dek = await vaultImportAESKey(raw);
     vaultWipeRaw(raw);
-    await enterWithDek(dek);
+    await enterWithDek(dek, session, (text) => authStage(request, text));
+  } catch (err) {
+    if (authCurrent(request)) {
+      state.dek = null; state.unlocked = false;
+      setErr('unlockErr', "couldn't open the vault. check disk space and file access, then try again.");
+    }
   } finally {
-    setBusy($('unlockBtn'), false); inp.readOnly = false; authBusy = false;
+    if (authCurrent(request)) resetAuthStatus();
   }
 }
 
 async function handleSeedRecovery(e) {
+  const session = state.sessionId;
   e.preventDefault();
-  if (authBusy) return;
-  authBusy = true;
+  if (authBusy || state.loading || !state.manifest) return;
   setErr('seedRecoveryErr', '');
   const inp = $('seedRecoveryInput');
   const btn = e.target.querySelector('button[type="submit"]');
-  setBusy(btn, true); inp.readOnly = true;
+  const request = beginAuth($('seedRecoveryForm'), inp, btn);
   try {
+    await authStage(request, 'checking recovery words…');
+    if (!authCurrent(request)) return;
     const raw = await unlockWithSeed(state.manifest, inp.value.trim());
+    if (!authCurrent(request)) { vaultWipeRaw(raw); return; }
     if (!raw) { setErr('seedRecoveryErr', "those words don't unlock this vault"); shake(inp); return; }
     const dek = await vaultImportAESKey(raw);
     vaultWipeRaw(raw);
     inp.value = '';
-    setHidden('seedRecoveryForm', true);
-    setHidden('seedRecoveryLink', false);
-    await enterWithDek(dek);
+    await enterWithDek(dek, session, (text) => authStage(request, text));
+    if (authCurrent(request) && state.unlocked) {
+      setHidden('seedRecoveryForm', true);
+      setHidden('seedRecoveryLink', false);
+    }
+  } catch (err) {
+    if (authCurrent(request)) {
+      state.dek = null; state.unlocked = false;
+      setErr('seedRecoveryErr', "couldn't open the vault. check disk space and file access, then try again.");
+    }
   } finally {
-    setBusy(btn, false); inp.readOnly = false; authBusy = false;
+    if (authCurrent(request)) resetAuthStatus();
   }
 }
 
 // ---- lock ----
 function lock() {
+  if (integrityAbort) { integrityAbort.abort(); integrityAbort = null; }
+  resetAuthStatus();
+  state.loading = false;
+  $('unlockBtn').disabled = false;
+  state.sessionId++;
+  viewerSeq++;
+  galleryHydrateSeq++;
   state.dek = null;
   state.unlocked = false;
   state.pendingDek = null;
@@ -646,6 +850,7 @@ function lock() {
   currentItemKind = null;
   state.urls.forEach((u) => URL.revokeObjectURL(u));
   state.urls.clear();
+  viewerUrl = null;
   state.thumbCache.clear();
   state.nameCache.clear();
   state.namesReady = null;
@@ -655,6 +860,11 @@ function lock() {
   journalEditKey = null;
   state.journalTab = false;
   if ($('journalEntry')) $('journalEntry').value = '';
+  if ($('journalOnThisDayText')) $('journalOnThisDayText').textContent = '';
+  if ($('seedGrid')) $('seedGrid').textContent = '';
+  for (const id of ['lsLived', 'lsLeft', 'lsTotal', 'lsTotalLabel', 'lsAge', 'lsPct', 'lsBday', 'lsEnds']) {
+    if ($(id)) $(id).textContent = '';
+  }
   // secrets — wipe plaintext like journal
   state.secretsCache.clear();
   state.secretsQuery = '';
@@ -674,8 +884,7 @@ function lock() {
   const jList = $('journalEntryList');
   if (jList) jList.textContent = '';
   if ($('seedRecoveryInput')) $('seedRecoveryInput').value = '';
-  clearTimeout(clipboardClearTimer);
-  clipboardClearTimer = null;
+  if (window.vaultAPI?.clearCopiedSecret) window.vaultAPI.clearCopiedSecret().catch(() => {});
   // life — wipe DOB plaintext, close sub-page, clear inputs (never localStorage)
   state.lifeCache = null;
   state.lifeOpen = false;
@@ -850,35 +1059,55 @@ async function addFilesViaDialog() {
   const files = [];
   const srcPaths = [];
   let unreadable = 0;
+  let refused = 0;
+  let projected = vaultByteLength(state.manifest, state.items);
   for (const p of paths) {
     try {
-      const bytes = new Uint8Array(await window.vaultAPI.readFile(p));
       const name = String(p).split(/[\\/]/).pop() || String(p);
+      if (!window.vaultAPI.importFileSize) {
+        refused++;
+        continue; // cannot safely preflight an older bridge
+      }
+      const size = await window.vaultAPI.importFileSize(p);
+      if (!importFits(projected, size, name)) { refused++; continue; }
+      const bytes = new Uint8Array(await window.vaultAPI.readFile(p));
+      if (!importFits(projected, bytes.length, name)) { refused++; continue; }
       files.push(new File([bytes], name, { type: mimeFromName(name) }));
       srcPaths.push(p);
+      projected += bytes.length + new TextEncoder().encode(name).length * 4 + 4096;
     } catch {
       unreadable++;
     }
   }
-  if (!files.length) { if (unreadable) toast("couldn't read those files"); return; }
+  if (!files.length) {
+    if (refused) toast('import refused: vault size limit or import size check unavailable. originals kept.');
+    else if (unreadable) toast("couldn't read those files");
+    return;
+  }
   await handleFiles(files, srcPaths);
   if (unreadable) toast(`${unreadable} couldn't be read`);
+  if (refused) toast(`${refused} skipped by the vault size guard. originals kept.`);
 }
 
 async function handleFiles(files, srcPaths) {
+  const session = state.sessionId;
   if (!state.unlocked || !files.length) return;
   let added = 0;
   let skipped = 0;    // could not be read
   let skippedBig = 0; // over the size guard
+  let skippedCapacity = 0;
+  let currentBytes = vaultByteLength(state.manifest, state.items);
   const imported = []; // { id, path, name } — source paths for the originals offer (dialog flow only)
   let idx = 0;
   for (const file of files) {
+    if (!sessionActive(session)) return;
     const srcPath = (srcPaths && srcPaths[idx]) || file.path;
     idx++;
     if (file.size > MAX_IMPORT_BYTES) {
       skippedBig++;
       continue;
     }
+    if (!importFits(currentBytes, file.size, file.name)) { skippedCapacity++; continue; }
     try {
       const mime = file.type || mimeFromName(file.name);
       if (mime.startsWith('image/')) {
@@ -886,14 +1115,24 @@ async function handleFiles(files, srcPaths) {
         const stripped = await stripExif(file);
         const bytes = new Uint8Array(await stripped.arrayBuffer());
         const rec = await encryptFile('photo', 'image/jpeg', file.name, bytes);
+        if (!sessionActive(session)) return;
+        const nextBytes = vaultByteLength(state.manifest, [...state.items, rec]);
+        if (nextBytes > MAX_VAULT_BYTES) { skippedCapacity++; continue; }
+        currentBytes = nextBytes;
         state.items.push(rec); state.newIds.add(rec.id);
+        state.nameCache.set(rec.id, file.name);
         if (srcPath) imported.push({ id: rec.id, path: srcPath, name: file.name });
       } else {
         // videos + docs keep their original bytes (no transcoding, no re-encode)
         const bytes = new Uint8Array(await file.arrayBuffer());
         const kind = mime.startsWith('video/') ? 'video' : 'doc';
         const rec = await encryptFile(kind, mime, file.name, bytes);
+        if (!sessionActive(session)) return;
+        const nextBytes = vaultByteLength(state.manifest, [...state.items, rec]);
+        if (nextBytes > MAX_VAULT_BYTES) { skippedCapacity++; continue; }
+        currentBytes = nextBytes;
         state.items.push(rec); state.newIds.add(rec.id);
+        state.nameCache.set(rec.id, file.name);
         if (srcPath) imported.push({ id: rec.id, path: srcPath, name: file.name });
       }
       added++;
@@ -903,6 +1142,7 @@ async function handleFiles(files, srcPaths) {
   }
   if (added) {
     await saveVault();
+    if (!sessionActive(session)) return;
     renderGrid();
     state.pendingOriginals.push(...imported);
   }
@@ -910,6 +1150,7 @@ async function handleFiles(files, srcPaths) {
   const bits = [];
   if (added) bits.push(`${added} ${word} added to the vault`);
   if (skippedBig) bits.push(`${skippedBig} over 2 GB skipped`);
+  if (skippedCapacity) bits.push(`${skippedCapacity} skipped: vault size limit, originals kept`);
   if (skipped) bits.push(`${skipped} couldn't be read`);
   if (bits.length) toast(bits.join(', '));
   if (imported.length) {
@@ -921,16 +1162,17 @@ async function handleFiles(files, srcPaths) {
 // Returns the bad file's name, or null when all verify. Nothing is deleted
 // unless this passes — the vault must prove it holds good copies first.
 async function verifyRecordsFromDisk(files) {
+  const session = state.sessionId;
   try {
-    const bytes = await window.vaultAPI.readFile(state.path);
-    const parsed = parseVault(bytes);
+    // Indexed records read only their own committed bytes, never the whole file.
+    const parsed = state.storeToken ? { items: state.items } : parseVault(await window.vaultAPI.readFile(state.path));
     if (!parsed) return 'vault file';
     for (const f of files) {
       const rec = parsed.items.find((r) => r.id === f.id);
       if (!rec) return f.name;
       try {
         const itemKey = await unwrapItemKey(state.dek, rec);
-        const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+        const plain = await decBytes(itemKey, rec.photoIv, await recordBytes(rec, () => sessionActive(session), true));
         const ok = plain.length === rec.size;
         vaultWipeRaw(plain);
         if (!ok) return f.name;
@@ -1081,21 +1323,23 @@ function wireReorder() {
 // Decrypt every file name once (cached), then filter. Nothing is ever written to
 // disk; the cache and query are wiped on lock like every other plaintext trace.
 function ensureNames() {
+  const session = state.sessionId;
   if (!state.namesReady) {
     state.namesReady = (async () => {
-      const recs = state.items.slice();
+      const recs = vaultItems().filter((rec) => !state.nameCache.has(rec.id));
       const POOL = 6;
       let i = 0;
       const runners = Array.from({ length: Math.min(POOL, recs.length) }, async () => {
-        while (state.unlocked) {
+        while (sessionActive(session)) {
           const rec = recs[i++];
           if (!rec) return;
           try {
             const itemKey = await unwrapItemKey(state.dek, rec);
             const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });
-            if (!state.unlocked) return; // never cache a name after lock wipes the index
+            if (!sessionActive(session)) return;
             state.nameCache.set(rec.id, name);
           } catch (e) {
+            if (!sessionActive(session)) return;
             state.nameCache.set(rec.id, ''); // tampered/damaged — won't match anything
           }
         }
@@ -1148,10 +1392,12 @@ function secretRecords() {
   return state.items.filter((r) => r.kind === 'secret');
 }
 async function decryptSecret(rec) {
+  const session = state.sessionId;
+  if (!sessionActive(session)) return null;
   if (state.secretsCache.has(rec.id)) return state.secretsCache.get(rec.id);
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
-    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
     try {
       const txt = new TextDecoder().decode(plain);
       const obj = JSON.parse(txt);
@@ -1164,16 +1410,17 @@ async function decryptSecret(rec) {
         notes: String(obj.notes || ''),
         updatedAt: Number(obj.updatedAt || rec.createdAt || Date.now()),
       };
-      if (!state.unlocked) return null;
+      if (!sessionActive(session)) return null;
       state.secretsCache.set(rec.id, val);
       return val;
     } finally { vaultWipeRaw(plain); }
-  } catch { return { label: '', category: 'login', username: '', secret: '', url: '', notes: '', updatedAt: rec.createdAt }; }
+  } catch { return sessionActive(session) ? { label: '', category: 'login', username: '', secret: '', url: '', notes: '', updatedAt: rec.createdAt } : null; }
 }
 async function ensureSecretsCache() {
+  const session = state.sessionId;
   const recs = secretRecords();
   for (const r of recs) {
-    if (!state.unlocked) return;
+    if (!sessionActive(session)) return;
     if (!state.secretsCache.has(r.id)) await decryptSecret(r);
   }
 }
@@ -1193,6 +1440,7 @@ function secretsCategoryChoice() {
   return on ? on.dataset.cat : 'login';
 }
 async function saveSecret() {
+  const session = state.sessionId;
   if (!state.unlocked || !state.dek) return;
   const label = ($('secretsLabel').value || '').trim();
   const category = secretsCategoryChoice();
@@ -1205,7 +1453,7 @@ async function saveSecret() {
   const payload = JSON.stringify({ label, category, username, secret, url, notes, updatedAt: Date.now() });
   const bytes = new TextEncoder().encode(payload);
   const rec = await encryptFile('secret', SECRET_MIME, label, bytes);
-  if (!state.unlocked || !state.dek) return; // locked mid-encrypt — never write post-lock
+  if (!sessionActive(session) || !state.dek) return;
   if (editingSecretId) {
     // replace existing record — only now that the replacement exists
     state.items = state.items.filter((r) => r.id !== editingSecretId);
@@ -1216,6 +1464,7 @@ async function saveSecret() {
   state.items.push(rec);
   state.secretsCache.set(rec.id, { label, category, username, secret, url, notes, updatedAt: Date.now() });
   await saveVault();
+  if (!sessionActive(session)) return;
   clearSecretsForm();
   await renderSecrets();
   toast(editingSecretId ? 'secret updated' : 'secret saved');
@@ -1230,22 +1479,16 @@ async function deleteSecret(id) {
 }
 function copyWithClear(text, label) {
   if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
-    toast(label + ' copied — clears in 30s');
-    clearTimeout(clipboardClearTimer);
-    clipboardClearTimer = setTimeout(() => {
-      // best-effort clear: write empty if still our value
-      navigator.clipboard.writeText('').catch(() => {});
-      toast('clipboard cleared');
-    }, 30000);
+  if (!window.vaultAPI?.copySecret) { toast('copy is only available in the desktop app'); return; }
+  window.vaultAPI.copySecret(text).then(() => {
+    toast(label + ' copied — paste clears in 30s; Windows history may retain it');
   }).catch(() => toast("couldn't copy"));
 }
 async function renderSecrets() {
+  const session = state.sessionId;
   if (!state.unlocked) return;
   await ensureSecretsCache();
-  if (!state.unlocked || !state.secretsTab && !$('secretsPane')?.classList.contains('hidden') === false) {
-    // allow render even if tab not active when called after save, but respect lock
-  }
+  if (!sessionActive(session)) return;
   const list = $('secretsList');
   const countEl = $('secretsEntryCount');
   const count2 = $('secretsCount');
@@ -1257,6 +1500,7 @@ async function renderSecrets() {
   const rows = [];
   for (const r of recs) {
     const v = await decryptSecret(r);
+    if (!sessionActive(session)) return;
     if (!v) continue;
     if (cat !== 'all' && v.category !== cat) continue;
     if (q) {
@@ -1351,12 +1595,14 @@ function lifeRecord() {
   return state.items.find((r) => r.kind === 'life');
 }
 async function getLifeData() {
+  const session = state.sessionId;
+  if (!sessionActive(session)) return null;
   if (state.lifeCache) return state.lifeCache;
   const rec = lifeRecord();
   if (!rec) return null;
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
-    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
     try {
       const obj = JSON.parse(new TextDecoder().decode(plain));
       const dob = String(obj.dob || '');
@@ -1364,13 +1610,14 @@ async function getLifeData() {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
       if (!Number.isFinite(exp)) exp = 90;
       exp = Math.max(1, Math.min(130, exp));
-      if (!state.unlocked) return null;
+      if (!sessionActive(session)) return null;
       state.lifeCache = { dob, expectancy: exp };
       return state.lifeCache;
     } finally { vaultWipeRaw(plain); }
   } catch { return null; }
 }
 async function saveLifeData(dob, expectancy) {
+  const session = state.sessionId;
   if (!state.unlocked || !state.dek) return;
   const exp = Math.max(1, Math.min(130, parseInt(expectancy, 10) || 90));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) { toast('pick a valid date of birth'); return; }
@@ -1378,7 +1625,7 @@ async function saveLifeData(dob, expectancy) {
   const bytes = new TextEncoder().encode(payload);
   if (state.lifeCache && state.lifeCache.dob === dob && state.lifeCache.expectancy === exp) return;
   const rec = await encryptFile('life', LIFE_MIME, LIFE_NAME, bytes);
-  if (!state.unlocked || !state.dek) return; // locked mid-encrypt — never write post-lock
+  if (!sessionActive(session) || !state.dek) return;
   state.items = state.items.filter((r) => r.kind !== 'life');
   rec.kind = 'life';
   state.items.push(rec);
@@ -1392,6 +1639,7 @@ async function clearLifeData() {
 }
 // One-time migration: if an old localStorage DOB exists, fold it into the vault once then delete it.
 async function adoptLifeFromLocalStorage() {
+  const session = state.sessionId;
   if (!state.manifest || lifeRecord()) return false;
   let dob = null;
   let exp = 90;
@@ -1405,6 +1653,7 @@ async function adoptLifeFromLocalStorage() {
     const payload = JSON.stringify({ dob, expectancy: exp });
     const bytes = new TextEncoder().encode(payload);
     const rec = await encryptFile('life', LIFE_MIME, LIFE_NAME, bytes);
+    if (session !== state.sessionId) return false;
     rec.kind = 'life';
     state.items.push(rec);
     state.lifeCache = { dob, expectancy: exp };
@@ -1598,7 +1847,7 @@ async function buildGalleryItems() {
     const full = state.nameCache.get(rec.id) || '';
     return {
       id: rec.id,
-      thumbUrl: state.thumbCache.get(rec.id) || '',
+      thumbUrl: state.thumbCache.get(rec.id) || (rec.kind === 'video' && !canAutoThumbnail(rec) ? VIDEO_PLACEHOLDER_URL : ''),
       name: full,
       title: shortName(full),
       kind: rec.kind,
@@ -1611,6 +1860,13 @@ let galleryHydrateSeq = 0; // stale-run guard — a reopened gallery drops the o
 const GALLERY_POOL = 5;      // parallel decrypt+thumb jobs (was: serial, one at a time)
 const GALLERY_THUMB_MAX = 320; // gallery tiles are small; the grid keeps 480
 const VIDEO_BUDGET_MS = 6000;  // per-video cap on the first pass; slow videos retry on idle
+// A preview must not decrypt hundreds of MB just because a tile is visible.
+// Full playback is still available immediately when the user opens the tile.
+const AUTO_VIDEO_THUMB_BYTES = 32 * 1024 ** 2;
+const VIDEO_PLACEHOLDER_URL = new URL('./video-placeholder.svg', import.meta.url).href;
+function canAutoThumbnail(rec) {
+  return rec.kind === 'photo' || (rec.kind === 'video' && (rec.photoLen || rec.size || 0) <= AUTO_VIDEO_THUMB_BYTES);
+}
 
 function renderGalleryProgress(done, total, phase) {
   const pill = $('galleryProgress');
@@ -1664,7 +1920,7 @@ async function populateGallery() {
   }
   // The gallery shows photos and videos only — journals, secrets, and life
   // records never reach a tile, so they no longer burn decrypt cycles here.
-  const missing = state.items.filter((r) => (r.kind === 'photo' || r.kind === 'video') && !state.thumbCache.has(r.id));
+  const missing = state.items.filter((r) => canAutoThumbnail(r) && !state.thumbCache.has(r.id));
   const photos = missing.filter((r) => r.kind === 'photo');
   const videos = missing.filter((r) => r.kind === 'video');
   const pending = new Set(missing.map((r) => r.id));
@@ -1748,6 +2004,8 @@ function journalRecordForYear(year) {
 }
 
 async function journalForYear(year) {
+  const session = state.sessionId;
+  if (!sessionActive(session)) return emptyYear(year);
   if (state.journalCache.has(year)) return state.journalCache.get(year);
   const rec = journalRecordForYear(year);
   if (!rec) {
@@ -1757,16 +2015,17 @@ async function journalForYear(year) {
   }
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
-    const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
     try {
       const blob = parseYearJSON(new TextDecoder().decode(plain));
-      if (!state.unlocked) return emptyYear(year); // locked mid-decrypt — drop it
+      if (!sessionActive(session)) return emptyYear(year);
       state.journalCache.set(year, blob);
       return blob;
     } finally {
       vaultWipeRaw(plain);
     }
   } catch (e) {
+    if (!sessionActive(session)) return emptyYear(year);
     // tampered/damaged year — surface as empty rather than crash the journal
     const empty = emptyYear(year);
     state.journalCache.set(year, empty);
@@ -1775,8 +2034,10 @@ async function journalForYear(year) {
 }
 
 async function saveJournalEntry(year, key, text, mood) {
+  const session = state.sessionId;
   if (!state.unlocked || !state.dek) return;
   const blob = await journalForYear(year);
+  if (!sessionActive(session)) return;
   if ((!text || !text.trim()) && !mood) {
     delete blob.days[key]; // empty entry → remove the day (plant uprooted)
   } else {
@@ -1787,7 +2048,7 @@ async function saveJournalEntry(year, key, text, mood) {
   // record in place, never a hole.
   const bytes = new TextEncoder().encode(serializeYear(blob));
   const rec = await encryptFile('journal', JOURNAL_MIME, String(year), bytes);
-  if (!state.unlocked || !state.dek) return; // locked mid-encrypt — never write post-lock
+  if (!sessionActive(session) || !state.dek) return;
   state.items = state.items.filter((r) => !(r.kind === 'journal' && r.year === year));
   rec.year = year;
   state.items.push(rec);
@@ -1842,10 +2103,11 @@ function setMoodSelection(mood) {
 }
 
 function openJournalDay(key) {
+  const session = state.sessionId;
   journalEditKey = key;
   const year = yearKey(key);
   journalForYear(year).then((blob) => {
-    if (!state.unlocked || journalEditKey !== key) return;
+    if (!sessionActive(session) || journalEditKey !== key) return;
     const entry = blob.days[key] || {};
     $('journalDayLabel').textContent = prettyDay(key);
     $('journalEntry').value = entry.text || '';
@@ -1951,6 +2213,7 @@ function renderEntryList(blob, matches) {
 }
 
 async function renderOnThisDay(blob, year) {
+  const session = state.sessionId;
   const txt = $('journalOnThisDayText');
   const mmdd = todayKey().slice(5); // month-day of today
   const years = new Set();
@@ -1960,6 +2223,7 @@ async function renderOnThisDay(blob, year) {
   const past = [...years].sort((a, b) => b - a);
   for (const y of past) {
     const b = await journalForYear(y);
+    if (!sessionActive(session)) return;
     const key = `${y}-${mmdd}`;
     const e = b.days[key];
     if (e && e.text) {
@@ -1977,6 +2241,7 @@ function toggleYearProgress(force) {
   if (state.lifeOpen) renderYearProgress();
 }
 async function renderYearProgress() {
+  const session = state.sessionId;
   if (!state.unlocked || !state.lifeOpen) return;
   const year = state.journalYear || yearOf(new Date());
   const yp = yearProgress(year);
@@ -1995,6 +2260,7 @@ async function renderYearProgress() {
     }
   }
   const life = await getLifeData();
+  if (!sessionActive(session)) return;
   const intro = $('lifeIntro');
   const main = $('lifeMain');
   if (!life) {
@@ -2101,11 +2367,12 @@ function drawHeroMeridian(year, yp) {
   }
 }
 async function renderJournal() {
+  const session = state.sessionId;
   if (!state.unlocked) return;
   const year = state.journalYear || yearOf(new Date());
   state.journalYear = year;
   const blob = await journalForYear(year);
-  if (!state.unlocked || state.journalYear !== year) return;
+  if (!sessionActive(session) || state.journalYear !== year) return;
   const yp = yearProgress(year);
   const btn = $('journalYearBtn');
   if (btn) {
@@ -2262,10 +2529,12 @@ function ensureIO() {
 
 let renderSeq = 0; // stale-render guard — a slow name decrypt must not overwrite a newer filter
 async function renderGrid() {
+  const session = state.sessionId;
   const seq = ++renderSeq;
   const shown = await filteredItems();
+  if (!sessionActive(session)) return;
   await ensureNames(); // captions need the decrypted file name under every cell
-  if (seq !== renderSeq || !state.unlocked) return; // stale render, or locked mid-decrypt
+  if (seq !== renderSeq || !sessionActive(session)) return;
   $('grid').querySelectorAll('.vault-photo-cell').forEach((c) => c.remove());
   const querying = !!state.searchQuery;
   setHidden('gridEmpty', querying || shown.length > 0);
@@ -2290,7 +2559,11 @@ async function renderGrid() {
       setCellMedia(media, cached, rec.kind, true);
     } else {
       media.innerHTML = `<div class="ph">${ic(icon)}</div>`;
-      if (rec.kind !== 'doc') { cell.classList.add('is-loading'); gridIO.observe(cell); }
+      if (canAutoThumbnail(rec)) { cell.classList.add('is-loading'); gridIO.observe(cell); }
+      else if (rec.kind === 'video') {
+        cell.title = 'open video to play — preview skipped to save memory';
+        media.innerHTML += `<div class="play-badge">${ic('play')}</div>`;
+      }
     }
     if (state.newIds.has(rec.id)) cell.classList.add('is-new');
     const name = state.nameCache.get(rec.id) || '';
@@ -2311,9 +2584,16 @@ async function renderGrid() {
   if (state.galleryMode && state.galleryStyle) populateGallery();
 }
 
-async function thumbUrl(rec, max = 480) {
+const queueThumbnail = createThumbnailQueue(2);
+function thumbUrl(rec, max = 480) {
+  const session = state.sessionId;
+  return queueThumbnail(() => makePhotoThumb(rec, max), () => sessionActive(session));
+}
+async function makePhotoThumb(rec, max) {
+  const session = state.sessionId;
   const itemKey = await unwrapItemKey(state.dek, rec);
-  const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+  const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
+  if (!sessionActive(session)) { vaultWipeRaw(plain); throw new Error('session ended'); }
   let blob;
   try {
     blob = new Blob([plain], { type: 'image/jpeg' }); // the Blob copies the bytes
@@ -2321,6 +2601,7 @@ async function thumbUrl(rec, max = 480) {
     vaultWipeRaw(plain);
   }
   const bmp = await createImageBitmap(blob);
+  if (!sessionActive(session)) { bmp.close(); throw new Error('session ended'); }
   const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(bmp.width * scale));
@@ -2328,23 +2609,26 @@ async function thumbUrl(rec, max = 480) {
   canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
   bmp.close();
   const thumb = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.8));
+  if (!sessionActive(session)) throw new Error('session ended');
   const url = URL.createObjectURL(thumb);
   state.urls.add(url);
   return url;
 }
 
 async function hydrateCell(cell, rec) {
+  const session = state.sessionId;
   if (!rec || cell.dataset.done) return;
   cell.dataset.done = '1';
   try {
     let url;
     if (rec.kind === 'video') url = await videoThumbUrl(rec);
     else url = await thumbUrl(rec);
-    if (!state.unlocked) return; // locked mid-decrypt — never show plaintext
+    if (!sessionActive(session)) return;
     state.thumbCache.set(rec.id, url); // re-renders reuse this — no re-decrypt
     const media = cell.querySelector('.cell-media');
     if (media) setCellMedia(media, url, rec.kind, false);
   } catch (err) {
+    if (!sessionActive(session)) return;
     const media = cell.querySelector('.cell-media');
     if (media) media.innerHTML = '<div class="ph"><span class="bad">can\'t open</span></div>';
   } finally {
@@ -2362,9 +2646,15 @@ function frameToThumb(video) {
   return new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.8));
 }
 
-async function videoThumbUrl(rec) {
+function videoThumbUrl(rec) {
+  const session = state.sessionId;
+  return queueThumbnail(() => makeVideoThumb(rec), () => sessionActive(session));
+}
+async function makeVideoThumb(rec) {
+  const session = state.sessionId;
   const itemKey = await unwrapItemKey(state.dek, rec);
-  const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+  const plain = await decryptRecord(itemKey, rec, () => sessionActive(session));
+  if (!sessionActive(session)) { vaultWipeRaw(plain); throw new Error('session ended'); }
   let blob;
   try {
     blob = new Blob([plain], { type: rec.mime || 'video/mp4' });
@@ -2378,7 +2668,8 @@ async function videoThumbUrl(rec) {
   video.muted = true;
   video.playsInline = true;
   video.src = url;
-  await new Promise((resolve, reject) => {
+  try {
+    await new Promise((resolve, reject) => {
     const to = setTimeout(() => reject(new Error('video timeout')), 15000);
     video.onloadeddata = () => {
       try { video.currentTime = Math.min(0.5, video.duration || 0.5); } catch (e) { /* seek may be async */ }
@@ -2386,12 +2677,19 @@ async function videoThumbUrl(rec) {
     video.onseeked = () => { clearTimeout(to); resolve(); };
     video.onerror = () => { clearTimeout(to); reject(new Error('video error')); };
   });
-  const thumbBlob = await frameToThumb(video);
-  video.removeAttribute('src');
-  video.load();
-  const thumbUrl = URL.createObjectURL(thumbBlob);
-  state.urls.add(thumbUrl);
-  return thumbUrl;
+    if (!sessionActive(session)) throw new Error('session ended');
+    const thumbBlob = await frameToThumb(video);
+    if (!sessionActive(session)) throw new Error('session ended');
+    const thumbUrl = URL.createObjectURL(thumbBlob);
+    state.urls.add(thumbUrl);
+    return thumbUrl;
+  } finally {
+    video.onloadeddata = video.onseeked = video.onerror = null;
+    video.removeAttribute('src');
+    video.load();
+    URL.revokeObjectURL(url);
+    state.urls.delete(url);
+  }
 }
 
 // ---- in-app doc preview: PDF via offline pdf.js (canvas), text decoded safely ----
@@ -2466,9 +2764,11 @@ async function renderPdfPage() {
 }
 
 async function openPdf(itemId, bytes) {
+  const session = state.sessionId;
+  const view = viewerSeq;
   closePdf(); // drop any previous document
   const pdfjsLib = await ensurePdfjs();
-  if (!state.unlocked || currentItemId !== itemId) return; // left the item while loading
+  if (!sessionActive(session) || view !== viewerSeq || currentItemId !== itemId) return;
   const data = new Uint8Array(bytes); // pdf.js may detach what it's handed — give it a copy
   const task = pdfjsLib.getDocument({
     data,
@@ -2477,7 +2777,7 @@ async function openPdf(itemId, bytes) {
     standardFontDataUrl: PDF_FONT_URL,
   });
   const doc = await task.promise;
-  if (!state.unlocked || currentItemId !== itemId) { task.destroy().catch(() => {}); return; }
+  if (!sessionActive(session) || view !== viewerSeq || currentItemId !== itemId) { task.destroy().catch(() => {}); return; }
   pdfTask = task;
   pdfDoc = doc;
   pdfPageCount = doc.numPages;
@@ -2524,14 +2824,19 @@ function pdfZoom(delta) {
 }
 
 // ---- item view ----
+let viewerSeq = 0;
 async function openItem(id, dir) {
   if (!state.unlocked || overlayClosing) return;
-  const rec = state.items.find((r) => r.id === id);
+  const files = vaultItems();
+  const rec = files.find((r) => r.id === id);
   if (!rec) return;
+  const session = state.sessionId;
+  const view = ++viewerSeq;
+  const alive = () => sessionActive(session) && view === viewerSeq && currentItemId === id;
   currentItemId = id;
   currentItemKind = rec.kind;
-  const viewIdx = state.items.findIndex((r) => r.id === id);
-  $('viewerCount').textContent = viewIdx === -1 ? '' : `${viewIdx + 1} of ${state.items.length}`;
+  const viewIdx = files.findIndex((r) => r.id === id);
+  $('viewerCount').textContent = `${viewIdx + 1} of ${files.length}`;
   setHidden('itemErr', true);
   resetViewerZoom();
   setHidden('viewerPlay', true);
@@ -2543,6 +2848,7 @@ async function openItem(id, dir) {
   video.pause();
   video.removeAttribute('src');
   video.load();
+  releaseViewerUrl();
   setHidden('itemVideo', true);
   setHidden('itemDocInfo', true);
   closePdf();
@@ -2553,7 +2859,9 @@ async function openItem(id, dir) {
   pokeChrome(); // show the chrome; it fades out after a moment of stillness
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
+    if (!alive()) return;
     const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });
+    if (!alive()) return;
     $('itemTitle').textContent = shortName(name);
     $('itemTitle').title = name; // full name on hover, always
     const metaBits = [new Date(rec.createdAt).toLocaleString()];
@@ -2561,7 +2869,8 @@ async function openItem(id, dir) {
     if (rec.kind !== 'photo' && rec.size != null) metaBits.push(fmtSize(rec.size));
     $('itemDate').textContent = metaBits.join(' · ');
     if (rec.kind === 'photo') {
-      const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+      const plain = await decryptRecord(itemKey, rec, alive);
+      if (!alive()) { vaultWipeRaw(plain); return; }
       let blob;
       try {
         blob = new Blob([plain], { type: 'image/jpeg' });
@@ -2570,13 +2879,15 @@ async function openItem(id, dir) {
       }
       const url = URL.createObjectURL(blob);
       state.urls.add(url);
+      viewerUrl = url;
       const img = $('itemImg');
       img.src = url;
       try { await img.decode(); } catch { /* still show it */ }
-      if (currentItemId !== id) return; // navigated away while decoding
+      if (!alive()) return;
       setHidden('itemImg', false);
     } else if (rec.kind === 'video') {
-      const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+      const plain = await decryptRecord(itemKey, rec, alive);
+      if (!alive()) { vaultWipeRaw(plain); return; }
       let blob;
       try {
         blob = new Blob([plain], { type: rec.mime || 'video/mp4' });
@@ -2585,12 +2896,14 @@ async function openItem(id, dir) {
       }
       const url = URL.createObjectURL(blob);
       state.urls.add(url);
+      viewerUrl = url;
       setHidden('itemVideo', false);
       $('itemVideo').src = url;
       setHidden('viewerPlay', false); // paused → the big play button sits over the frame
     } else {
       // docs: PDF and text render in-app; everything else falls back to icon + export
-      const plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+      const plain = await decryptRecord(itemKey, rec, alive);
+      if (!alive()) { vaultWipeRaw(plain); return; }
       try {
         if (rec.mime === 'application/pdf') {
           await openPdf(rec.id, plain);
@@ -2615,6 +2928,7 @@ async function openItem(id, dir) {
       }
     }
   } catch (err) {
+    if (!alive()) return;
     // tampered/damaged record — loud, with delete still armed (the repair path)
     closePdf();
     setHidden('viewerPlay', true);
@@ -2626,15 +2940,19 @@ async function openItem(id, dir) {
 // at the user's explicit request (save dialog)
 async function handleExport() {
   if (!state.unlocked || !currentItemId) return;
-  const rec = state.items.find((r) => r.id === currentItemId);
+  const rec = vaultItems().find((r) => r.id === currentItemId);
   if (!rec) return;
+  const session = state.sessionId;
+  const view = viewerSeq;
+  const alive = () => sessionActive(session) && view === viewerSeq && currentItemId === rec.id;
   let plain;
   try {
     const itemKey = await unwrapItemKey(state.dek, rec);
     const name = await decText(itemKey, { iv: rec.nameIv, data: rec.name });
-    plain = await decBytes(itemKey, rec.photoIv, rec.photo);
+    plain = await decryptRecord(itemKey, rec, alive);
+    if (!alive()) return;
     const dst = await window.vaultAPI.saveFileAs(name || 'export');
-    if (!dst) return;
+    if (!dst || !alive()) return;
     await window.vaultAPI.writeFile(dst, plain);
     toast('exported a copy');
   } catch (err) {
@@ -2646,7 +2964,7 @@ async function handleExport() {
 
 async function handleDelete() {
   const btn = $('itemDeleteBtn');
-  if (!currentItemId) return;
+  if (!state.unlocked || !vaultItems().some((r) => r.id === currentItemId)) return;
   if (btn.dataset.arm !== '1') {
     btn.dataset.arm = '1';
     btn.classList.add('armed');
@@ -2984,6 +3302,7 @@ function wire() {
     setErr('seedRecoveryErr', '');
   });
   $('seedRecoveryCancel').addEventListener('click', () => {
+    if (authBusy) lock();
     setHidden('seedRecoveryForm', true);
     setHidden('seedRecoveryLink', false);
     setErr('seedRecoveryErr', '');
