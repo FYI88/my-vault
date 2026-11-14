@@ -6,7 +6,7 @@
 
 **Windows desktop app (Electron + Tauri), built for private local-first storage.**
 
-One encrypted file holds everything — photos, videos, documents, PDFs, encrypted journals, and secrets.  
+One encrypted file holds everything : photos, videos, documents, PDFs, encrypted journals, and secrets.  
 *Nothing ever leaves your PC. No cloud. No network. Just you and your vault.*
 
 <br/>
